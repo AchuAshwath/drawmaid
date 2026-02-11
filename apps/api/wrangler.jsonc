@@ -1,0 +1,84 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+
+  // [METADATA]
+  // API worker accessed via service binding from web worker (no routes needed).
+  "name": "example-api",
+  "main": "./worker.ts",
+  "compatibility_date": "2025-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "upload_source_maps": true,
+
+  // [ENV:PRODUCTION]
+  // Command: bun wrangler deploy
+  "vars": {
+    "ENVIRONMENT": "production",
+    "APP_NAME": "Example",
+    "APP_ORIGIN": "https://example.com",
+    "ALLOWED_ORIGINS": "https://example.com",
+    "RESEND_EMAIL_FROM": "onboarding@resend.dev"
+  },
+  // prettier-ignore
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE_CACHED", "id": "your-hyperdrive-cached-id-here" },
+    { "binding": "HYPERDRIVE_DIRECT", "id": "your-hyperdrive-direct-id-here" }
+  ],
+  "kv_namespaces": [],
+
+  "env": {
+    // [ENV:DEVELOPMENT]
+    // Command: bun wrangler dev
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "development",
+        "APP_NAME": "Example",
+        "APP_ORIGIN": "http://localhost:5173",
+        "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+        "RESEND_EMAIL_FROM": "onboarding@resend.dev"
+      },
+      // prettier-ignore
+      "hyperdrive": [
+        { "binding": "HYPERDRIVE_CACHED", "id": "your-dev-hyperdrive-cached-id-here" },
+        { "binding": "HYPERDRIVE_DIRECT", "id": "your-dev-hyperdrive-direct-id-here" }
+      ],
+      "kv_namespaces": []
+    },
+
+    // [ENV:STAGING]
+    // Command: bun wrangler deploy --env staging
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "APP_NAME": "Example",
+        "APP_ORIGIN": "https://staging.example.com",
+        "ALLOWED_ORIGINS": "https://staging.example.com",
+        "RESEND_EMAIL_FROM": "onboarding@resend.dev"
+      },
+      // prettier-ignore
+      "hyperdrive": [
+        { "binding": "HYPERDRIVE_CACHED", "id": "your-staging-hyperdrive-cached-id-here" },
+        { "binding": "HYPERDRIVE_DIRECT", "id": "your-staging-hyperdrive-direct-id-here" }
+      ],
+      "kv_namespaces": []
+    },
+
+    // [ENV:PREVIEW]
+    // Command: bun wrangler deploy --env preview
+    "preview": {
+      "vars": {
+        "ENVIRONMENT": "preview",
+        "APP_NAME": "Example",
+        "APP_ORIGIN": "https://preview.example.com",
+        "ALLOWED_ORIGINS": "https://preview.example.com",
+        "RESEND_EMAIL_FROM": "onboarding@resend.dev"
+      },
+      // prettier-ignore
+      "hyperdrive": [
+        { "binding": "HYPERDRIVE_CACHED", "id": "your-preview-hyperdrive-cached-id-here" },
+        { "binding": "HYPERDRIVE_DIRECT", "id": "your-preview-hyperdrive-direct-id-here" }
+      ],
+      "kv_namespaces": []
+    }
+  }
+}

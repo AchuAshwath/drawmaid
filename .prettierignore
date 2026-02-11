@@ -1,0 +1,22 @@
+# Compiled & generated output
+/app/queries/
+/*/dist/
+/**/*.generated.ts
+/**/*.gen.ts
+
+# Cache
+/.cache
+
+# Bun and Node.js modules
+/node_modules
+/bun.lock
+
+# TypeScript
+/tsconfig.base.json
+
+# Terraform
+.terraform/
+
+# Misc
+/.husky
+*.hbs

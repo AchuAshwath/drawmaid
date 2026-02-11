@@ -1,0 +1,13 @@
+{
+  "extends": "../packages/typescript-config/node.jsonc",
+  "compilerOptions": {
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "types": ["bun", "node"]
+  },
+  "include": ["schema/**/*.ts", "*.ts", "*.json"],
+  "exclude": ["**/dist/**/*", "**/node_modules/**/*", "scripts/**/*"]
+}

@@ -1,0 +1,24 @@
+{
+  "extends": "../../packages/typescript-config/react.jsonc",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "../../.cache/tsconfig/web.tsbuildinfo",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@repo/api": ["../api"],
+      "@repo/api/*": ["../api/*"],
+      "@repo/core": ["../../packages/core"],
+      "@repo/core/*": ["../../packages/core/*"],
+      "@repo/db": ["../../db"],
+      "@repo/db/*": ["../../db/*"],
+      "@repo/ui": ["../../packages/ui"],
+      "@repo/ui/*": ["../../packages/ui/*"],
+      "@repo/ws-protocol": ["../../packages/ws-protocol"],
+      "@repo/ws-protocol/*": ["../../packages/ws-protocol/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "**/*.json", "./global.d.ts"],
+  "exclude": ["**/dist/**/*", "**/node_modules/**/*"],
+  "references": [{ "path": "../api" }, { "path": "../../packages/ui" }]
+}

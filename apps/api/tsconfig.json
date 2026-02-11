@@ -1,0 +1,15 @@
+{
+  "extends": "../../packages/typescript-config/node.jsonc",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "tsBuildInfoFile": "../../.cache/tsconfig/api.tsbuildinfo",
+    "types": ["@cloudflare/workers-types", "bun"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["**/dist/**/*", "**/node_modules/**/*"],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../db" }]
+}

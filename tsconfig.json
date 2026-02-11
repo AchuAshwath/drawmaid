@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/app" },
+    { "path": "./apps/api" },
+    { "path": "./apps/email" },
+    { "path": "./apps/web" },
+    { "path": "./db" },
+    { "path": "./packages/core" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/ws-protocol" },
+    { "path": "./scripts" }
+  ]
+}

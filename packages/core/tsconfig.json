@@ -1,0 +1,12 @@
+{
+  "extends": "../typescript-config/node.jsonc",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "rootDir": "./"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["**/node_modules/**/*", "dist"]
+}

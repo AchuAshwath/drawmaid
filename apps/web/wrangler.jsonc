@@ -1,0 +1,82 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+
+  // [METADATA]
+  // Edge router that receives all traffic and routes to api/app via service bindings.
+  "name": "example-web",
+  "main": "./worker.ts",
+  "compatibility_date": "2025-08-15",
+  "compatibility_flags": [],
+  "workers_dev": false,
+
+  // [ASSETS]
+  // Serves bundled JavaScript, CSS, images, and other static assets.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Force worker execution for "/" to enable auth-aware routing
+    // See docs/adr/001-auth-hint-cookie.md
+    "run_worker_first": ["/"]
+  },
+
+  // [SERVICE BINDINGS]
+  // Connect to other workers for dynamic routing.
+  // NOTE: services is non-inheritable — must be specified per environment.
+  // Use naming convention: <worker>-<env> (e.g., example-app-staging)
+  "services": [
+    { "binding": "APP_SERVICE", "service": "example-app" },
+    { "binding": "API_SERVICE", "service": "example-api" }
+  ],
+
+  // [ENV:PRODUCTION]
+  // Command: bun wrangler deploy
+  // prettier-ignore
+  "routes": [
+    { "pattern": "example.com/*", "zone_name": "example.com" }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  "env": {
+    // [ENV:DEVELOPMENT]
+    // Command: bun wrangler dev
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "development"
+      }
+    },
+
+    // [ENV:STAGING]
+    // Command: bun wrangler deploy --env staging
+    "staging": {
+      "services": [
+        { "binding": "APP_SERVICE", "service": "example-app-staging" },
+        { "binding": "API_SERVICE", "service": "example-api-staging" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging"
+      },
+      // prettier-ignore
+      "routes": [
+        { "pattern": "staging.example.com/*", "zone_name": "example.com" }
+      ]
+    },
+
+    // [ENV:PREVIEW]
+    // Command: bun wrangler deploy --env preview
+    "preview": {
+      "services": [
+        { "binding": "APP_SERVICE", "service": "example-app-preview" },
+        { "binding": "API_SERVICE", "service": "example-api-preview" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "preview"
+      },
+      // prettier-ignore
+      "routes": [
+        { "pattern": "preview.example.com/*", "zone_name": "example.com" }
+      ]
+    }
+  }
+}

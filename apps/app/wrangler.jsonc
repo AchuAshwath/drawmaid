@@ -1,0 +1,53 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+
+  // [METADATA]
+  // App worker accessed via service binding from web worker (no routes needed).
+  "name": "example-app",
+  "compatibility_date": "2025-08-15",
+  "compatibility_flags": [],
+  "workers_dev": false,
+
+  // [ASSETS]
+  // Serves bundled JavaScript, CSS, images, and other static assets.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+
+  // [ENV:PRODUCTION]
+  // Command: bun wrangler deploy
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ALLOWED_ORIGINS": "https://example.com"
+  },
+
+  "env": {
+    // [ENV:DEVELOPMENT]
+    // Command: bun wrangler dev
+    "dev": {
+      "vars": {
+        "ENVIRONMENT": "development",
+        "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+      }
+    },
+
+    // [ENV:STAGING]
+    // Command: bun wrangler deploy --env staging
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ALLOWED_ORIGINS": "https://staging.example.com"
+      }
+    },
+
+    // [ENV:PREVIEW]
+    // Command: bun wrangler deploy --env preview
+    "preview": {
+      "vars": {
+        "ENVIRONMENT": "preview",
+        "ALLOWED_ORIGINS": "https://preview.example.com"
+      }
+    }
+  }
+}

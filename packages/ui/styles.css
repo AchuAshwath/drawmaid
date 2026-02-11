@@ -1,0 +1,4 @@
+/* shadcn CLI configuration only - actual styles in app globals.css */
+
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";

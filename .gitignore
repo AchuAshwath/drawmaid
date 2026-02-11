@@ -1,0 +1,69 @@
+# Include your project-specific ignores in this file
+# Read about how to use .gitignore: https://help.github.com/articles/ignoring-files
+
+# Compiled output
+**/dist/
+**/*.tsbuildinfo
+
+# Bun package manager
+# https://bun.sh/docs/install/lockfile
+node_modules/
+
+# Logs
+*.log
+
+# Cache
+/.cache
+/*/.swc/
+.eslintcache
+
+# Testing
+/coverage
+*.lcov
+
+# Environment variables
+.env.*.local
+.env.local
+
+# Visual Studio Code
+# https://github.com/github/gitignore/blob/master/Global/VisualStudioCode.gitignore
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/mcp.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# WebStorm
+.idea
+
+# Wrangler CLI
+# https://developers.cloudflare.com/workers/wrangler/
+.wrangler/
+
+# Astro
+.astro/
+
+# TanStack Router
+# Generated route tree files should not be committed
+*/lib/routeTree.gen.ts
+*/.tanstack/
+
+# VitePress
+docs/.vitepress/cache
+docs/.vitepress/dist
+
+# React Email
+# Generated preview build and runtime files
+.react-email/
+
+# Local development files
+*.local.md
+*.local.json
+*.local.jsonc
+*.local.ts
+
+# macOS
+# https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
+.DS_Store
+
