@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { Button } from "@repo/ui";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { VoiceInputButton } from "@/components/voice-input-button";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
 
 function Home() {
+  const [command, setCommand] = useState("");
+
   return (
     <div className="flex min-h-svh flex-col items-center justify-center p-6">
       <div className="max-w-md text-center space-y-6">
@@ -20,6 +24,12 @@ function Home() {
           <Button variant="outline" asChild>
             <Link to="/signup">Sign Up</Link>
           </Button>
+        </div>
+        <div className="flex items-center gap-2 justify-center">
+          <VoiceInputButton onTranscript={(text) => setCommand(text)} />
+          {command && (
+            <p className="text-sm text-muted-foreground">{command}</p>
+          )}
         </div>
       </div>
     </div>
