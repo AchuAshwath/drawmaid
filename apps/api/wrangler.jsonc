@@ -19,10 +19,12 @@
     "ALLOWED_ORIGINS": "https://example.com",
     "RESEND_EMAIL_FROM": "onboarding@resend.dev"
   },
-  // prettier-ignore
-  "hyperdrive": [
-    { "binding": "HYPERDRIVE_CACHED", "id": "your-hyperdrive-cached-id-here" },
-    { "binding": "HYPERDRIVE_DIRECT", "id": "your-hyperdrive-direct-id-here" }
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "example-db",
+      "database_id": "<prod-d1-id>"
+    }
   ],
   "kv_namespaces": [],
 
@@ -37,10 +39,12 @@
         "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
         "RESEND_EMAIL_FROM": "onboarding@resend.dev"
       },
-      // prettier-ignore
-      "hyperdrive": [
-        { "binding": "HYPERDRIVE_CACHED", "id": "your-dev-hyperdrive-cached-id-here" },
-        { "binding": "HYPERDRIVE_DIRECT", "id": "your-dev-hyperdrive-direct-id-here" }
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "example-db-dev",
+          "database_id": "00000000-0000-0000-0000-000000000000"
+        }
       ],
       "kv_namespaces": []
     },
@@ -55,10 +59,12 @@
         "ALLOWED_ORIGINS": "https://staging.example.com",
         "RESEND_EMAIL_FROM": "onboarding@resend.dev"
       },
-      // prettier-ignore
-      "hyperdrive": [
-        { "binding": "HYPERDRIVE_CACHED", "id": "your-staging-hyperdrive-cached-id-here" },
-        { "binding": "HYPERDRIVE_DIRECT", "id": "your-staging-hyperdrive-direct-id-here" }
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "example-db-staging",
+          "database_id": "<staging-d1-id>"
+        }
       ],
       "kv_namespaces": []
     },
@@ -73,10 +79,12 @@
         "ALLOWED_ORIGINS": "https://preview.example.com",
         "RESEND_EMAIL_FROM": "onboarding@resend.dev"
       },
-      // prettier-ignore
-      "hyperdrive": [
-        { "binding": "HYPERDRIVE_CACHED", "id": "your-preview-hyperdrive-cached-id-here" },
-        { "binding": "HYPERDRIVE_DIRECT", "id": "your-preview-hyperdrive-direct-id-here" }
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "example-db-preview",
+          "database_id": "<preview-d1-id>"
+        }
       ],
       "kv_namespaces": []
     }

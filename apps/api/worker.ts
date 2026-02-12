@@ -1,7 +1,7 @@
 /**
  * @file Cloudflare Workers entrypoint.
  *
- * Initializes database and auth context, then mounts the core Hono app.
+ * Initializes D1 database and auth context, then mounts the core Hono app.
  */
 
 import { Hono } from "hono";
@@ -20,8 +20,7 @@ import {
 } from "./lib/middleware.js";
 
 type CloudflareEnv = {
-  HYPERDRIVE_CACHED: Hyperdrive;
-  HYPERDRIVE_DIRECT: Hyperdrive;
+  DB: D1Database;
 } & Env;
 
 const worker = new Hono<{
@@ -40,12 +39,10 @@ worker.use(logger());
 
 // Initialize shared context for all requests
 worker.use(async (c, next) => {
-  const db = createDb(c.env.HYPERDRIVE_CACHED);
-  const dbDirect = createDb(c.env.HYPERDRIVE_DIRECT);
+  const db = createDb(c.env.DB);
   const auth = createAuth(db, c.env);
 
   c.set("db", db);
-  c.set("dbDirect", dbDirect);
   c.set("auth", auth);
 
   await next();

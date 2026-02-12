@@ -1,7 +1,7 @@
 /**
  * @file Database schema exports.
  *
- * Re-exports Drizzle ORM schemas for users, organizations, and authentication.
+ * Re-exports Drizzle ORM schemas for authentication (user, session, identity, verification).
  */
 
 import * as schema from "./schema";

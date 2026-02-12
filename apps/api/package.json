@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.2",
-    "@better-auth/passkey": "^1.4.10",
     "@repo/core": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/email": "workspace:*",
@@ -28,7 +27,6 @@
     "better-auth": "^1.4.10",
     "dataloader": "^2.2.3",
     "drizzle-orm": "^0.45.1",
-    "postgres": "^3.4.7",
     "resend": "^6.6.0"
   },
   "peerDependencies": {

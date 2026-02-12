@@ -1,14 +1,19 @@
-import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import * as schema from "../schema";
 import { type NewUser, user } from "../schema";
 
 /**
  * Seeds the database with test user accounts.
  */
-export async function seedUsers(db: PostgresJsDatabase<typeof schema>) {
+export async function seedUsers(
+  db: BaseSQLiteDatabase<
+    "sync" | "async",
+    Record<string, unknown>,
+    typeof schema
+  >,
+) {
   console.log("Seeding users...");
 
-  // Test user data with realistic names and email addresses
   const users: NewUser[] = [
     { name: "Alice Johnson", email: "alice@example.com", emailVerified: true },
     { name: "Bob Smith", email: "bob@example.com", emailVerified: true },
@@ -30,5 +35,5 @@ export async function seedUsers(db: PostgresJsDatabase<typeof schema>) {
     await db.insert(user).values(u).onConflictDoNothing();
   }
 
-  console.log(`✅ Seeded ${users.length} test users`);
+  console.log(`Seeded ${users.length} test users`);
 }

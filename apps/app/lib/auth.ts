@@ -5,12 +5,7 @@
  * from lib/queries/session.ts to ensure proper caching and consistency.
  */
 
-import { passkeyClient } from "@better-auth/passkey/client";
-import {
-  anonymousClient,
-  emailOTPClient,
-  organizationClient,
-} from "better-auth/client/plugins";
+import { anonymousClient, emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { authConfig } from "./auth-config";
 
@@ -21,12 +16,7 @@ const baseURL =
 
 export const auth = createAuthClient({
   baseURL: baseURL + authConfig.api.basePath,
-  plugins: [
-    anonymousClient(),
-    emailOTPClient(),
-    organizationClient(),
-    passkeyClient(),
-  ],
+  plugins: [anonymousClient(), emailOTPClient()],
 });
 
 export type AuthClient = typeof auth;

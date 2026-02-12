@@ -1,9 +1,6 @@
 /**
  * Database schema for Better Auth authentication system.
  *
- * This schema is designed to be fully compatible with Better Auth's database
- * requirements as documented at https://www.better-auth.com/docs/concepts/database
- *
  * Tables defined:
  * - `user`: Core user accounts with profile information
  * - `session`: Active user sessions for authentication state
@@ -14,34 +11,34 @@
  * @see https://www.better-auth.com/docs/adapters/drizzle
  */
 
+import { createId } from "@paralleldrive/cuid2";
 import { relations, sql } from "drizzle-orm";
 import {
-  boolean,
   index,
-  pgTable,
+  integer,
+  sqliteTable,
   text,
-  timestamp,
-  unique,
-} from "drizzle-orm/pg-core";
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * User accounts table.
  * Matches to the `user` table in Better Auth.
  */
-export const user = pgTable("user", {
+export const user = sqliteTable("user", {
   id: text()
     .primaryKey()
-    .default(sql`gen_random_uuid()`),
+    .$defaultFn(() => createId()),
   name: text().notNull(),
   email: text().notNull().unique(),
-  emailVerified: boolean().default(false).notNull(),
+  emailVerified: integer({ mode: "boolean" }).default(false).notNull(),
   image: text(),
-  isAnonymous: boolean().default(false).notNull(),
-  createdAt: timestamp({ withTimezone: true, mode: "date" })
-    .defaultNow()
+  isAnonymous: integer({ mode: "boolean" }).default(false).notNull(),
+  createdAt: integer({ mode: "timestamp" })
+    .default(sql`(unixepoch())`)
     .notNull(),
-  updatedAt: timestamp({ withTimezone: true, mode: "date" })
-    .defaultNow()
+  updatedAt: integer({ mode: "timestamp" })
+    .default(sql`(unixepoch())`)
     .$onUpdate(() => new Date())
     .notNull(),
 });
@@ -53,19 +50,19 @@ export type NewUser = typeof user.$inferInsert;
  * Stores user session data for authentication.
  * Matches to the `session` table in Better Auth.
  */
-export const session = pgTable(
+export const session = sqliteTable(
   "session",
   {
     id: text()
       .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    expiresAt: timestamp({ withTimezone: true, mode: "date" }).notNull(),
+      .$defaultFn(() => createId()),
+    expiresAt: integer({ mode: "timestamp" }).notNull(),
     token: text().notNull().unique(),
-    createdAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    createdAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .notNull(),
-    updatedAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    updatedAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .$onUpdate(() => new Date())
       .notNull(),
     ipAddress: text(),
@@ -73,14 +70,8 @@ export const session = pgTable(
     userId: text()
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    activeOrganizationId: text(),
-    activeTeamId: text(),
   },
-  (table) => [
-    index("session_user_id_idx").on(table.userId),
-    index("session_active_org_id_idx").on(table.activeOrganizationId),
-    index("session_active_team_id_idx").on(table.activeTeamId),
-  ],
+  (table) => [index("session_user_id_idx").on(table.userId)],
 );
 
 export type Session = typeof session.$inferSelect;
@@ -90,12 +81,12 @@ export type NewSession = typeof session.$inferInsert;
  * Stores OAuth provider account information.
  * Matches to the `account` table in Better Auth.
  */
-export const identity = pgTable(
+export const identity = sqliteTable(
   "identity",
   {
     id: text()
       .primaryKey()
-      .default(sql`gen_random_uuid()`),
+      .$defaultFn(() => createId()),
     accountId: text().notNull(),
     providerId: text().notNull(),
     userId: text()
@@ -104,20 +95,20 @@ export const identity = pgTable(
     accessToken: text(),
     refreshToken: text(),
     idToken: text(),
-    accessTokenExpiresAt: timestamp({ withTimezone: true, mode: "date" }),
-    refreshTokenExpiresAt: timestamp({ withTimezone: true, mode: "date" }),
+    accessTokenExpiresAt: integer({ mode: "timestamp" }),
+    refreshTokenExpiresAt: integer({ mode: "timestamp" }),
     scope: text(),
     password: text(),
-    createdAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    createdAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .notNull(),
-    updatedAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    updatedAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
-    unique("identity_provider_account_unique").on(
+    uniqueIndex("identity_provider_account_unique").on(
       table.providerId,
       table.accountId,
     ),
@@ -132,25 +123,25 @@ export type NewIdentity = typeof identity.$inferInsert;
  * Stores verification tokens (email verification, password reset, etc.)
  * Matches to the `verification` table in Better Auth.
  */
-export const verification = pgTable(
+export const verification = sqliteTable(
   "verification",
   {
     id: text()
       .primaryKey()
-      .default(sql`gen_random_uuid()`),
+      .$defaultFn(() => createId()),
     identifier: text().notNull(),
     value: text().notNull(),
-    expiresAt: timestamp({ withTimezone: true, mode: "date" }).notNull(),
-    createdAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    expiresAt: integer({ mode: "timestamp" }).notNull(),
+    createdAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .notNull(),
-    updatedAt: timestamp({ withTimezone: true, mode: "date" })
-      .defaultNow()
+    updatedAt: integer({ mode: "timestamp" })
+      .default(sql`(unixepoch())`)
       .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
-    unique("verification_identifier_value_unique").on(
+    uniqueIndex("verification_identifier_value_unique").on(
       table.identifier,
       table.value,
     ),
@@ -163,9 +154,7 @@ export const verification = pgTable(
 export type Verification = typeof verification.$inferSelect;
 export type NewVerification = typeof verification.$inferInsert;
 
-// —————————————————————————————————————————————————————————————————————————————
-// Relations for better query experience
-// —————————————————————————————————————————————————————————————————————————————
+// Relations (dialect-agnostic)
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
