@@ -17,7 +17,7 @@ const searchSchema = z.object({
     .optional()
     .transform((val) => {
       const safe = getSafeRedirectUrl(val);
-      return safe === "/" ? undefined : safe;
+      return safe === "/" || safe === "/dashboard" ? undefined : safe;
     })
     .catch(undefined),
 });
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/(auth)/login")({
 
       // Redirect authenticated users to their destination
       if (session?.user && session?.session) {
-        throw redirect({ to: search.returnTo ?? "/" });
+        throw redirect({ to: search.returnTo ?? "/dashboard" });
       }
     } catch (error) {
       // Re-throw redirects, show login form for fetch errors
@@ -49,7 +49,7 @@ function LoginPage() {
 
   async function handleSuccess() {
     await revalidateSession(queryClient, router);
-    await router.navigate({ to: search.returnTo ?? "/" });
+    await router.navigate({ to: search.returnTo ?? "/dashboard" });
   }
 
   return (
