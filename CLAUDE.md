@@ -20,7 +20,7 @@ Full-stack React application template optimized for Cloudflare Workers deploymen
 - **Runtime:** Bun (>=1.3.0), TypeScript 5.8
 - **Frontend:** React 19, TanStack Router, Jotai, shadcn/ui, Tailwind CSS v4, Better Auth
 - **Backend:** Hono framework, tRPC
-- **Database:** Neon PostgreSQL, Drizzle ORM
+- **Database:** Cloudflare D1, Drizzle ORM
 - **Testing:** Vitest, Happy DOM
 - **Deployment:** Cloudflare Workers, Wrangler
 
@@ -60,10 +60,13 @@ bun email:export               # Export static email templates
 bun lint                       # Lint all code
 bun --filter @repo/db push     # Apply DB schema changes
 
-# Database
-bun --filter @repo/db generate # Generate migrations
-bun --filter @repo/db studio   # Open DB GUI
-bun --filter @repo/db seed     # Seed sample data
+# Database (Cloudflare D1)
+bun --filter @repo/db generate       # Generate migrations (local)
+bun --filter @repo/db generate:remote # Generate migrations (remote)
+bun --filter @repo/db push            # Push schema to local D1
+bun --filter @repo/db push:remote     # Push schema to remote D1
+bun --filter @repo/db studio          # Open DB GUI (local)
+bun --filter @repo/db seed            # Seed sample data
 
 # Deployment
 # Build required packages first

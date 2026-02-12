@@ -40,8 +40,7 @@ export function useAuthForm({
   const [pendingOps, setPendingOps] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Guards against concurrent auth completion (e.g., passkey conditional UI + manual click).
-  // Conditional passkey autofill intentionally doesn't block UI - it's passive/background.
+  // Guards against concurrent auth completion (e.g., Google OAuth + OTP racing).
   // Reset when returning to method step to allow retry after navigation back.
   const hasSucceededRef = useRef(false);
   // Ref provides current step to memoized transitionTo callback (avoids stale closure)

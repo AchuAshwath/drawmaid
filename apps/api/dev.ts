@@ -1,7 +1,7 @@
 /**
  * @file Local development server emulating Cloudflare Workers runtime.
  *
- * Requires wrangler.jsonc with HYPERDRIVE_CACHED and HYPERDRIVE_DIRECT bindings.
+ * Requires wrangler.jsonc with D1 database binding.
  */
 
 import { Hono } from "hono";
@@ -25,8 +25,7 @@ const { values: args } = parseArgs({
 });
 
 type CloudflareEnv = {
-  HYPERDRIVE_CACHED: Hyperdrive;
-  HYPERDRIVE_DIRECT: Hyperdrive;
+  DB: D1Database;
 } & Env;
 
 const app = new Hono<AppContext>();
@@ -47,12 +46,9 @@ const cf = await getPlatformProxy<CloudflareEnv>({
   persist: true,
 });
 
-// Inject context with two database connections:
-// - db: Hyperdrive caching for read-heavy queries
-// - dbDirect: No cache for writes and transactions
+// Inject context with D1 database connection
 app.use(async (c, next) => {
-  const db = createDb(cf.env.HYPERDRIVE_CACHED);
-  const dbDirect = createDb(cf.env.HYPERDRIVE_DIRECT);
+  const db = createDb(cf.env.DB);
 
   // Merge secrets from process.env (local dev) with Cloudflare bindings
   const secretKeys = [
@@ -78,7 +74,6 @@ app.use(async (c, next) => {
   };
 
   c.set("db", db);
-  c.set("dbDirect", dbDirect);
   c.set("auth", createAuth(db, env));
   await next();
 });

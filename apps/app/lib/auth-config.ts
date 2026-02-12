@@ -5,12 +5,6 @@ export const authConfig = {
     providers: ["google"] as const,
   },
 
-  passkey: {
-    enableConditionalUI: true,
-    timeout: 60_000,
-    userVerification: "preferred" as const,
-  },
-
   security: {
     csrfTokenHeader: "x-csrf-token",
     sessionCookieName: "better-auth.session",
@@ -37,9 +31,6 @@ export const authConfig = {
     sessionExpired: "Your session has expired. Please sign in again.",
     unauthorized: "You need to sign in to access this page.",
     networkError: "Network error. Please check your connection and try again.",
-    passkeyNotSupported: "Your browser doesn't support passkeys.",
-    passkeyNotFound:
-      "No passkey found for this account. Please sign in with Google first.",
     genericError: "Something went wrong. Please try again.",
   },
 } as const;

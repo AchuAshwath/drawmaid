@@ -67,6 +67,7 @@
     "cloudfunctions",
     "corejs",
     "corepack",
+    "drawmaid",
     "endregion",
     "entrypoint",
     "envalid",

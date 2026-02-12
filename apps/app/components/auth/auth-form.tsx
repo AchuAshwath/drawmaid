@@ -4,7 +4,6 @@ import { ArrowLeft, Mail } from "lucide-react";
 import type { ComponentProps, FormEvent } from "react";
 import { GoogleLogin } from "./google-login";
 import { OtpVerification } from "./otp-verification";
-import { PasskeyLogin } from "./passkey-login";
 import { useAuthForm } from "./use-auth-form";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME || "your account";
@@ -111,7 +110,6 @@ export function AuthForm({
           isSignup={isSignup}
           isDisabled={isDisabled}
           onEmailClick={goToEmailStep}
-          onSuccess={onAuthSuccess}
           onError={setError}
           onLoadingChange={setChildBusy}
           returnTo={returnTo}
@@ -151,7 +149,6 @@ interface MethodSelectionProps {
   isSignup: boolean;
   isDisabled: boolean;
   onEmailClick: () => void;
-  onSuccess: () => void;
   onError: (error: string | null) => void;
   onLoadingChange: (loading: boolean) => void;
   returnTo?: string;
@@ -161,7 +158,6 @@ function MethodSelection({
   isSignup,
   isDisabled,
   onEmailClick,
-  onSuccess,
   onError,
   onLoadingChange,
   returnTo,
@@ -190,16 +186,6 @@ function MethodSelection({
           <Mail className="mr-2 h-4 w-4" />
           Continue with email
         </Button>
-
-        {/* Passkey only available for login (requires existing account) */}
-        {!isSignup && (
-          <PasskeyLogin
-            onSuccess={onSuccess}
-            onError={onError}
-            onLoadingChange={onLoadingChange}
-            isDisabled={isDisabled}
-          />
-        )}
       </div>
 
       {isSignup && <SignupTerms />}
