@@ -31,7 +31,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   "2. Use exactly ONE diagram per response.",
   "3. One statement per line. No inline extra tokens after an edge.",
   "4. Do NOT add Mermaid comments (no lines starting with %%).",
-  "",
+  "5. Do not use ```mermaid at the beginning or end of the response. Just output the Mermaid code.",
   "DIAGRAM TYPE SELECTION:",
   "- Supported types: flowchart, sequenceDiagram, classDiagram.",
   "- If the user explicitly requests a type, obey it.",
