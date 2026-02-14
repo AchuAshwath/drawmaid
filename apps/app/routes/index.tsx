@@ -80,7 +80,7 @@ function Home() {
           <MainMenu.ItemLink href="/signup">Sign Up</MainMenu.ItemLink>
         </MainMenu>
         <Footer>
-          <div className="flex w-full max-w-2xl mx-auto flex-col gap-2">
+          <div className="flex w-full max-w-2xl mx-auto flex-col gap-2 text-foreground">
             <div className="flex w-full items-center gap-2">
               <VoiceInputButton
                 onTranscript={(text) => setPrompt(text)}
@@ -93,7 +93,7 @@ function Home() {
                   if (error) setError(null);
                 }}
                 placeholder="Describe a diagram or use the mic..."
-                className="min-w-0 flex-1 h-9 text-sm"
+                className="min-w-0 flex-1 h-9 text-sm bg-background text-foreground border-border placeholder:text-muted-foreground"
                 aria-label="Diagram description"
                 aria-invalid={!!error}
                 aria-describedby={error ? "home-error" : undefined}
@@ -120,7 +120,7 @@ function Home() {
             )}
             {status === "loading" && (
               <div
-                className="h-1.5 w-full max-w-2xl mx-auto rounded-full bg-muted overflow-hidden"
+                className="h-1.5 w-full max-w-2xl mx-auto rounded-full border border-border bg-muted overflow-hidden"
                 role="progressbar"
                 aria-valuenow={Math.round(loadProgress * 100)}
                 aria-valuemin={0}

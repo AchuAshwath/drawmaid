@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { Button } from "@repo/ui";
 import { Mic, MicOff } from "lucide-react";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
+import { cn } from "@repo/ui";
 
 export interface VoiceInputButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -34,14 +35,18 @@ export function VoiceInputButton({
       size="icon"
       variant="ghost"
       aria-label={isListening ? "Stop voice input" : "Start voice input"}
-      className={className}
+      className={cn("text-foreground", className)}
       onClick={(e) => {
         toggle();
         onClick?.(e);
       }}
       {...props}
     >
-      {isListening ? <MicOff className="text-destructive" /> : <Mic />}
+      {isListening ? (
+        <MicOff className="text-destructive" />
+      ) : (
+        <Mic className="text-foreground" />
+      )}
     </Button>
   );
 }
