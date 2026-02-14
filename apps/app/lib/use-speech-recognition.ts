@@ -137,19 +137,25 @@ export function useSpeechRecognition(
     // Rebuild from full event.results each time — the array is cumulative for the
     // session, so a full scan is duplication-safe and avoids stale-index edge cases.
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = "";
-      let interimTranscript = "";
+      const finalParts: string[] = [];
+      const interimParts: string[] = [];
 
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
+        const t = result[0].transcript.trim();
+        if (!t) continue;
         if (result.isFinal) {
-          finalTranscript += result[0].transcript;
+          finalParts.push(t);
         } else {
-          interimTranscript += result[0].transcript;
+          interimParts.push(t);
         }
       }
 
-      const text = finalTranscript + interimTranscript;
+      const finalTranscript = finalParts.join(" ");
+      const interimTranscript = interimParts.join(" ");
+      const text = [finalTranscript, interimTranscript]
+        .filter(Boolean)
+        .join(" ");
       const isFinal =
         interimTranscript.length === 0 && finalTranscript.length > 0;
 
