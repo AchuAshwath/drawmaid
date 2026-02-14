@@ -3,6 +3,7 @@ import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
 } from "@/lib/insert-mermaid-into-canvas";
+import { isAbortError } from "@/lib/mermaid-llm";
 import { stripMermaidFences } from "@/lib/normalize-mermaid";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
 import { Excalidraw, Footer, MainMenu } from "@excalidraw/excalidraw";
@@ -28,6 +29,7 @@ function Home() {
     try {
       mermaidOutput = await generate(prompt);
     } catch (err) {
+      if (isAbortError(err)) return; // User cancelled or new generation started
       setError(
         err instanceof Error
           ? err.message
@@ -83,7 +85,10 @@ function Home() {
           <div className="flex w-full max-w-2xl mx-auto flex-col gap-2 text-foreground">
             <div className="flex w-full items-center gap-2">
               <VoiceInputButton
-                onTranscript={(text) => setPrompt(text)}
+                onTranscript={(text) => {
+                  setPrompt(text);
+                  setError(null);
+                }}
                 onRecognitionError={(message) => setError(message)}
               />
               <Input
@@ -101,7 +106,11 @@ function Home() {
               <Button
                 onClick={handleGenerate}
                 disabled={
-                  !prompt || status === "loading" || !isSupported || !apiReady
+                  !prompt ||
+                  status === "loading" ||
+                  status === "generating" ||
+                  !isSupported ||
+                  !apiReady
                 }
                 variant="secondary"
                 size="sm"
