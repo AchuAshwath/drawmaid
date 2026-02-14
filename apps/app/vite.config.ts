@@ -38,6 +38,10 @@ export default defineProject(({ mode }) => {
           manualChunks: {
             react: ["react", "react-dom"],
             tanstack: ["@tanstack/react-router"],
+            excalidraw: [
+              "@excalidraw/excalidraw",
+              "@excalidraw/mermaid-to-excalidraw",
+            ],
             ui: [
               "@radix-ui/react-slot",
               "class-variance-authority",
