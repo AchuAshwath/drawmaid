@@ -19,6 +19,10 @@ React 19, TypeScript, Vite, TanStack Router, shadcn/ui, Tailwind CSS v4, Jotai, 
 - `lib/` - Utilities and shared logic
 - `styles/` - Global CSS and Tailwind config
 
+### Diagram flow
+
+- **Home (`/`):** Full Excalidraw canvas. Prompt + Generate inserts the diagram into the canvas (append). Model load progress is shown in the footer when loading. Use Clear canvas for a fresh start.
+
 ## Routing Conventions
 
 ### Route Groups
