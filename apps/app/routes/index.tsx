@@ -82,7 +82,10 @@ function Home() {
         <Footer>
           <div className="flex w-full max-w-2xl mx-auto flex-col gap-2">
             <div className="flex w-full items-center gap-2">
-              <VoiceInputButton onTranscript={(text) => setPrompt(text)} />
+              <VoiceInputButton
+                onTranscript={(text) => setPrompt(text)}
+                onRecognitionError={(message) => setError(message)}
+              />
               <Input
                 value={prompt}
                 onChange={(e) => {
