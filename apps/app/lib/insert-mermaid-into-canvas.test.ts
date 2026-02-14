@@ -65,14 +65,16 @@ describe("insertMermaidIntoCanvas", () => {
 
   it("preserves existing scene elements when appending", async () => {
     const existing = [{ id: "existing-1" }];
-    mockApi.getSceneElements.mockReturnValue(existing);
+    mockApi.getSceneElements.mockReturnValue(existing as unknown as never[]);
 
     await insertMermaidIntoCanvas(mockApi as never, "flowchart TD\n  A --> B");
 
-    expect(mockApi.updateScene).toHaveBeenCalledWith({
-      elements: [...existing, expect.any(Object), expect.any(Object)],
-      captureUpdate: "immediately",
-    });
+    const updateCall = mockApi.updateScene.mock.calls[0][0];
+    expect(updateCall.elements).toHaveLength(3);
+    expect(updateCall.elements?.[0]).toEqual(
+      expect.objectContaining({ id: "existing-1" }),
+    );
+    expect(updateCall.captureUpdate).toBe("immediately");
   });
 
   it("calls scrollToContent with new elements and options", async () => {
