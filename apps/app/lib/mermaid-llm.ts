@@ -239,12 +239,13 @@ export async function generate(
       timeoutPromise,
     ]);
 
-    let result = "";
+    const chunks: string[] = [];
     for await (const chunk of stream) {
       if (id !== generationId) break; // stale — stop emitting
-      result += chunk.choices[0]?.delta?.content ?? "";
-      emit({ output: result });
+      chunks.push(chunk.choices[0]?.delta?.content ?? "");
+      emit({ output: chunks.join("") });
     }
+    const result = chunks.join("");
 
     if (id !== generationId) throw abortError();
     emit({ status: "ready" });

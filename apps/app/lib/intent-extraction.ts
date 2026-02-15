@@ -1,10 +1,8 @@
-import nlp from "compromise";
 import { getDiagramConfig } from "./diagram-config";
 import {
   DIAGRAM_TYPE_KEYWORDS,
   DIRECTION_KEYWORDS,
   COMMON_FILTER,
-  RESERVED_KEYWORDS,
 } from "./constants";
 
 export interface Intent {
@@ -12,6 +10,22 @@ export interface Intent {
   direction: string | null;
   entities: string[];
 }
+
+// Pre-compute keyword arrays at module load (computed once)
+type KeywordEntry = { key: string; keyword: string; length: number };
+
+function buildKeywordIndex(keywords: Record<string, string[]>): KeywordEntry[] {
+  const entries: KeywordEntry[] = [];
+  for (const [key, kws] of Object.entries(keywords)) {
+    for (const kw of kws) {
+      entries.push({ key, keyword: kw, length: kw.length });
+    }
+  }
+  return entries.sort((a, b) => b.length - a.length);
+}
+
+const DIAGRAM_TYPE_INDEX = buildKeywordIndex(DIAGRAM_TYPE_KEYWORDS);
+const DIRECTION_INDEX = buildKeywordIndex(DIRECTION_KEYWORDS);
 
 function isWordBoundary(text: string, index: number): boolean {
   if (index < 0 || index >= text.length) return true;
@@ -31,22 +45,12 @@ function isWordBoundary(text: string, index: number): boolean {
 
 function findKeywordBackwards(
   transcript: string,
-  keywords: Record<string, string[]>,
+  keywordIndex: KeywordEntry[],
 ): { key: string; match: string; position: number } | null {
   const lowerTranscript = transcript.toLowerCase();
-
-  const allKeywords: { key: string; keyword: string }[] = [];
-  for (const [key, kws] of Object.entries(keywords)) {
-    for (const kw of kws) {
-      allKeywords.push({ key, keyword: kw });
-    }
-  }
-
-  allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
-
   const matches: { key: string; match: string; position: number }[] = [];
 
-  for (const { key, keyword } of allKeywords) {
+  for (const { key, keyword, length } of keywordIndex) {
     let searchFrom = 0;
     while (true) {
       const idx = lowerTranscript.indexOf(keyword, searchFrom);
@@ -54,7 +58,7 @@ function findKeywordBackwards(
 
       if (
         isWordBoundary(lowerTranscript, idx) &&
-        isWordBoundary(lowerTranscript, idx + keyword.length - 1)
+        isWordBoundary(lowerTranscript, idx + length - 1)
       ) {
         matches.push({ key, match: keyword, position: idx });
         searchFrom = idx + 1;
@@ -71,45 +75,35 @@ function findKeywordBackwards(
 }
 
 function extractDiagramType(transcript: string): string | null {
-  const result = findKeywordBackwards(transcript, DIAGRAM_TYPE_KEYWORDS);
+  const result = findKeywordBackwards(transcript, DIAGRAM_TYPE_INDEX);
   return result?.key ?? null;
 }
 
 function extractDirection(transcript: string): string | null {
-  const result = findKeywordBackwards(transcript, DIRECTION_KEYWORDS);
+  const result = findKeywordBackwards(transcript, DIRECTION_INDEX);
   return result?.key ?? null;
 }
 
-function extractEntitiesWithCompromise(
-  text: string,
-  diagramType: string | null,
-): string[] {
-  const doc = nlp(text);
+function extractEntitiesNative(text: string): string[] {
+  if (typeof Intl === "undefined" || !Intl.Segmenter) {
+    return [];
+  }
 
-  const people = doc.people().out("array") as string[];
-  const places = doc.places().out("array") as string[];
-  const topics = doc.topics().out("array") as string[];
-  const nouns = doc.nouns().out("array") as string[];
-  const pronouns = doc.pronouns().out("array") as string[];
+  const segmenter = new Intl.Segmenter("en", { granularity: "word" });
+  const segments = [...segmenter.segment(text)];
 
-  const pronounSet = new Set(pronouns.map((p) => p.toLowerCase()));
-
-  const typeKey = diagramType || "flowchart";
-  const reserved = new Set(
-    RESERVED_KEYWORDS[typeKey] || RESERVED_KEYWORDS.flowchart,
-  );
-
-  const all = [...people, ...places, ...topics, ...nouns];
-
-  const cleaned = all
-    .map((w) => w.toLowerCase().trim())
-    .map((w) => w.replace(/[^a-z0-9]/g, " "))
-    .map((w) => w.split(/\s+/).filter((x) => x.length > 2))
-    .flat()
-    .filter((w) => !pronounSet.has(w))
-    .filter((w) => !reserved.has(w))
-    .filter((w) => !COMMON_FILTER.has(w))
-    .filter((w) => w.length <= 30);
+  const cleaned: string[] = [];
+  for (const segment of segments) {
+    const word = segment.segment.toLowerCase().trim();
+    if (
+      word.length > 2 &&
+      word.length <= 30 &&
+      /^[a-z0-9]+$/.test(word) &&
+      !COMMON_FILTER.has(word)
+    ) {
+      cleaned.push(word);
+    }
+  }
 
   const seen = new Set<string>();
   const unique: string[] = [];
@@ -123,17 +117,35 @@ function extractEntitiesWithCompromise(
   return unique.slice(0, 8);
 }
 
+// Simple LRU-like cache for intent extraction
+const intentCache = new Map<string, Intent>();
+const MAX_CACHE_SIZE = 50;
+
 export function extractIntent(transcript: string): Intent {
+  // Check cache first
+  if (intentCache.has(transcript)) {
+    return intentCache.get(transcript)!;
+  }
+
   const diagramType = extractDiagramType(transcript);
   const direction = extractDirection(transcript);
 
-  // Only run expensive NLP for short inputs
+  // Only extract entities for short inputs (optimization)
   let entities: string[] = [];
   if (transcript.length < 50) {
-    entities = extractEntitiesWithCompromise(transcript, diagramType);
+    entities = extractEntitiesNative(transcript);
   }
 
-  return { diagramType, direction, entities };
+  const result = { diagramType, direction, entities };
+
+  // Add to cache with size limit
+  if (intentCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = intentCache.keys().next().value;
+    if (firstKey) intentCache.delete(firstKey);
+  }
+  intentCache.set(transcript, result);
+
+  return result;
 }
 
 export function buildUserPrompt(
