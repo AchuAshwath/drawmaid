@@ -2,6 +2,10 @@
 // The runtime import happens lazily inside load().
 import type { WebWorkerMLCEngine } from "@mlc-ai/web-llm";
 
+import SYSTEM_PROMPT from "../prompts/system-prompt.md?raw";
+
+export { SYSTEM_PROMPT };
+
 // --- Types ---
 
 export type Status = "idle" | "loading" | "ready" | "generating" | "error";
@@ -31,26 +35,6 @@ export interface Snapshot {
 // --- Constants ---
 
 const DEFAULT_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
-
-export const SYSTEM_PROMPT = `ROLE:
-You are a mermaid diagram code completing expert. You understand the user's thought process and help them visualize by creating mermaid diagrams.
-
-RULES:
-- Output ONLY valid mermaid code
-- No explanations, no markdown fences (no \`\`\`)
-- Never use reserved keywords as node/participant/class names
-- Use _ suffix if reserved word is needed (e.g., end_)
-- Always include proper diagram declaration line
-
-BEHAVIOR:
-- Read user intent carefully from their thought process
-- Choose appropriate diagram type based on context
-- Use provided syntax rules and examples as reference
-- Create clear, logical flow based on user's description
-- Correct any spelling mistakes in the input
-- If unclear, create nodes from key terms only - don't hallucinate connections`;
-
-const DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 // --- State store (useSyncExternalStore-compatible) ---
 
@@ -231,7 +215,7 @@ export async function generate(
         messages: [
           {
             role: "system",
-            content: opts?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+            content: opts?.systemPrompt ?? SYSTEM_PROMPT,
           },
           { role: "user", content: prompt },
         ],

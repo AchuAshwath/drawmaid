@@ -5,6 +5,9 @@ import {
   COMMON_FILTER,
 } from "./constants";
 
+import USER_PROMPT_RULES from "../prompts/user-prompt-rules.md?raw";
+import RECOVERY_PROMPT_RULES from "../prompts/recovery-prompt-rules.md?raw";
+
 export interface Intent {
   diagramType: string | null;
   direction: string | null;
@@ -157,48 +160,36 @@ export function buildUserPrompt(
   const diagramType = intent.diagramType || "flowchart";
   const direction = intent.direction || "TD";
 
-  // Build the first line
   const firstLine =
     diagramType === "flowchart" ? `${diagramType} ${direction}` : diagramType;
 
-  // Build prompt with reordered sections
-  let prompt = `Output ONLY valid mermaid code. No explanations. No markdown fences.
-
-USER REQUEST: "${originalTranscript}"
-
-CRITICAL FORMATTING RULES:
-1. NO indentation - every line starts at column 0
-2. If using |label| on arrow, target MUST be on SAME line
-3. Every --> arrow must have a target node on the same line
-4. Each statement is exactly ONE line
-
-SYNTAX RULES FOR ${config.name.toUpperCase()}:
-- Node syntax: ${config.nodeSyntax}
-- Edge syntax: ${config.edgeSyntax}
-- Reserved keywords to AVOID: ${config.reservedWords.join(", ")}`;
-
-  // Add tips
+  let tips = "";
   if (config.tips.length > 0) {
-    prompt += "\n- Tips:" + config.tips.map((t) => "\n  * " + t).join("");
+    tips = "\n- Tips:" + config.tips.map((t) => "\n  * " + t).join("");
   }
 
-  // Add entities section (only extracted for short inputs)
+  let entitiesSection = "";
   if (intent.entities.length > 0) {
     const nodes = intent.entities
       .map((e) => e.charAt(0).toUpperCase() + e.slice(1))
       .join(", ");
-    prompt += `\n\nENTITIES TO CONSIDER (use only if aligned with request): ${nodes}`;
+    entitiesSection = `\n\nENTITIES TO CONSIDER (use only if aligned with request): ${nodes}`;
   }
 
-  // Middle section: What to complete
-  prompt += `\n\nComplete the mermaid code:\n${firstLine}`;
-
-  // End section: Examples for syntax reference only
+  let exampleSection = "";
   if (config.examples.length > 0) {
-    prompt += `\n\nSYNTAX REFERENCE (shows valid patterns - do not copy content):\n${config.examples[0]}`;
+    exampleSection = `\n\nSYNTAX REFERENCE (shows valid patterns - do not copy content):\n${config.examples[0]}`;
   }
 
-  return prompt;
+  return USER_PROMPT_RULES.replace("{{transcript}}", originalTranscript)
+    .replace("{{diagramType}}", config.name.toUpperCase())
+    .replace("{{nodeSyntax}}", config.nodeSyntax)
+    .replace("{{edgeSyntax}}", config.edgeSyntax)
+    .replace("{{reservedWords}}", config.reservedWords.join(", "))
+    .replace("{{tips}}", tips)
+    .replace("{{entities}}", entitiesSection)
+    .replace("{{firstLine}}", firstLine)
+    .replace("{{example}}", exampleSection);
 }
 
 // Error pattern detection and specific fixes
@@ -296,39 +287,14 @@ export function buildErrorRecoveryPrompt(
 
   const specificFix = getSpecificErrorFix(context.errorMessage);
 
-  return `CRITICAL: Fix the mermaid syntax error below.
-
-ORIGINAL REQUEST: "${context.originalInput}"
-
-FAILED CODE:
-\`\`\`
-${context.failedMermaidCode}
-\`\`\`
-
-PARSE ERROR: ${context.errorMessage}
-
-${specificFix}
-
-STRICT RULES - MUST FOLLOW:
-1. NO indentation - every line starts at column 0 (no spaces/tabs at start)
-2. If using |label| on arrow, target MUST be on SAME line
-3. Every --> arrow must point to something on the same line
-4. Each statement is ONE line only
-
-CORRECT EXAMPLE:
-flowchart TD
-A[Start] --> B{Decision}
-B -->|Yes| C[Process]
-B -->|No| D[End]
-
-INCORRECT (will fail):
-flowchart TD
-  A[Start]  <-- has spaces
-B -->|Label|  <-- missing target
-  C[End]  <-- indented
-
-SYNTAX: ${config.nodeSyntax} | ${config.edgeSyntax}
-
-Rewrite the FAILED CODE above with NO indentation and complete all arrows:
-${firstLine}`;
+  return RECOVERY_PROMPT_RULES.replace(
+    "{{originalInput}}",
+    context.originalInput,
+  )
+    .replace("{{failedCode}}", context.failedMermaidCode)
+    .replace("{{errorMessage}}", context.errorMessage)
+    .replace("{{specificFix}}", specificFix)
+    .replace("{{nodeSyntax}}", config.nodeSyntax)
+    .replace("{{edgeSyntax}}", config.edgeSyntax)
+    .replace("{{firstLine}}", firstLine);
 }
