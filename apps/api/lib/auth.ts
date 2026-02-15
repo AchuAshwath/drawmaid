@@ -1,8 +1,8 @@
 import { schema as Db } from "@repo/db";
-import { createAuthMiddleware } from "better-auth/api";
 import { betterAuth } from "better-auth";
 import type { DB } from "better-auth/adapters/drizzle";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { anonymous } from "better-auth/plugins";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { sendOTP, sendPasswordReset, sendVerificationEmail } from "./email";
@@ -78,9 +78,6 @@ export function createAuth(
       anonymous(),
       emailOTP({
         async sendVerificationOTP({ email, otp, type }) {
-          if (env.ENVIRONMENT === "development") {
-            console.log(`[OTP] ${email}: ${otp} (${type})`);
-          }
           await sendOTP(env, { email, otp, type });
         },
         otpLength: 6,
