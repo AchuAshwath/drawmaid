@@ -221,16 +221,21 @@ export async function generate(
         ],
         stream: true,
         max_tokens: opts?.maxTokens ?? 1024,
-        temperature: opts?.temperature ?? 0.05,
+        temperature: opts?.temperature ?? 0.1,
       }),
       timeoutPromise,
     ]);
 
     const chunks: string[] = [];
+    let accumulated = "";
     for await (const chunk of stream) {
-      if (id !== generationId) break; // stale — stop emitting
-      chunks.push(chunk.choices[0]?.delta?.content ?? "");
-      emit({ output: chunks.join("") });
+      if (id !== generationId) break;
+      const content = chunk.choices[0]?.delta?.content ?? "";
+      if (content) {
+        chunks.push(content);
+        accumulated += content;
+        emit({ output: accumulated });
+      }
     }
     const result = chunks.join("");
 
