@@ -34,16 +34,8 @@ export const DIRECTION_KEYWORDS: Record<string, string[]> = {
     "l to r",
   ],
   RL: ["right to left", "right-to-left", "rtl", "right left", "r to l"],
-  TD: [
-    "top down",
-    "top-down",
-    "vertical",
-    "td",
-    "top bottom",
-    "t to d",
-    "down",
-  ],
-  BT: ["bottom to top", "bottom-to-top", "bt", "bottom top", "b to t", "up"],
+  TD: ["top down", "top-down", "vertical", "td", "top bottom", "t to d"],
+  BT: ["bottom to top", "bottom-to-top", "bt", "bottom top", "b to t"],
 };
 
 // Common words to filter from entity extraction
@@ -137,6 +129,8 @@ export const COMMON_FILTER = new Set([
   "lr",
   "rl",
   "bt",
+  "up",
+  "down",
   // Action words
   "create",
   "draw",
@@ -150,46 +144,3 @@ export const COMMON_FILTER = new Set([
   "see",
   "wait",
 ]);
-
-// Reserved keywords per diagram type (for entity filtering)
-export const RESERVED_KEYWORDS: Record<string, string[]> = {
-  flowchart: [
-    "end",
-    "graph",
-    "class",
-    "click",
-    "default",
-    "state",
-    "subgraph",
-    "link",
-    "style",
-    "direction",
-    "flowchart",
-  ],
-  sequenceDiagram: [
-    "end",
-    "loop",
-    "alt",
-    "else",
-    "par",
-    "break",
-    "critical",
-    "section",
-    "note",
-    "activate",
-    "deactivate",
-    "create",
-    "destroy",
-    "participant",
-    "actor",
-  ],
-  classDiagram: [
-    "class",
-    "interface",
-    "enum",
-    "abstract",
-    "static",
-    "extends",
-    "implements",
-  ],
-};

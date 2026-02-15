@@ -126,7 +126,7 @@ Diagram-type specific settings loaded from JSON:
 
 ### Error Recovery
 
-**File:** `apps/app/lib/intent-extraction.ts` - `buildRecoveryPrompt()`
+**File:** `apps/app/lib/intent-extraction.ts` - `buildErrorRecoveryPrompt()`
 
 Detects common mermaid parse errors:
 
@@ -158,8 +158,8 @@ Steps:
 
 - `DIAGRAM_TYPE_KEYWORDS`: Keywords for diagram detection
 - `DIRECTION_KEYWORDS`: Keywords for direction detection
-- `ENTITY_FILTER`: Words to exclude from entity extraction
-- `ENTITY_EXTRACTION_THRESHOLD`: 50 characters
+- `COMMON_FILTER`: Words to exclude from entity extraction (in constants.ts)
+- `ENTITY_EXTRACTION_THRESHOLD`: 50 characters (in intent-extraction.ts)
 
 ## Testing
 

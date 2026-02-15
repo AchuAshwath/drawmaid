@@ -2,7 +2,6 @@
   "flowchart": {
     "id": "flowchart",
     "name": "Flowchart",
-    "directions": ["TD", "LR", "RL", "BT"],
     "nodeSyntax": "A[Label] or B(Label) or C{Decision}",
     "edgeSyntax": "A --> B or A -->|label| B",
     "reservedWords": [
@@ -31,7 +30,6 @@
   "sequenceDiagram": {
     "id": "sequenceDiagram",
     "name": "Sequence Diagram",
-    "directions": [],
     "nodeSyntax": "participant Name as 'Label'",
     "edgeSyntax": "A ->> B: message or A -->> B: dotted message",
     "reservedWords": [
@@ -62,7 +60,6 @@
   "classDiagram": {
     "id": "classDiagram",
     "name": "Class Diagram",
-    "directions": [],
     "nodeSyntax": "class Name { +attribute -method() }",
     "edgeSyntax": "ClassA <|-- ClassB (inheritance) or ClassA --> ClassB (association)",
     "reservedWords": [

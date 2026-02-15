@@ -3,7 +3,6 @@ import DIAGRAM_CONFIGS_JSON from "../config/diagram-configs.json";
 export interface DiagramConfig {
   id: string;
   name: string;
-  directions: string[];
   nodeSyntax: string;
   edgeSyntax: string;
   reservedWords: string[];

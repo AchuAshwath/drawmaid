@@ -14,7 +14,7 @@
 ## Tech Stack
 
 - **Runtime:** Bun >=1.3.0, TypeScript 5.9, ESM (`"type": "module"`)
-- **Frontend:** React 19, TanStack Router, TanStack Query, Jotai, shadcn/ui (new-york), Tailwind CSS v4
+- **Frontend:** React 19, TanStack Router, TanStack Query, Jotai, Excalidraw, shadcn/ui (new-york), Tailwind CSS v4
 - **Backend:** Hono, tRPC 11, Better Auth (email OTP, Google OAuth, anonymous)
 - **Database:** Cloudflare D1 (SQLite), Drizzle ORM (`snake_case` casing)
 - **Email:** React Email, Resend

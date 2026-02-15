@@ -182,8 +182,9 @@ describe("extractIntent - Entity Extraction", () => {
     });
 
     it("limits to 8 entities", () => {
+      // Use short input (< 50 chars) so entities ARE extracted
       const result = extractIntent(
-        "one two three four five six seven eight nine ten eleven twelve thirteen",
+        "user login server token dashboard error success",
       );
       expect(result.entities.length).toBeLessThanOrEqual(8);
     });
