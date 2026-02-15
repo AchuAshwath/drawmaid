@@ -3,9 +3,14 @@ import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
 } from "@/lib/insert-mermaid-into-canvas";
-import { isAbortError } from "@/lib/mermaid-llm";
-import { stripMermaidFences } from "@/lib/normalize-mermaid";
+import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
+import { normalizeMermaid } from "@/lib/normalize-mermaid";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
+import {
+  extractIntent,
+  buildUserPrompt,
+  buildErrorRecoveryPrompt,
+} from "@/lib/intent-extraction";
 import { Excalidraw, Footer, MainMenu } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { Button, Input } from "@repo/ui";
@@ -26,10 +31,22 @@ function Home() {
   const handleGenerate = async () => {
     setError(null);
     let mermaidOutput: string | null = null;
+
+    const intent = extractIntent(prompt);
+    const userPrompt = buildUserPrompt(prompt, intent);
+
     try {
-      mermaidOutput = await generate(prompt);
+      mermaidOutput = await generate(userPrompt, {
+        systemPrompt: SYSTEM_PROMPT,
+      });
     } catch (err) {
-      if (isAbortError(err)) return; // User cancelled or new generation started
+      if (isAbortError(err)) return;
+      if (isTimeoutError(err)) {
+        setError(
+          "Generation timed out. Try a simpler request or check your connection.",
+        );
+        return;
+      }
       setError(
         err instanceof Error
           ? err.message
@@ -37,20 +54,61 @@ function Home() {
       );
       return;
     }
-    if (!mermaidOutput?.trim()) return;
+
+    if (!mermaidOutput?.trim()) {
+      return;
+    }
 
     const api = excalidrawApiRef.current;
     if (!api) return;
 
+    let mermaidCode: string | null = null;
     try {
-      const mermaidCode = stripMermaidFences(mermaidOutput);
+      mermaidCode = normalizeMermaid(mermaidOutput);
+      if (!mermaidCode) {
+        return;
+      }
       await insertMermaidIntoCanvas(api, mermaidCode);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not add diagram to canvas. Check the diagram syntax.",
-      );
+      // Try error recovery once
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorPrompt = buildErrorRecoveryPrompt({
+        originalInput: prompt,
+        failedMermaidCode: mermaidCode || mermaidOutput,
+        errorMessage,
+        diagramType: intent.diagramType,
+      });
+
+      try {
+        const recoveredOutput = await generate(errorPrompt, {
+          systemPrompt: SYSTEM_PROMPT,
+          maxTokens: 512,
+        });
+
+        if (!recoveredOutput?.trim()) {
+          setError(
+            "Could not fix diagram syntax. Please try a different description.",
+          );
+          return;
+        }
+
+        const recoveredCode = normalizeMermaid(recoveredOutput);
+        if (!recoveredCode) {
+          setError(
+            "Could not fix diagram syntax. Please try a different description.",
+          );
+          return;
+        }
+
+        await insertMermaidIntoCanvas(api, recoveredCode);
+      } catch (recoveryErr) {
+        if (isAbortError(recoveryErr)) return;
+        setError(
+          recoveryErr instanceof Error
+            ? recoveryErr.message
+            : "Could not add diagram to canvas. Check the diagram syntax.",
+        );
+      }
     }
   };
 
