@@ -2,12 +2,6 @@ const MERMAID_FENCE_START = "```mermaid";
 const FENCE_START_GENERIC = /^```[\w]*\n?/;
 const MERMAID_FENCE_END = "```";
 
-/**
- * Strips markdown code fences from Mermaid output (e.g. from LLM responses).
- * Removes leading ```mermaid (or ``` with optional lang) and trailing ```
- * so the result is plain Mermaid code. Does not strip ``` that appear in the
- * middle of content (LLM output is expected to be a single fenced block).
- */
 export function stripMermaidFences(raw: string): string {
   let code = raw.trim();
   if (code.startsWith(MERMAID_FENCE_START)) {
@@ -21,4 +15,15 @@ export function stripMermaidFences(raw: string): string {
     code = code.slice(0, -MERMAID_FENCE_END.length).trim();
   }
   return code;
+}
+
+export function normalizeMermaid(code: string): string | null {
+  const normalized = stripMermaidFences(code);
+
+  const trimmed = normalized.trim();
+  if (!trimmed) return null;
+  if (!/\w/.test(trimmed)) return null;
+  if (trimmed.length < 10) return null;
+
+  return trimmed;
 }
