@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   extractIntent,
   buildUserPrompt,
+  buildErrorRecoveryPrompt,
   type Intent,
 } from "./intent-extraction";
 
@@ -294,5 +295,143 @@ describe("buildUserPrompt", () => {
     expect(prompt).toContain("sequenceDiagram");
     expect(prompt).toContain("user connects");
     expect(prompt).toContain("Reserved keywords");
+  });
+});
+
+describe("buildErrorRecoveryPrompt", () => {
+  it("includes original input and failed code", () => {
+    const context = {
+      originalInput: "user login flow",
+      failedMermaidCode: "flowchart TD\n  A[Start]",
+      errorMessage: "Parse error on line 2",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("user login flow");
+    expect(prompt).toContain("flowchart TD");
+    expect(prompt).toContain("A[Start]");
+    expect(prompt).toContain("Parse error on line 2");
+  });
+
+  it("detects indentation error from 'NEWLINE' message", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Expecting 'SPACE', got 'NEWLINE'",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("INCOMPLETE EDGE OR INDENTATION");
+    expect(prompt).toContain("NO indentation");
+  });
+
+  it("detects missing arrow error", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Expecting 'SPACE', 'AMP', 'COLON', 'DOWN'",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("MISSING ARROW CONNECTIONS");
+    expect(prompt).toContain("Every node must connect to next");
+  });
+
+  it("detects reserved keyword error", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Parse error: reserved keyword 'end'",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("RESERVED KEYWORD");
+    expect(prompt).toContain("end_");
+  });
+
+  it("detects mismatched brackets error", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Expecting 'BRKT', 'MINUS'",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("MISMATCHED BRACKETS");
+  });
+
+  it("handles duplicate node error", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "redefinition of node A",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("DUPLICATE NODE IDS");
+  });
+
+  it("provides fallback for unknown errors", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Some random error",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("GENERAL SYNTAX ERROR");
+    expect(prompt).toContain("Common issues");
+  });
+
+  it("includes strict formatting rules", () => {
+    const context = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "Parse error",
+      diagramType: "flowchart" as const,
+    };
+
+    const prompt = buildErrorRecoveryPrompt(context);
+
+    expect(prompt).toContain("STRICT RULES");
+    expect(prompt).toContain("NO indentation");
+    expect(prompt).toContain("CORRECT EXAMPLE");
+    expect(prompt).toContain("INCORRECT");
+  });
+
+  it("uses correct diagram type header", () => {
+    const flowchartContext = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "error",
+      diagramType: "flowchart" as const,
+    };
+
+    const sequenceContext = {
+      originalInput: "test",
+      failedMermaidCode: "invalid",
+      errorMessage: "error",
+      diagramType: "sequenceDiagram" as const,
+    };
+
+    const flowchartPrompt = buildErrorRecoveryPrompt(flowchartContext);
+    const sequencePrompt = buildErrorRecoveryPrompt(sequenceContext);
+
+    expect(flowchartPrompt).toContain("flowchart TD");
+    expect(sequencePrompt).toContain("sequenceDiagram");
   });
 });
