@@ -268,11 +268,11 @@ describe("buildUserPrompt", () => {
     expect(prompt).toContain("ENTITIES TO CONSIDER");
   });
 
-  it("does not include entities for long inputs", () => {
+  it("includes entities when present in intent", () => {
     const intent: Intent = {
-      diagramType: null,
-      direction: null,
-      entities: ["user", "login", "dashboard"],
+      diagramType: "flowchart",
+      direction: "TD",
+      entities: ["User", "Login", "Dashboard"],
     };
 
     const prompt = buildUserPrompt(
@@ -280,7 +280,7 @@ describe("buildUserPrompt", () => {
       intent,
     );
 
-    expect(prompt).not.toContain("ENTITIES TO CONSIDER");
+    expect(prompt).toContain("ENTITIES TO CONSIDER");
   });
 
   it("combines all extracted info", () => {

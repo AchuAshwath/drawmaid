@@ -46,7 +46,7 @@ describe("normalizeMermaid", () => {
     expect(normalizeMermaid("   \n   ")).toBeNull();
   });
 
-  it("returns null for input without words", () => {
+  it("returns null for input without alphabetic characters", () => {
     expect(normalizeMermaid("123 456")).toBeNull();
   });
 

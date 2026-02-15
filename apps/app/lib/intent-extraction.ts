@@ -120,6 +120,7 @@ function extractEntitiesNative(text: string): string[] {
 // Simple LRU-like cache for intent extraction
 const intentCache = new Map<string, Intent>();
 const MAX_CACHE_SIZE = 50;
+const ENTITY_EXTRACTION_THRESHOLD = 50;
 
 export function extractIntent(transcript: string): Intent {
   // Check cache first
@@ -132,7 +133,7 @@ export function extractIntent(transcript: string): Intent {
 
   // Only extract entities for short inputs (optimization)
   let entities: string[] = [];
-  if (transcript.length < 50) {
+  if (transcript.length < ENTITY_EXTRACTION_THRESHOLD) {
     entities = extractEntitiesNative(transcript);
   }
 
@@ -181,8 +182,8 @@ SYNTAX RULES FOR ${config.name.toUpperCase()}:
     prompt += "\n- Tips:" + config.tips.map((t) => "\n  * " + t).join("");
   }
 
-  // Add entities section (only for short inputs)
-  if (originalTranscript.length < 50 && intent.entities.length > 0) {
+  // Add entities section (only extracted for short inputs)
+  if (intent.entities.length > 0) {
     const nodes = intent.entities
       .map((e) => e.charAt(0).toUpperCase() + e.slice(1))
       .join(", ");

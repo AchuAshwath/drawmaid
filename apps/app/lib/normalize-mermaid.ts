@@ -22,7 +22,7 @@ export function normalizeMermaid(code: string): string | null {
 
   const trimmed = normalized.trim();
   if (!trimmed) return null;
-  if (!/\w/.test(trimmed)) return null;
+  if (!/[a-zA-Z]/.test(trimmed)) return null;
   if (trimmed.length < 10) return null;
 
   return trimmed;

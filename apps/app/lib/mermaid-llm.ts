@@ -13,7 +13,9 @@ export interface GenerateOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 8000;
+// 10s: timeout after which output is likely degraded/incomplete since
+// we instruct the LLM to generate complete diagrams efficiently
+const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_LLM_TIMEOUT_MS) || 10000;
 
 function timeoutError(ms: number) {
   return new DOMException(`Generation timed out after ${ms}ms`, "TimeoutError");
@@ -218,8 +220,9 @@ export async function generate(
   emit({ status: "generating" });
 
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
+    timeoutId = setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
   });
 
   try {
@@ -258,6 +261,8 @@ export async function generate(
       error: err instanceof Error ? err.message : String(err),
     });
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
