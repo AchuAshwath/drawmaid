@@ -14,8 +14,11 @@ hero:
       text: View on GitHub
       link: https://github.com/kriasoft/react-starter-kit
     - theme: alt
-      text: Ask GPT
+      text: Ask ChatGPT
       link: https://chatgpt.com/g/g-69564f0a23088191846aa4072bd9397d-react-starter-kit-assistant
+    - theme: alt
+      text: Ask Gemini
+      link: https://gemini.google.com/gem/1IXFElQ2UvvZY86iL6uZLeoC-r8mp-OB-?usp=sharing
 
 features:
   - icon: 🤖
@@ -32,7 +35,7 @@ features:
     details: Pre-configured Better Auth with social providers, session management, and secure user flows
   - icon: 🏢
     title: Multi-Tenant Database
-    details: Neon PostgreSQL with Drizzle ORM, pre-built multi-tenant schema with UUIDv7, migrations, and type-safe queries
+    details: Cloudflare D1 with Drizzle ORM, pre-built schema with organizations and teams, migrations, and type-safe queries
   - icon: ⚡
     title: Ship Faster
     details: Bun runtime for instant builds, hot reload, unified tooling, and comprehensive testing setup

@@ -8,7 +8,7 @@ interface SidebarNavItem {
 }
 
 interface SidebarNavProps {
-  items: SidebarNavItem[];
+  items: readonly SidebarNavItem[];
 }
 
 export function SidebarNav({ items }: SidebarNavProps) {
