@@ -3,9 +3,10 @@ import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
 } from "@/lib/insert-mermaid-into-canvas";
-import { isAbortError } from "@/lib/mermaid-llm";
-import { stripMermaidFences } from "@/lib/normalize-mermaid";
+import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
+import { normalizeMermaid } from "@/lib/normalize-mermaid";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
+import { extractIntent, buildUserPrompt } from "@/lib/intent-extraction";
 import { Excalidraw, Footer, MainMenu } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { Button, Input } from "@repo/ui";
@@ -26,10 +27,35 @@ function Home() {
   const handleGenerate = async () => {
     setError(null);
     let mermaidOutput: string | null = null;
+
+    console.log("[DrawMaid] Input:", prompt);
+
+    const intent = extractIntent(prompt);
+    console.log("[DrawMaid] Intent:", JSON.stringify(intent));
+
+    const userPrompt = buildUserPrompt(prompt, intent);
+
+    // Log the ENTIRE input the LLM receives
+    console.log("[DrawMaid] === LLM INPUT ===");
+    console.log("[DrawMaid] SYSTEM PROMPT:");
+    console.log(SYSTEM_PROMPT);
+    console.log("\n[DrawMaid] USER PROMPT:");
+    console.log(userPrompt);
+    console.log("[DrawMaid] === END LLM INPUT ===\n");
+
     try {
-      mermaidOutput = await generate(prompt);
+      mermaidOutput = await generate(userPrompt, {
+        systemPrompt: SYSTEM_PROMPT,
+      });
     } catch (err) {
-      if (isAbortError(err)) return; // User cancelled or new generation started
+      console.error("[DrawMaid] Generation error:", err);
+      if (isAbortError(err)) return;
+      if (isTimeoutError(err)) {
+        setError(
+          "Generation timed out. Try a simpler request or check your connection.",
+        );
+        return;
+      }
       setError(
         err instanceof Error
           ? err.message
@@ -37,15 +63,28 @@ function Home() {
       );
       return;
     }
-    if (!mermaidOutput?.trim()) return;
+
+    if (!mermaidOutput?.trim()) {
+      console.log("[DrawMaid] Empty output, skipping");
+      return;
+    }
+
+    console.log("[DrawMaid] LLM Output:\n", mermaidOutput);
 
     const api = excalidrawApiRef.current;
     if (!api) return;
 
     try {
-      const mermaidCode = stripMermaidFences(mermaidOutput);
+      const mermaidCode = normalizeMermaid(mermaidOutput);
+      if (!mermaidCode) {
+        console.log("[DrawMaid] Normalization failed, skipping");
+        return;
+      }
+      console.log("[DrawMaid] Mermaid:\n", mermaidCode);
       await insertMermaidIntoCanvas(api, mermaidCode);
+      console.log("[DrawMaid] Inserted successfully");
     } catch (err) {
+      console.error("[DrawMaid] Insert error:", err);
       setError(
         err instanceof Error
           ? err.message
