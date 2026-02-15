@@ -104,6 +104,15 @@
   --ring: oklch(0.556 0 0);
 }
 
+/* Keep Excalidraw footer help/zoom at bottom when custom PromptFooter is tall */
+.excalidraw .App-menu_bottom {
+  align-items: flex-end;
+}
+.excalidraw .layer-ui__wrapper .layer-ui__wrapper__footer-right {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
