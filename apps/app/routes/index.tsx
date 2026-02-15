@@ -32,27 +32,14 @@ function Home() {
     setError(null);
     let mermaidOutput: string | null = null;
 
-    console.log("[DrawMaid] Input:", prompt);
-
     const intent = extractIntent(prompt);
-    console.log("[DrawMaid] Intent:", JSON.stringify(intent));
-
     const userPrompt = buildUserPrompt(prompt, intent);
-
-    // Log the ENTIRE input the LLM receives
-    console.log("[DrawMaid] === LLM INPUT ===");
-    console.log("[DrawMaid] SYSTEM PROMPT:");
-    console.log(SYSTEM_PROMPT);
-    console.log("\n[DrawMaid] USER PROMPT:");
-    console.log(userPrompt);
-    console.log("[DrawMaid] === END LLM INPUT ===\n");
 
     try {
       mermaidOutput = await generate(userPrompt, {
         systemPrompt: SYSTEM_PROMPT,
       });
     } catch (err) {
-      console.error("[DrawMaid] Generation error:", err);
       if (isAbortError(err)) return;
       if (isTimeoutError(err)) {
         setError(
@@ -69,11 +56,8 @@ function Home() {
     }
 
     if (!mermaidOutput?.trim()) {
-      console.log("[DrawMaid] Empty output, skipping");
       return;
     }
-
-    console.log("[DrawMaid] LLM Output:\n", mermaidOutput);
 
     const api = excalidrawApiRef.current;
     if (!api) return;
@@ -82,15 +66,10 @@ function Home() {
     try {
       mermaidCode = normalizeMermaid(mermaidOutput);
       if (!mermaidCode) {
-        console.log("[DrawMaid] Normalization failed, skipping");
         return;
       }
-      console.log("[DrawMaid] Mermaid:\n", mermaidCode);
       await insertMermaidIntoCanvas(api, mermaidCode);
-      console.log("[DrawMaid] Inserted successfully");
     } catch (err) {
-      console.error("[DrawMaid] Insert error (attempt 1):", err);
-
       // Try error recovery once
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorPrompt = buildErrorRecoveryPrompt({
@@ -100,29 +79,21 @@ function Home() {
         diagramType: intent.diagramType,
       });
 
-      console.log("[DrawMaid] === ERROR RECOVERY PROMPT ===");
-      console.log(errorPrompt);
-      console.log("[DrawMaid] === END ERROR RECOVERY PROMPT ===\n");
-
       try {
         const recoveredOutput = await generate(errorPrompt, {
           systemPrompt: SYSTEM_PROMPT,
-          maxTokens: 512, // Shorter for recovery
+          maxTokens: 512,
         });
 
         if (!recoveredOutput?.trim()) {
-          console.log("[DrawMaid] Recovery failed - empty output");
           setError(
             "Could not fix diagram syntax. Please try a different description.",
           );
           return;
         }
 
-        console.log("[DrawMaid] Recovery Output:\n", recoveredOutput);
-
         const recoveredCode = normalizeMermaid(recoveredOutput);
         if (!recoveredCode) {
-          console.log("[DrawMaid] Recovery normalization failed");
           setError(
             "Could not fix diagram syntax. Please try a different description.",
           );
@@ -130,9 +101,7 @@ function Home() {
         }
 
         await insertMermaidIntoCanvas(api, recoveredCode);
-        console.log("[DrawMaid] Recovered and inserted successfully");
       } catch (recoveryErr) {
-        console.error("[DrawMaid] Recovery failed:", recoveryErr);
         if (isAbortError(recoveryErr)) return;
         setError(
           err instanceof Error
