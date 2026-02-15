@@ -153,6 +153,12 @@ export function buildUserPrompt(
 
 USER REQUEST: "${originalTranscript}"
 
+CRITICAL FORMATTING RULES:
+1. NO indentation - every line starts at column 0
+2. If using |label| on arrow, target MUST be on SAME line
+3. Every --> arrow must have a target node on the same line
+4. Each statement is exactly ONE line
+
 SYNTAX RULES FOR ${config.name.toUpperCase()}:
 - Node syntax: ${config.nodeSyntax}
 - Edge syntax: ${config.edgeSyntax}
@@ -180,4 +186,136 @@ SYNTAX RULES FOR ${config.name.toUpperCase()}:
   }
 
   return prompt;
+}
+
+// Error pattern detection and specific fixes
+interface ErrorPattern {
+  pattern: RegExp;
+  title: string;
+  cause: string;
+  fix: string;
+  badExample: string;
+  goodExample: string;
+}
+
+const ERROR_PATTERNS: ErrorPattern[] = [
+  {
+    pattern: /got 'NEWLINE'/i,
+    title: "INCOMPLETE EDGE OR INDENTATION",
+    cause: "Edge has label but no target node, OR line has leading spaces",
+    fix: "If edge has |label|, the target must be on SAME line: A -->|label| B. Remove ALL indentation from every line.",
+    badExample: "D -->|Invalid|\\n  F[Error]",
+    goodExample: "D -->|Invalid| F[Error]",
+  },
+  {
+    pattern: /Expecting.*SPACE.*AMP.*COLON.*DOWN/i,
+    title: "MISSING ARROW CONNECTIONS",
+    cause: "Nodes listed without arrow connections (-->) on same line",
+    fix: "Every node must connect to next with --> on SAME line",
+    badExample: "A[Start]\\nB[Process]",
+    goodExample: "A[Start] --> B[Process]",
+  },
+  {
+    pattern: /redefinition of node|duplicate/i,
+    title: "DUPLICATE NODE IDS",
+    cause: "Same ID (A, B, C) used for multiple different nodes",
+    fix: "Use unique IDs for each node",
+    badExample: "A[Login] and later A[Logout]",
+    goodExample: "A[Login] and B[Logout]",
+  },
+  {
+    pattern: /unclosed|bracket|parenthesis|expecting.*BRKT/i,
+    title: "MISMATCHED BRACKETS",
+    cause: "Missing closing bracket ] or parenthesis )",
+    fix: "Ensure every [ has a ] and every ( has a )",
+    badExample: "A[Start --> B[End]",
+    goodExample: "A[Start] --> B[End]",
+  },
+  {
+    pattern: /reserved|keyword|end|class|graph/i,
+    title: "RESERVED KEYWORD AS NODE ID",
+    cause: "Using reserved words like 'end', 'class', 'graph' as node names",
+    fix: "Add underscore suffix: end_, class_, graph_",
+    badExample: "end[Finish]",
+    goodExample: "end_[Finish]",
+  },
+];
+
+function getSpecificErrorFix(errorMessage: string): string {
+  for (const errorPattern of ERROR_PATTERNS) {
+    if (errorPattern.pattern.test(errorMessage)) {
+      return `SPECIFIC ERROR DETECTED: ${errorPattern.title}
+
+Cause: ${errorPattern.cause}
+Fix: ${errorPattern.fix}
+Example:
+  Wrong: ${errorPattern.badExample}
+  Right: ${errorPattern.goodExample}`;
+    }
+  }
+
+  // Fallback for unknown errors
+  return `GENERAL SYNTAX ERROR
+
+The mermaid code has a syntax error. Common issues:
+- Missing arrow connections between nodes (use --> )
+- Extra spaces at start of lines (remove all indentation)
+- Unclosed brackets [ ] or parentheses ( )
+- Reserved words used as node names (add _ suffix)
+
+Check the failed code above and fix these issues.`;
+}
+
+export interface ErrorRecoveryContext {
+  originalInput: string;
+  failedMermaidCode: string;
+  errorMessage: string;
+  diagramType: string | null;
+}
+
+export function buildErrorRecoveryPrompt(
+  context: ErrorRecoveryContext,
+): string {
+  const diagramType = context.diagramType || "flowchart";
+  const config = getDiagramConfig(context.diagramType);
+  const firstLine =
+    diagramType === "flowchart" ? `${diagramType} TD` : diagramType;
+
+  const specificFix = getSpecificErrorFix(context.errorMessage);
+
+  return `CRITICAL: Fix the mermaid syntax error below.
+
+ORIGINAL REQUEST: "${context.originalInput}"
+
+FAILED CODE:
+\`\`\`
+${context.failedMermaidCode}
+\`\`\`
+
+PARSE ERROR: ${context.errorMessage}
+
+${specificFix}
+
+STRICT RULES - MUST FOLLOW:
+1. NO indentation - every line starts at column 0 (no spaces/tabs at start)
+2. If using |label| on arrow, target MUST be on SAME line
+3. Every --> arrow must point to something on the same line
+4. Each statement is ONE line only
+
+CORRECT EXAMPLE:
+flowchart TD
+A[Start] --> B{Decision}
+B -->|Yes| C[Process]
+B -->|No| D[End]
+
+INCORRECT (will fail):
+flowchart TD
+  A[Start]  <-- has spaces
+B -->|Label|  <-- missing target
+  C[End]  <-- indented
+
+SYNTAX: ${config.nodeSyntax} | ${config.edgeSyntax}
+
+Rewrite the FAILED CODE above with NO indentation and complete all arrows:
+${firstLine}`;
 }

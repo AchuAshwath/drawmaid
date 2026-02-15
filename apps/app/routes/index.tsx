@@ -6,7 +6,11 @@ import {
 import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
 import { normalizeMermaid } from "@/lib/normalize-mermaid";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
-import { extractIntent, buildUserPrompt } from "@/lib/intent-extraction";
+import {
+  extractIntent,
+  buildUserPrompt,
+  buildErrorRecoveryPrompt,
+} from "@/lib/intent-extraction";
 import { Excalidraw, Footer, MainMenu } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { Button, Input } from "@repo/ui";
@@ -74,8 +78,9 @@ function Home() {
     const api = excalidrawApiRef.current;
     if (!api) return;
 
+    let mermaidCode: string | null = null;
     try {
-      const mermaidCode = normalizeMermaid(mermaidOutput);
+      mermaidCode = normalizeMermaid(mermaidOutput);
       if (!mermaidCode) {
         console.log("[DrawMaid] Normalization failed, skipping");
         return;
@@ -84,12 +89,57 @@ function Home() {
       await insertMermaidIntoCanvas(api, mermaidCode);
       console.log("[DrawMaid] Inserted successfully");
     } catch (err) {
-      console.error("[DrawMaid] Insert error:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not add diagram to canvas. Check the diagram syntax.",
-      );
+      console.error("[DrawMaid] Insert error (attempt 1):", err);
+
+      // Try error recovery once
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorPrompt = buildErrorRecoveryPrompt({
+        originalInput: prompt,
+        failedMermaidCode: mermaidCode || mermaidOutput,
+        errorMessage,
+        diagramType: intent.diagramType,
+      });
+
+      console.log("[DrawMaid] === ERROR RECOVERY PROMPT ===");
+      console.log(errorPrompt);
+      console.log("[DrawMaid] === END ERROR RECOVERY PROMPT ===\n");
+
+      try {
+        const recoveredOutput = await generate(errorPrompt, {
+          systemPrompt: SYSTEM_PROMPT,
+          maxTokens: 512, // Shorter for recovery
+        });
+
+        if (!recoveredOutput?.trim()) {
+          console.log("[DrawMaid] Recovery failed - empty output");
+          setError(
+            "Could not fix diagram syntax. Please try a different description.",
+          );
+          return;
+        }
+
+        console.log("[DrawMaid] Recovery Output:\n", recoveredOutput);
+
+        const recoveredCode = normalizeMermaid(recoveredOutput);
+        if (!recoveredCode) {
+          console.log("[DrawMaid] Recovery normalization failed");
+          setError(
+            "Could not fix diagram syntax. Please try a different description.",
+          );
+          return;
+        }
+
+        await insertMermaidIntoCanvas(api, recoveredCode);
+        console.log("[DrawMaid] Recovered and inserted successfully");
+      } catch (recoveryErr) {
+        console.error("[DrawMaid] Recovery failed:", recoveryErr);
+        if (isAbortError(recoveryErr)) return;
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not add diagram to canvas. Check the diagram syntax.",
+        );
+      }
     }
   };
 
