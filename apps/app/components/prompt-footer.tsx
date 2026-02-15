@@ -1,7 +1,7 @@
 import { VoiceInputButton } from "@/components/voice-input-button";
 import {
   Button,
-  Input,
+  Textarea,
   Select,
   SelectContent,
   SelectItem,
@@ -10,7 +10,7 @@ import {
 } from "@repo/ui";
 import { ArrowUp } from "lucide-react";
 
-export type PromptFooterMode = "auto" | "explicit";
+export type PromptFooterMode = "auto" | "normal";
 
 export interface PromptFooterProps {
   prompt: string;
@@ -46,35 +46,40 @@ export function PromptFooter({
   inputAriaInvalid = false,
 }: PromptFooterProps) {
   return (
-    <div className="flex w-full max-w-2xl mx-auto flex-col gap-2 text-foreground">
+    <div className="flex w-full max-w-[550px] mx-auto flex-col gap-2 text-foreground">
       <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
         <div className="flex w-full flex-col gap-2">
-          <Input
+          <Textarea
             value={prompt}
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder="Describe a diagram or use the mic..."
-            className="min-w-0 flex-1 h-9 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground resize-none max-h-[192px] overflow-x-hidden overflow-y-auto"
             aria-label="Diagram description"
             aria-invalid={inputAriaInvalid}
             aria-describedby={inputAriaDescribedBy}
+            rows={1}
           />
           <div className="flex w-full items-center justify-between gap-2">
-            <VoiceInputButton
-              onTranscript={onTranscript}
-              onRecognitionError={onRecognitionError}
-            />
-            <Select
-              value={mode}
-              onValueChange={(value) => onModeChange(value as PromptFooterMode)}
-            >
-              <SelectTrigger className="h-8 w-[10rem] border-0 bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 data-[placeholder]:text-muted-foreground">
-                <SelectValue placeholder="Mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Auto generate</SelectItem>
-                <SelectItem value="explicit">Explicit</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <VoiceInputButton
+                onTranscript={onTranscript}
+                onRecognitionError={onRecognitionError}
+              />
+              <Select
+                value={mode}
+                onValueChange={(value) =>
+                  onModeChange(value as PromptFooterMode)
+                }
+              >
+                <SelectTrigger className="h-8 w-[6rem] border-0 bg-transparent shadow-none focus:ring-0 focus:ring-offset-0 data-[placeholder]:text-muted-foreground">
+                  <SelectValue placeholder="Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               type="button"
               onClick={onGenerate}
@@ -99,7 +104,7 @@ export function PromptFooter({
       )}
       {loading && (
         <div
-          className="h-1.5 w-full max-w-2xl mx-auto rounded-full border border-border bg-muted overflow-hidden"
+          className="h-1.5 w-full max-w-[550px] mx-auto rounded-full border border-border bg-muted overflow-hidden"
           role="progressbar"
           aria-valuenow={Math.round(loadProgress * 100)}
           aria-valuemin={0}

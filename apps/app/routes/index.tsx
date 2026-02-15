@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<"auto" | "explicit">("explicit");
+  const [mode, setMode] = useState<"auto" | "normal">("normal");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
