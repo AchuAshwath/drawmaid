@@ -168,17 +168,16 @@ export function buildUserPrompt(
     tips = "\n- Tips:" + config.tips.map((t) => "\n  * " + t).join("");
   }
 
-  let entitiesSection = "";
+  let entities = "";
   if (intent.entities.length > 0) {
-    const nodes = intent.entities
+    entities = intent.entities
       .map((e) => e.charAt(0).toUpperCase() + e.slice(1))
       .join(", ");
-    entitiesSection = `\n\nENTITIES TO CONSIDER (use only if aligned with request): ${nodes}`;
   }
 
-  let exampleSection = "";
+  let example = "";
   if (config.examples.length > 0) {
-    exampleSection = `\n\nSYNTAX REFERENCE (shows valid patterns - do not copy content):\n${config.examples[0]}`;
+    example = config.examples[0] as string;
   }
 
   return USER_PROMPT_RULES.replace("{{transcript}}", originalTranscript)
@@ -187,9 +186,9 @@ export function buildUserPrompt(
     .replace("{{edgeSyntax}}", config.edgeSyntax)
     .replace("{{reservedWords}}", config.reservedWords.join(", "))
     .replace("{{tips}}", tips)
-    .replace("{{entities}}", entitiesSection)
+    .replace("{{entities}}", entities)
     .replace("{{firstLine}}", firstLine)
-    .replace("{{example}}", exampleSection);
+    .replace("{{example}}", example);
 }
 
 // Error pattern detection and specific fixes

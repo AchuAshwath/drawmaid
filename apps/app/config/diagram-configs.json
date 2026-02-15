@@ -19,7 +19,7 @@
       "flowchart"
     ],
     "examples": [
-      "flowchart TD\n  Node1[Label Text] --> Node2{Decision}\n  Node2 -->|Option A| Node3[Result A]\n  Node2 -->|Option B| Node4[Result B]"
+      "flowchart TD\nNode1[Label Text] --> Node2{Decision}\nNode2 -->|Option A| Node3[Result A]\nNode2 -->|Option B| Node4[Result B]"
     ],
     "tips": [
       "Node IDs must be single words without spaces",
@@ -50,7 +50,7 @@
       "destroy"
     ],
     "examples": [
-      "sequenceDiagram\n  participant Entity1\n  participant Entity2\n  Entity1 ->> Entity2: Message description\n  Entity2 -->> Entity1: Response description"
+      "sequenceDiagram\nparticipant Entity1\nparticipant Entity2\nEntity1 ->> Entity2: Message description\nEntity2 -->> Entity1: Response description"
     ],
     "tips": [
       "Define participants first: participant User",
@@ -75,7 +75,7 @@
       "implements"
     ],
     "examples": [
-      "classDiagram\n  class ClassName {\n    +String attribute\n    +method()\n  }\n  class AnotherClass\n  ClassName <|-- AnotherClass"
+      "classDiagram\nclass ClassName {\n+String attribute\n+method()\n}\nclass AnotherClass\nClassName <|-- AnotherClass"
     ],
     "tips": [
       "Define classes with attributes and methods",

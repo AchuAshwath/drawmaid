@@ -104,8 +104,8 @@ function Home() {
       } catch (recoveryErr) {
         if (isAbortError(recoveryErr)) return;
         setError(
-          err instanceof Error
-            ? err.message
+          recoveryErr instanceof Error
+            ? recoveryErr.message
             : "Could not add diagram to canvas. Check the diagram syntax.",
         );
       }
