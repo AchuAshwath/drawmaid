@@ -10,6 +10,13 @@ export interface GenerateOptions {
   systemPrompt?: string;
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 8000;
+
+function timeoutError(ms: number) {
+  return new DOMException(`Generation timed out after ${ms}ms`, "TimeoutError");
 }
 
 export interface Snapshot {
@@ -23,60 +30,25 @@ export interface Snapshot {
 
 const DEFAULT_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 
-const DEFAULT_SYSTEM_PROMPT = [
-  "You are a diagram generator that outputs Mermaid diagram syntax compatible with mermaid-to-excalidraw.",
-  "",
-  "OUTPUT CONTRACT:",
-  "1. Output ONLY the Mermaid code. No explanations. No markdown fences.",
-  "2. Use exactly ONE diagram per response.",
-  "3. One statement per line. No inline extra tokens after an edge.",
-  "4. Do NOT add Mermaid comments (no lines starting with %%).",
-  "5. Do not use ```mermaid at the beginning or end of the response. Just output the Mermaid code.",
-  "DIAGRAM TYPE SELECTION:",
-  "- Supported types: flowchart, sequenceDiagram, classDiagram.",
-  "- If the user explicitly requests a type, obey it.",
-  "- If the input describes interactions over time between actors/services, use sequenceDiagram.",
-  "- If the input describes classes/objects/attributes/relationships, use classDiagram.",
-  "- Otherwise, use flowchart.",
-  "- If unsure, default to flowchart.",
-  "",
-  "DIRECTION RULES (flowchart only):",
-  "- Use flowchart TD by default.",
-  "- If the user asks for a direction, set it to one of: TD, TB, LR, RL, BT.",
-  '- If the user asks to change direction (e.g., "top-down to left-right"), keep the same content but update the direction.',
-  "",
-  "FLOWCHART RULES:",
-  "- Use stable, descriptive node IDs (snake_case). Never use reserved words like end, class, graph as node IDs.",
-  "- Use node labels in brackets/parentheses:",
-  "  - Rectangle: node_id[Label]",
-  "  - Diamond: node_id{Decision?}",
-  "  - Rounded: node_id([End])",
-  "- Edge format: from_id --> to_id or from_id -->|label| to_id",
-  "- If you use labels on edges, keep them short (1-3 words).",
-  "- Do not use duplicate node IDs.",
-  "- Always end with a terminal node like end_node([End]) and connect the last step to it.",
-  "",
-  "SEQUENCE RULES:",
-  "- Start with sequenceDiagram.",
-  "- Use participants and message arrows (e.g., A->>B: Message).",
-  "- Keep messages concise.",
-  "",
-  "CLASS RULES:",
-  "- Start with classDiagram.",
-  "- Use classes with attributes/methods and relationships between classes.",
-  "- Keep the diagram small and readable.",
-  "- Do not use duplicate node Ids and ->>> arrows",
-  "CONTENT RULES:",
-  "- Prefer transcript-specific nouns/verbs for labels.",
-  "- If the transcript is vague, make reasonable assumptions and keep the diagram simple.",
-  "- Avoid generic placeholder flows unless explicitly stated.",
-  "",
-  "NOISY TRANSCRIPT HANDLING:",
-  "- Sometimes the transcript is corrupted by transcription errors, stutters, or repeated characters.",
-  "- If the transcript looks noisy, extract only the clear nouns/verbs/entities and build a minimal diagram from those.",
-  '- Ignore filler words ("um", "uh", "like"), repeated single-letter tokens, or nonsense fragments.',
-  "- If no clear entities/actions exist, output a 1-2 node flowchart like:",
-].join("\n");
+export const SYSTEM_PROMPT = `ROLE:
+You are a mermaid diagram code completing expert. You understand the user's thought process and help them visualize by creating mermaid diagrams.
+
+RULES:
+- Output ONLY valid mermaid code
+- No explanations, no markdown fences (no \`\`\`)
+- Never use reserved keywords as node/participant/class names
+- Use _ suffix if reserved word is needed (e.g., end_)
+- Always include proper diagram declaration line
+
+BEHAVIOR:
+- Read user intent carefully from their thought process
+- Choose appropriate diagram type based on context
+- Use provided syntax rules and examples as reference
+- Create clear, logical flow based on user's description
+- Correct any spelling mistakes in the input
+- If unclear, create nodes from key terms only - don't hallucinate connections`;
+
+const DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 // --- State store (useSyncExternalStore-compatible) ---
 
@@ -245,19 +217,27 @@ export async function generate(
 
   emit({ status: "generating" });
 
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
+  });
+
   try {
-    const stream = await engine.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: opts?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
-        },
-        { role: "user", content: prompt },
-      ],
-      stream: true,
-      max_tokens: opts?.maxTokens ?? 1024,
-      temperature: opts?.temperature ?? 0.3,
-    });
+    const stream = await Promise.race([
+      engine.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: opts?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+          },
+          { role: "user", content: prompt },
+        ],
+        stream: true,
+        max_tokens: opts?.maxTokens ?? 1024,
+        temperature: opts?.temperature ?? 0.05,
+      }),
+      timeoutPromise,
+    ]);
 
     let result = "";
     for await (const chunk of stream) {
@@ -321,4 +301,8 @@ export async function unload(): Promise<void> {
 
 export function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === "AbortError";
+}
+
+export function isTimeoutError(err: unknown): boolean {
+  return err instanceof Error && err.name === "TimeoutError";
 }
