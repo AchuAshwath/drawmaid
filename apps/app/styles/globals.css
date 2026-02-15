@@ -112,3 +112,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide Library label, show only icon */
+.sidebar-trigger .sidebar-trigger__label {
+  display: none !important;
+}
