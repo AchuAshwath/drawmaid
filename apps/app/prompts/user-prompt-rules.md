@@ -15,8 +15,7 @@ SYNTAX RULES FOR {{diagramType}}:
 - Edge syntax: {{edgeSyntax}}
 - Reserved keywords to AVOID: {{reservedWords}}
 
-- Tips:
-  {{tips}}
+{{tips}}
 
 ENTITIES TO CONSIDER (use only if aligned with request): {{entities}}
 

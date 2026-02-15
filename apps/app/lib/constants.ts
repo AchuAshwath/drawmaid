@@ -148,6 +148,7 @@ export const COMMON_FILTER = new Set([
   "use",
   "go",
   "see",
+  "wait",
 ]);
 
 // Reserved keywords per diagram type (for entity filtering)
