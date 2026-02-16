@@ -185,7 +185,7 @@ function Home() {
               <WelcomeScreen.Center.MenuItemLoadScene />
               <WelcomeScreen.Center.MenuItemLink
                 href="https://github.com/AchuAshwath/drawmaid"
-                icon={<Github className="h-5 w-5" />}
+                icon={<Github className="h-4 w-4" />}
               >
                 GitHub
               </WelcomeScreen.Center.MenuItemLink>

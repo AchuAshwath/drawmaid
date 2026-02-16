@@ -35,10 +35,11 @@ export function useExcalidrawThemeBridge() {
         ".ToolIcon--selected",
       );
 
+      let toolbarBg: string | undefined;
       if (toolbar || toolbarIsland) {
         const toolbarEl = toolbar || toolbarIsland;
         const toolbarStyles = getComputedStyle(toolbarEl!);
-        const toolbarBg = toolbarStyles.backgroundColor;
+        toolbarBg = toolbarStyles.backgroundColor;
         const toolbarColor = toolbarStyles.color;
         const toolbarBorder = toolbarStyles.borderColor;
 

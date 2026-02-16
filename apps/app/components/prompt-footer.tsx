@@ -1,7 +1,7 @@
 import { CenteredStrip } from "@/components/centered-strip";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { Button, Switch, Textarea } from "@repo/ui";
-import { ArrowUp, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export type PromptFooterMode = "auto" | "normal";
@@ -86,7 +86,7 @@ export function PromptFooter({
                 value={prompt}
                 onChange={(e) => onPromptChange(e.target.value)}
                 placeholder="Describe a diagram or use the mic..."
-                className="min-h-[32px] h-9 max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-3 py-1 text-sm shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[22px] h-7 max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
                 wrap="hard"
                 style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
                 aria-label="Diagram description"
@@ -98,11 +98,11 @@ export function PromptFooter({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute top-1 right-1 h-6 w-6 opacity-60 hover:opacity-100 shadow-none"
+                className="absolute top-0.5 right-0.5 h-5 w-5 opacity-60 hover:opacity-100 shadow-none"
                 onClick={() => setIsCollapsed(true)}
                 aria-label="Collapse textarea"
               >
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-2.5 w-2.5" />
               </Button>
             </div>
           )}
