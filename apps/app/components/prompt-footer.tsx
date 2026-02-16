@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@repo/ui";
+import { useEffect, useRef } from "react";
 import { ArrowUp } from "lucide-react";
 
 export type PromptFooterMode = "auto" | "normal";
@@ -29,6 +30,8 @@ export interface PromptFooterProps {
   inputAriaInvalid?: boolean;
 }
 
+const MAX_TEXTAREA_HEIGHT = 192; // px (~6–8 lines depending on content)
+
 export function PromptFooter({
   prompt,
   onPromptChange,
@@ -45,15 +48,36 @@ export function PromptFooter({
   inputAriaDescribedBy,
   inputAriaInvalid = false,
 }: PromptFooterProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-grow the textarea height based on content, up to MAX_TEXTAREA_HEIGHT.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    // Reset height so scrollHeight is measured from natural content height
+    el.style.height = "auto";
+
+    const scrollHeight = el.scrollHeight;
+    const nextHeight = Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT);
+
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+    el.style.overflowX = "hidden";
+  }, [prompt]);
+
   return (
     <div className="flex w-full max-w-[550px] mx-auto flex-col gap-2 text-foreground">
       <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
         <div className="flex w-full flex-col gap-2">
           <Textarea
+            ref={textareaRef}
             value={prompt}
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder="Describe a diagram or use the mic..."
-            className="min-w-0 flex-1 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground resize-none max-h-[192px] overflow-x-hidden overflow-y-auto"
+            className="min-w-0 w-full flex-1 resize-none border-0 bg-transparent text-sm shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
+            wrap="hard"
+            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
             aria-label="Diagram description"
             aria-invalid={inputAriaInvalid}
             aria-describedby={inputAriaDescribedBy}
