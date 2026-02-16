@@ -190,7 +190,9 @@ export function useExcalidrawThemeBridge() {
     return () => {
       observer.disconnect();
       clearInterval(watchForExcalidraw);
-      if (retryTimeout) clearTimeout(retryTimeout);
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
     };
   }, []);
 }
