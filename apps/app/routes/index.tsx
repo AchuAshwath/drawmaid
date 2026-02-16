@@ -10,11 +10,12 @@ import {
 } from "@/lib/intent-extraction";
 import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
 import { normalizeMermaid } from "@/lib/normalize-mermaid";
+import { useExcalidrawThemeBridge } from "@/lib/use-excalidraw-theme";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
-import { Moon, Sun } from "lucide-react";
+import { Github, Moon, Sun } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
@@ -44,6 +45,9 @@ function Home() {
       root.classList.remove("dark");
     }
   }, [theme]);
+
+  // Sync our theme colors directly from Excalidraw's CSS variables
+  useExcalidrawThemeBridge();
 
   const handleGenerate = async () => {
     setError(null);
@@ -179,7 +183,10 @@ function Home() {
             </WelcomeScreen.Center.Heading>
             <WelcomeScreen.Center.Menu>
               <WelcomeScreen.Center.MenuItemLoadScene />
-              <WelcomeScreen.Center.MenuItemLink href="https://github.com/anomalyco/drawmaid">
+              <WelcomeScreen.Center.MenuItemLink
+                href="https://github.com/AchuAshwath/drawmaid"
+                icon={<Github className="h-5 w-5" />}
+              >
                 GitHub
               </WelcomeScreen.Center.MenuItemLink>
               <WelcomeScreen.Center.MenuItemHelp />
@@ -198,7 +205,7 @@ function Home() {
 
       {/* Floating bottom overlay with PromptFooter */}
       <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-50">
-        <div className="pointer-events-auto w-full max-w-[550px] px-4">
+        <div className="pointer-events-auto w-full max-w-[550px]">
           <PromptFooter
             prompt={prompt}
             onPromptChange={(value) => {
