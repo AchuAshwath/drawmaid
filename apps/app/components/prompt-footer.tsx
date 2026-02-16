@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@repo/ui";
 import { useEffect, useRef } from "react";
+import { CenteredStrip } from "@/components/centered-strip";
 import { ArrowUp } from "lucide-react";
 
 export type PromptFooterMode = "auto" | "normal";
@@ -67,7 +68,7 @@ export function PromptFooter({
   }, [prompt]);
 
   return (
-    <div className="flex w-full max-w-[550px] mx-auto flex-col gap-2 text-foreground">
+    <CenteredStrip className="flex-col gap-2 text-foreground">
       <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
         <div className="flex w-full flex-col gap-2">
           <Textarea
@@ -141,6 +142,6 @@ export function PromptFooter({
           />
         </div>
       )}
-    </div>
+    </CenteredStrip>
   );
 }

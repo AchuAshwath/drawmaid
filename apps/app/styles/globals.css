@@ -81,7 +81,7 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* Excalidraw uses .theme--dark on its container; sync our theme vars so footer matches */
+/* Excalidraw uses .theme--dark on its container; sync our theme vars so all editor chrome matches */
 .theme--dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -104,14 +104,21 @@
   --ring: oklch(0.556 0 0);
 }
 
-/* Keep Excalidraw footer help/zoom at bottom when custom PromptFooter is tall */
-.excalidraw .App-menu_bottom {
-  align-items: flex-end;
+/* Bridge Excalidraw theme → Drawmaid theme.
+ * Excalidraw defines its own CSS variables (e.g. --color-primary) on the
+ * `.excalidraw` root; we mirror those into `--dm-*` tokens that the rest
+ * of the app can consume or sync into our own Tailwind/shadcn theme.
+ */
+.excalidraw {
+  --dm-primary: var(--color-primary);
 }
-.excalidraw .layer-ui__wrapper .layer-ui__wrapper__footer-right {
-  margin-top: 0;
-  margin-bottom: 0;
+.excalidraw.theme--dark {
+  --dm-primary: var(--color-primary);
 }
+
+/* No additional Excalidraw layout overrides needed now that
+ * our prompt footer and future toolbars float above the canvas.
+ */
 
 @layer base {
   * {

@@ -11,15 +11,11 @@ import {
 import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
 import { normalizeMermaid } from "@/lib/normalize-mermaid";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
-import {
-  Excalidraw,
-  Footer,
-  MainMenu,
-  WelcomeScreen,
-} from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -28,10 +24,26 @@ export const Route = createFileRoute("/")({
 function Home() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<"auto" | "normal">("normal");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme]);
 
   const handleGenerate = async () => {
     setError(null);
@@ -117,22 +129,19 @@ function Home() {
   };
 
   return (
-    <div className="h-dvh w-full">
+    <div className="relative h-dvh w-full">
       <Excalidraw
+        theme={theme}
         excalidrawAPI={(api) => {
           excalidrawApiRef.current = api as ExcalidrawCanvasApi;
           setApiReady(true);
         }}
         UIOptions={{
           canvasActions: {
-            toggleTheme: true,
+            toggleTheme: false,
           },
         }}
-        initialData={{
-          appState: {
-            theme: "dark",
-          },
-        }}
+        initialData={undefined}
       >
         <MainMenu>
           <MainMenu.DefaultItems.LoadScene />
@@ -143,7 +152,20 @@ function Home() {
           <MainMenu.DefaultItems.Help />
           <MainMenu.DefaultItems.ClearCanvas />
           <MainMenu.Separator />
-          <MainMenu.DefaultItems.ToggleTheme />
+          <MainMenu.Item onSelect={handleToggleTheme}>
+            <div className="flex items-center gap-2">
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+              <span>
+                {theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"}
+              </span>
+            </div>
+          </MainMenu.Item>
           <MainMenu.Separator />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
         </MainMenu>
@@ -167,7 +189,16 @@ function Home() {
           <WelcomeScreen.Hints.MenuHint />
           <WelcomeScreen.Hints.HelpHint />
         </WelcomeScreen>
-        <Footer>
+      </Excalidraw>
+
+      {/* Floating top overlay (ready for custom toolbar if needed) */}
+      <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center z-50">
+        <div className="pointer-events-auto w-full max-w-[550px] px-4" />
+      </div>
+
+      {/* Floating bottom overlay with PromptFooter */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-50">
+        <div className="pointer-events-auto w-full max-w-[550px] px-4">
           <PromptFooter
             prompt={prompt}
             onPromptChange={(value) => {
@@ -197,8 +228,8 @@ function Home() {
             inputAriaDescribedBy={error ? "home-error" : undefined}
             inputAriaInvalid={!!error}
           />
-        </Footer>
-      </Excalidraw>
+        </div>
+      </div>
     </div>
   );
 }
