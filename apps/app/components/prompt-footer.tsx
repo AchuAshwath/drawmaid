@@ -1,8 +1,8 @@
 import { CenteredStrip } from "@/components/centered-strip";
+import { usePromptFooterState } from "@/lib/use-prompt-footer-state";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -23,8 +23,6 @@ export interface PromptFooterProps {
   inputAriaInvalid?: boolean;
 }
 
-const MAX_TEXTAREA_HEIGHT = 192; // px (~6–8 lines depending on content)
-
 export function PromptFooter({
   prompt,
   onPromptChange,
@@ -41,24 +39,13 @@ export function PromptFooter({
   inputAriaDescribedBy,
   inputAriaInvalid = false,
 }: PromptFooterProps) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // Auto-grow the textarea height based on content, up to MAX_TEXTAREA_HEIGHT.
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-
-    // Reset height so scrollHeight is measured from natural content height
-    el.style.height = "auto";
-
-    const scrollHeight = el.scrollHeight;
-    const nextHeight = Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT);
-
-    el.style.height = `${nextHeight}px`;
-    el.style.overflowY = scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
-    el.style.overflowX = "hidden";
-  }, [prompt]);
+  const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
+    usePromptFooterState({
+      mode,
+      onModeChange,
+      onGenerate,
+      isGenerateDisabled: generateDisabled,
+    });
 
   return (
     <CenteredStrip className="flex-col gap-2 text-foreground">
@@ -85,8 +72,9 @@ export function PromptFooter({
                 ref={textareaRef}
                 value={prompt}
                 onChange={(e) => onPromptChange(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Describe a diagram or use the mic..."
-                className="min-h-[22px] h-7 max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[22px] max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
                 wrap="hard"
                 style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
                 aria-label="Diagram description"
@@ -99,7 +87,7 @@ export function PromptFooter({
                 variant="ghost"
                 size="icon"
                 className="absolute top-0.5 right-0.5 h-5 w-5 opacity-60 hover:opacity-100 shadow-none"
-                onClick={() => setIsCollapsed(true)}
+                onClick={toggleCollapsed}
                 aria-label="Collapse textarea"
               >
                 <ChevronDown className="h-2.5 w-2.5" />
@@ -114,7 +102,7 @@ export function PromptFooter({
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 opacity-60 hover:opacity-100 shadow-none"
-                  onClick={() => setIsCollapsed(false)}
+                  onClick={toggleCollapsed}
                   aria-label="Expand textarea"
                 >
                   <ChevronUp className="h-4 w-4" />
