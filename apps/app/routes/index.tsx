@@ -16,6 +16,7 @@ import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun } from "lucide-react";
+import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
@@ -176,7 +177,10 @@ function Home() {
         <WelcomeScreen>
           <WelcomeScreen.Center>
             <WelcomeScreen.Center.Logo>
-              <span className="text-3xl font-semibold">Drawmaid</span>
+              <div className="flex items-center gap-3">
+                <MagicBroomIcon className="h-10 w-10 text-primary" />
+                <span className="text-3xl font-semibold">Drawmaid</span>
+              </div>
             </WelcomeScreen.Center.Logo>
             <WelcomeScreen.Center.Heading>
               Create diagrams with AI

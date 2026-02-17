@@ -22,4 +22,5 @@ export * from "./components/textarea";
 // Export utilities
 export * from "./lib/utils";
 
-// Export hooks
+// Export icons
+export * from "./components/icons/game-icons-magic-broom";
