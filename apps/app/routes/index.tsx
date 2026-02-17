@@ -1,21 +1,23 @@
-import { VoiceInputButton } from "@/components/voice-input-button";
+import { PromptFooter } from "@/components/prompt-footer";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
 } from "@/lib/insert-mermaid-into-canvas";
+import {
+  buildErrorRecoveryPrompt,
+  buildUserPrompt,
+  extractIntent,
+} from "@/lib/intent-extraction";
 import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
 import { normalizeMermaid } from "@/lib/normalize-mermaid";
+import { useExcalidrawThemeBridge } from "@/lib/use-excalidraw-theme";
 import { useMermaidLlm } from "@/lib/use-mermaid-llm";
-import {
-  extractIntent,
-  buildUserPrompt,
-  buildErrorRecoveryPrompt,
-} from "@/lib/intent-extraction";
-import { Excalidraw, Footer, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { Button, Input } from "@repo/ui";
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { Github, Moon, Sun } from "lucide-react";
+import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
+import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -23,10 +25,30 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<"auto" | "normal">("normal");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme]);
+
+  // Sync our theme colors directly from Excalidraw's CSS variables
+  useExcalidrawThemeBridge();
 
   const handleGenerate = async () => {
     setError(null);
@@ -70,7 +92,6 @@ function Home() {
       }
       await insertMermaidIntoCanvas(api, mermaidCode);
     } catch (err) {
-      // Try error recovery once
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorPrompt = buildErrorRecoveryPrompt({
         originalInput: prompt,
@@ -113,12 +134,19 @@ function Home() {
   };
 
   return (
-    <div className="h-dvh w-full">
+    <div className="relative h-dvh w-full">
       <Excalidraw
+        theme={theme}
         excalidrawAPI={(api) => {
           excalidrawApiRef.current = api as ExcalidrawCanvasApi;
           setApiReady(true);
         }}
+        UIOptions={{
+          canvasActions: {
+            toggleTheme: false,
+          },
+        }}
+        initialData={undefined}
       >
         <MainMenu>
           <MainMenu.DefaultItems.LoadScene />
@@ -129,80 +157,89 @@ function Home() {
           <MainMenu.DefaultItems.Help />
           <MainMenu.DefaultItems.ClearCanvas />
           <MainMenu.Separator />
-          <MainMenu.Group title="Excalidraw links">
-            <MainMenu.DefaultItems.Socials />
-          </MainMenu.Group>
-          <MainMenu.Separator />
-          <MainMenu.DefaultItems.ToggleTheme />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
-          <MainMenu.Separator />
-          <MainMenu.ItemLink href="/login">Sign In</MainMenu.ItemLink>
-          <MainMenu.ItemLink href="/signup">Sign Up</MainMenu.ItemLink>
-        </MainMenu>
-        <Footer>
-          <div className="flex w-full max-w-2xl mx-auto flex-col gap-2 text-foreground">
-            <div className="flex w-full items-center gap-2">
-              <VoiceInputButton
-                onTranscript={(text) => {
-                  setPrompt(text);
-                  setError(null);
-                }}
-                onRecognitionError={(message) => setError(message)}
-              />
-              <Input
-                value={prompt}
-                onChange={(e) => {
-                  setPrompt(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder="Describe a diagram or use the mic..."
-                className="min-w-0 flex-1 h-9 text-sm bg-background text-foreground border-border placeholder:text-muted-foreground"
-                aria-label="Diagram description"
-                aria-invalid={!!error}
-                aria-describedby={error ? "home-error" : undefined}
-              />
-              <Button
-                onClick={handleGenerate}
-                disabled={
-                  !prompt ||
-                  status === "loading" ||
-                  status === "generating" ||
-                  !isSupported ||
-                  !apiReady
-                }
-                variant="secondary"
-                size="sm"
-              >
-                {status === "generating" ? "Generating..." : "Generate Diagram"}
-              </Button>
+          <MainMenu.Item onSelect={handleToggleTheme}>
+            <div className="flex items-center gap-2">
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+              <span>
+                {theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"}
+              </span>
             </div>
-            {error && (
-              <p
-                id="home-error"
-                className="w-full text-sm text-destructive"
-                role="alert"
-              >
-                {error}
-              </p>
-            )}
-            {status === "loading" && (
-              <div
-                className="h-1.5 w-full max-w-2xl mx-auto rounded-full border border-border bg-muted overflow-hidden"
-                role="progressbar"
-                aria-valuenow={Math.round(loadProgress * 100)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="Downloading model"
-              >
-                <div
-                  className="h-full bg-primary transition-all duration-150"
-                  style={{ width: `${loadProgress * 100}%` }}
-                />
+          </MainMenu.Item>
+          <MainMenu.Separator />
+          <MainMenu.DefaultItems.ChangeCanvasBackground />
+        </MainMenu>
+        <WelcomeScreen>
+          <WelcomeScreen.Center>
+            <WelcomeScreen.Center.Logo>
+              <div className="flex items-center gap-3">
+                <MagicBroomIcon className="h-10 w-10 text-primary" />
+                <span className="text-3xl font-semibold">Drawmaid</span>
               </div>
-            )}
-          </div>
-        </Footer>
+            </WelcomeScreen.Center.Logo>
+            <WelcomeScreen.Center.Heading>
+              Create diagrams with AI
+            </WelcomeScreen.Center.Heading>
+            <WelcomeScreen.Center.Menu>
+              <WelcomeScreen.Center.MenuItemLoadScene />
+              <WelcomeScreen.Center.MenuItemLink
+                href="https://github.com/AchuAshwath/drawmaid"
+                icon={<Github className="h-4 w-4" />}
+              >
+                GitHub
+              </WelcomeScreen.Center.MenuItemLink>
+              <WelcomeScreen.Center.MenuItemHelp />
+            </WelcomeScreen.Center.Menu>
+          </WelcomeScreen.Center>
+          <WelcomeScreen.Hints.ToolbarHint />
+          <WelcomeScreen.Hints.MenuHint />
+          <WelcomeScreen.Hints.HelpHint />
+        </WelcomeScreen>
       </Excalidraw>
+
+      {/* Floating top overlay (ready for custom toolbar if needed) */}
+      <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center z-50">
+        <div className="pointer-events-auto w-full max-w-[550px] px-4" />
+      </div>
+
+      {/* Floating bottom overlay with PromptFooter */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center z-50">
+        <div className="pointer-events-auto w-full max-w-[550px]">
+          <PromptFooter
+            prompt={prompt}
+            onPromptChange={(value) => {
+              setPrompt(value);
+              if (error) setError(null);
+            }}
+            mode={mode}
+            onModeChange={setMode}
+            onGenerate={handleGenerate}
+            generateDisabled={
+              !prompt ||
+              status === "loading" ||
+              status === "generating" ||
+              !isSupported ||
+              !apiReady
+            }
+            generating={status === "generating"}
+            onTranscript={(text) => {
+              setPrompt(text);
+              setError(null);
+            }}
+            onRecognitionError={(message) => setError(message)}
+            error={error}
+            loading={status === "loading"}
+            loadProgress={loadProgress}
+            inputAriaDescribedBy={error ? "home-error" : undefined}
+            inputAriaInvalid={!!error}
+          />
+        </div>
+      </div>
     </div>
   );
 }

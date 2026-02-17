@@ -28,6 +28,22 @@ Client-side SPA — no SSR. All rendering happens in the browser.
 - Route context: `Route.useSearch()` for search params, `Route.useRouteContext()` for route data.
 - Jotai store available for cross-route UI state (modals, sidebar).
 
+## Excalidraw UI Customization
+
+- UI building blocks: render Excalidraw children to customize UI: `MainMenu`, `WelcomeScreen`, `Sidebar`, `Footer`, `LiveCollaborationTrigger`.
+- Main menu: render `<MainMenu>` to fully control menu contents; use `MainMenu.DefaultItems.*` for standard items and `MainMenu.Group` to group them.
+- Welcome screen: render `<WelcomeScreen>` when canvas is empty; customize `WelcomeScreen.Center` (logo/heading/menu) and `WelcomeScreen.Hints.*`.
+- Sidebar: render `<Sidebar name="...">` for custom panels; can add tabs via `Sidebar.Tabs`, `Sidebar.Tab`, and `Sidebar.TabTrigger`. Use `Sidebar.Trigger` or `excalidrawAPI.toggleSidebar()` to open/close.
+- Footer: render `<Footer>` as a child of `<Excalidraw>` for custom bottom UI. For mobile, render footer content inside `MainMenu` using `useEditorInterface()`.
+- Top-right UI: use `renderTopRightUI` prop to add custom controls in the top-right chrome.
+
+## Excalidraw Theme & Styling
+
+- Theme control: use `initialData.appState.theme` for default theme and `UIOptions.canvasActions.toggleTheme` to show the theme picker.
+- UIOptions: customize menu actions via `UIOptions.canvasActions` and sidebar docking via `UIOptions.dockedSidebarBreakpoint`.
+- Styling: override Excalidraw CSS variables on `.excalidraw` and `.excalidraw.theme--dark` to match Drawmaid theme; add higher specificity via an app wrapper class.
+- Reference: see Excalidraw `theme.scss` for full variable list; prefer adjusting `--color-primary*` variables first.
+
 ## Error Handling
 
 - `AppErrorBoundary` (root) shows generic error UI. `AuthErrorBoundary` (protected routes) catches 401/UNAUTHORIZED and shows sign-in recovery UI; 403 falls through to generic handler.
