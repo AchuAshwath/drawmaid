@@ -216,7 +216,6 @@ function Home() {
             onModeChange={setMode}
             onGenerate={handleGenerate}
             generateDisabled={
-              mode === "auto" ||
               !prompt ||
               status === "loading" ||
               status === "generating" ||
