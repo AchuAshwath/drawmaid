@@ -572,7 +572,7 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
       </DialogContent>
 
       {showDownloadConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
           <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
             <h3 className="text-lg font-semibold">Download Model?</h3>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -596,7 +596,7 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
       )}
 
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
           <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
             <h3 className="text-lg font-semibold">Delete Model?</h3>
             <p className="mt-2 text-sm text-muted-foreground">
