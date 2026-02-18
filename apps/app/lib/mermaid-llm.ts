@@ -89,7 +89,8 @@ export function isWebGPUSupported(): boolean {
 
 // --- Public API ---
 
-export function load(): Promise<void> {
+export function load(modelId?: string): Promise<void> {
+  const modelToLoad = modelId || DEFAULT_MODEL;
   // Engine already alive — generation errors don't corrupt the engine,
   // so it's still usable. Just clear the error and return.
   if (engine) {
@@ -128,7 +129,7 @@ export function load(): Promise<void> {
       );
       pendingWorker = localWorker; // expose to unload() for cancellation
 
-      engineCreation = CreateWebWorkerMLCEngine(localWorker, DEFAULT_MODEL, {
+      engineCreation = CreateWebWorkerMLCEngine(localWorker, modelToLoad, {
         initProgressCallback: (report) => {
           if (epoch !== engineEpoch) return;
           emit({ loadProgress: report.progress });
