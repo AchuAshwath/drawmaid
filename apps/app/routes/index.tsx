@@ -1,4 +1,6 @@
 import { PromptFooter } from "@/components/prompt-footer";
+import { AIConfigPopup } from "@/components/ai-config-popup";
+import { WebGPUBanner } from "@/components/webgpu-banner";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
@@ -15,7 +17,7 @@ import { useMermaidLlm } from "@/lib/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
-import { Github, Moon, Sun } from "lucide-react";
+import { Github, Moon, Sun, Settings } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,6 +31,7 @@ function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
@@ -171,6 +174,12 @@ function Home() {
               </span>
             </div>
           </MainMenu.Item>
+          <MainMenu.Item onSelect={() => setAiConfigOpen(true)}>
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span>AI Configuration</span>
+            </div>
+          </MainMenu.Item>
           <MainMenu.Separator />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
         </MainMenu>
@@ -194,7 +203,20 @@ function Home() {
                 GitHub
               </WelcomeScreen.Center.MenuItemLink>
               <WelcomeScreen.Center.MenuItemHelp />
+              <WelcomeScreen.Center.MenuItemLink
+                href="#"
+                icon={<Settings className="h-4 w-4" />}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setAiConfigOpen(true);
+                }}
+              >
+                Configure AI
+              </WelcomeScreen.Center.MenuItemLink>
             </WelcomeScreen.Center.Menu>
+            <div className="mt-4 w-full max-w-[550px]">
+              <WebGPUBanner onConfigureClick={() => setAiConfigOpen(true)} />
+            </div>
           </WelcomeScreen.Center>
           <WelcomeScreen.Hints.ToolbarHint />
           <WelcomeScreen.Hints.MenuHint />
@@ -240,6 +262,8 @@ function Home() {
           />
         </div>
       </div>
+
+      <AIConfigPopup open={aiConfigOpen} onOpenChange={setAiConfigOpen} />
     </div>
   );
 }
