@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import {
   Dialog,
@@ -225,7 +225,8 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
   const isDownloadingThis = downloadingModel !== null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
@@ -570,58 +571,81 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
           </div>
         </DialogFooter>
       </DialogContent>
-
-      {showDownloadConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
-            <h3 className="text-lg font-semibold">Download Model?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Download {showDownloadConfirm}? This may take some time depending
-              on your internet connection.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDownloadConfirm(null)}
-              >
-                Cancel
-              </Button>
-              <Button size="sm" onClick={() => confirmDownload(showDownloadConfirm)}>
-                Download
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
-            <h3 className="text-lg font-semibold">Delete Model?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete {showDeleteConfirm}? You can
-              download it again later.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => confirmDelete(showDeleteConfirm)}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </Dialog>
-  );
+
+    {/* Download Confirmation Dialog */}
+    {showDownloadConfirm && (
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowDownloadConfirm(null);
+          }
+        }}
+      >
+        <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
+          <h3 className="text-lg font-semibold">Download Model?</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Download {showDownloadConfirm}? This may take some time depending
+            on your internet connection.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDownloadConfirm(null)}
+              type="button"
+            >
+              Cancel
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => confirmDownload(showDownloadConfirm)}
+              type="button"
+            >
+              Download
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Delete Confirmation Dialog */}
+    {showDeleteConfirm && (
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowDeleteConfirm(null);
+          }
+        }}
+      >
+        <div className="mx-4 w-full max-w-sm rounded-lg border bg-background p-4 shadow-lg">
+          <h3 className="text-lg font-semibold">Delete Model?</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Are you sure you want to delete {showDeleteConfirm}? You can
+            download it again later.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(null)}
+              type="button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => confirmDelete(showDeleteConfirm)}
+              type="button"
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 }
