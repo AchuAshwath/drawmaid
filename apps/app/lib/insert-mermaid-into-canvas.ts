@@ -15,7 +15,7 @@ interface ExcalidrawElement {
 interface AppState {
   scrollX: number;
   scrollY: number;
-  zoom: number;
+  zoom: Readonly<{ value: number }> | number;
 }
 
 /**
@@ -55,10 +55,14 @@ function getViewportCenter(
 ): { x: number; y: number } {
   const scrollX = appState.scrollX ?? 0;
   const scrollY = appState.scrollY ?? 0;
-  const zoom = appState.zoom ?? 1;
+  // Handle both old (number) and new (object with value) zoom formats
+  const zoomValue =
+    typeof appState.zoom === "object" && appState.zoom !== null
+      ? appState.zoom.value
+      : (appState.zoom ?? 1);
 
-  const centerX = -scrollX + containerWidth / 2 / zoom;
-  const centerY = -scrollY + containerHeight / 2 / zoom;
+  const centerX = -scrollX + containerWidth / 2 / zoomValue;
+  const centerY = -scrollY + containerHeight / 2 / zoomValue;
 
   return { x: centerX, y: centerY };
 }
