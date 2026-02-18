@@ -43,6 +43,7 @@ async function serializeConfig(config: AIConfig): Promise<string> {
       toStore = {
         config: {
           type: "local",
+          serverType: restConfig.serverType,
           url: restConfig.url,
           model: restConfig.model,
         } as LocalServerConfig,
@@ -81,6 +82,9 @@ async function deserializeConfig(stored: string): Promise<AIConfig> {
     const decryptedApiKey = await decrypt(parsed.encryptedApiKey, parsed.iv);
     if (config.type === "local") {
       (config as LocalServerConfig).apiKey = decryptedApiKey;
+      if (!(config as LocalServerConfig).serverType) {
+        (config as LocalServerConfig).serverType = "opencode";
+      }
     } else if (config.type === "byok") {
       (config as BYOKConfig).apiKey = decryptedApiKey;
     }

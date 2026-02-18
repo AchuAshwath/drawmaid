@@ -12,7 +12,7 @@ export async function* localServerGenerate(
   const { url, apiKey, model } = config;
   const { maxTokens = 1024, temperature = 0.1, signal } = options;
 
-  const response = await fetch(`${url}/chat/completions`, {
+  const response = await fetch(resolveChatUrl(url, config.serverType), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -33,8 +33,18 @@ export async function* localServerGenerate(
     throw new Error(`Local server error: ${response.status} - ${errorBody}`);
   }
 
-  if (!response.body) {
-    throw new Error("No response body from local server");
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!response.body || contentType.includes("application/json")) {
+    const data = await response.json();
+    const content =
+      data?.choices?.[0]?.message?.content ??
+      data?.choices?.[0]?.text ??
+      data?.response ??
+      "";
+    if (content) {
+      yield content;
+    }
+    return;
   }
 
   const reader = response.body.getReader();
@@ -59,7 +69,10 @@ export async function* localServerGenerate(
 
         try {
           const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content;
+          const content =
+            parsed.choices?.[0]?.delta?.content ??
+            parsed.choices?.[0]?.text ??
+            parsed?.response;
           if (content) {
             yield content;
           }
@@ -71,6 +84,17 @@ export async function* localServerGenerate(
   } finally {
     reader.releaseLock();
   }
+}
+
+function resolveChatUrl(baseUrl: string, serverType?: string): string {
+  if (baseUrl.endsWith("/v1")) return `${baseUrl}/chat/completions`;
+  if (baseUrl.endsWith("/v1/")) return `${baseUrl}chat/completions`;
+
+  if (serverType === "opencode") {
+    return `${baseUrl}/v1/chat/completions`;
+  }
+
+  return `${baseUrl}/chat/completions`;
 }
 
 export async function generateWithLocalServer(

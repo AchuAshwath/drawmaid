@@ -11,6 +11,13 @@ import {
 import { Button } from "@repo/ui";
 import { Input } from "@repo/ui";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@repo/ui";
+import {
   AlertCircle,
   Check,
   Download,
@@ -21,7 +28,7 @@ import {
   Play,
   Search,
   ChevronDown,
-  ExternalLink,
+  Info,
 } from "lucide-react";
 import type {
   AIConfig,
@@ -40,10 +47,7 @@ import {
   addDownloadedModel,
   removeDownloadedModel,
 } from "@/lib/ai-config/storage";
-import {
-  testLocalServer,
-  fetchLocalServerModels,
-} from "@/lib/ai-config/test-connection";
+import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
 import { WebGPUBanner } from "@/components/webgpu-banner";
 import {
   subscribe,
@@ -51,6 +55,11 @@ import {
   load as loadEngine,
   generate as generateFromEngine,
 } from "@/lib/mermaid-llm";
+import { localServerGenerate } from "@/lib/ai-config/providers/local";
+import {
+  generateWithOpenCode,
+  resetOpenCodeSession,
+} from "@/lib/ai-config/providers/opencode";
 
 interface AIConfigPopupProps {
   open: boolean;
@@ -93,11 +102,9 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
 
   // Local Server state
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
-  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "idle" | "connecting" | "connected" | "error"
   >("idle");
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
@@ -111,6 +118,11 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
       setTestResponse(null);
       setDownloadedModels(getDownloadedModels());
       setModelSearch("");
+
+      // Reset local server state
+      setLocalModels([]);
+      setConnectionStatus("idle");
+      setShowAdvanced(false);
     }
   }, [open]);
 
@@ -171,13 +183,11 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
   }, []);
 
   const handleFetchModels = useCallback(
-    async (url: string, apiKey?: string) => {
-      setIsFetchingModels(true);
+    async (url: string, apiKey?: string, serverType?: LocalServerType) => {
       setConnectionStatus("connecting");
-      setConnectionError(null);
 
       try {
-        const result = await fetchLocalServerModels(url, apiKey);
+        const result = await fetchLocalServerModels(url, apiKey, serverType);
 
         if (result.success && result.models) {
           setLocalModels(result.models);
@@ -196,20 +206,71 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
         } else {
           setLocalModels([]);
           setConnectionStatus("error");
-          setConnectionError(result.error || "Failed to fetch models");
         }
-      } catch (err) {
+      } catch {
         setLocalModels([]);
         setConnectionStatus("error");
-        setConnectionError(
-          err instanceof Error ? err.message : "Unknown error",
-        );
-      } finally {
-        setIsFetchingModels(false);
       }
     },
     [config],
   );
+
+  useEffect(() => {
+    if (!open || activeTab !== "local") return;
+
+    if (config.type !== "local") {
+      const opencodePreset = SERVER_PRESETS.find(
+        (preset) => preset.type === "opencode",
+      );
+      const nextConfig: LocalServerConfig = {
+        type: "local",
+        serverType: "opencode",
+        url: opencodePreset?.defaultUrl || "http://127.0.0.1:4096",
+        model: "",
+      };
+      setConfig(nextConfig);
+      handleFetchModels(
+        nextConfig.url,
+        nextConfig.apiKey,
+        nextConfig.serverType,
+      );
+      return;
+    }
+
+    const localConfig = config as LocalServerConfig;
+    const serverType = localConfig.serverType || "opencode";
+    const preset = SERVER_PRESETS.find((item) => item.type === serverType);
+    const nextUrl =
+      localConfig.url || preset?.defaultUrl || "http://127.0.0.1:4096";
+
+    if (nextUrl !== localConfig.url || localConfig.serverType !== serverType) {
+      setConfig({
+        ...localConfig,
+        serverType,
+        url: nextUrl,
+      });
+    }
+
+    handleFetchModels(nextUrl, localConfig.apiKey, serverType);
+  }, [activeTab, config, open, handleFetchModels]);
+
+  const getServerHelpText = (serverType?: LocalServerType): string => {
+    switch (serverType) {
+      case "opencode":
+        return "Run `opencode serve`.";
+      case "ollama":
+        return "Run `ollama serve` or start Ollama app. Default: http://localhost:11434/v1.";
+      case "vllm":
+        return "Run `vllm serve <model>` then use http://localhost:8000/v1.";
+      case "lmstudio":
+        return "Start server in LM Studio → Developer tab. Default: http://localhost:1234/v1.";
+      case "llamacpp":
+        return "Start server with `--port 8080` and use http://localhost:8080/v1.";
+      case "custom":
+      default:
+        return "Enter your OpenAI-compatible base URL.";
+    }
+  };
 
   const handleTestClick = async (modelId: string) => {
     setTestStatus("testing");
@@ -262,20 +323,38 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
 
     setTestStatus("testing");
     setTestError(null);
+    setTestResponse("");
 
     try {
       if (config.type === "local") {
         const localConfig = config as LocalServerConfig;
-        const success = await testLocalServer(
-          localConfig.url,
-          localConfig.apiKey,
-        );
-        if (success) {
+
+        if (localConfig.serverType === "opencode") {
+          const response = await generateWithOpenCode(
+            localConfig,
+            SYSTEM_PROMPT,
+            TEST_PROMPT,
+          );
+          setTestResponse(response);
           setTestStatus("success");
-        } else {
-          setTestError("Cannot connect to local server");
-          setTestStatus("error");
+          return;
         }
+
+        const messages = [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: TEST_PROMPT },
+        ];
+        let accumulated = "";
+
+        for await (const chunk of localServerGenerate(localConfig, messages, {
+          maxTokens: 256,
+          temperature: 0.2,
+        })) {
+          accumulated += chunk;
+          setTestResponse(accumulated);
+        }
+
+        setTestStatus("success");
       }
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Test failed");
@@ -568,15 +647,6 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                       })
                     ))}
                 </div>
-
-                {testResponse && (
-                  <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
-                    <p className="text-sm text-green-600 dark:text-green-400 font-medium">
-                      Test Response:
-                    </p>
-                    <p className="text-sm mt-1">{testResponse}</p>
-                  </div>
-                )}
               </div>
             )}
 
@@ -584,7 +654,7 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
               <div className="space-y-4">
                 {/* Server Type Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Server Type</label>
+                  <label className="text-sm font-medium">Provider</label>
                   <select
                     value={
                       (config as LocalServerConfig).serverType || "opencode"
@@ -594,21 +664,23 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                       const preset = SERVER_PRESETS.find(
                         (p) => p.type === serverType,
                       );
+                      const newUrl =
+                        preset?.defaultUrl || "http://127.0.0.1:4096";
+
                       setConfig({
                         ...config,
                         serverType,
-                        url: preset?.defaultUrl || "http://localhost:8000/v1",
+                        url: newUrl,
                         model: "",
                       } as LocalServerConfig);
                       setLocalModels([]);
                       setConnectionStatus("idle");
-                      setConnectionError(null);
 
-                      // Auto-fetch models for this server
-                      if (preset) {
+                      if (preset?.defaultUrl) {
                         handleFetchModels(
                           preset.defaultUrl,
                           (config as LocalServerConfig).apiKey,
+                          preset.type,
                         );
                       }
                     }}
@@ -616,9 +688,8 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                   >
                     {SERVER_PRESETS.map((preset) => (
                       <option key={preset.type} value={preset.type}>
-                        {preset.recommended ? "★ " : ""}
                         {preset.name}
-                        {preset.recommended ? " (Recommended)" : ""}
+                        {preset.type === "opencode" ? " (Recommended)" : ""}
                       </option>
                     ))}
                   </select>
@@ -634,19 +705,36 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
 
                 {/* Server URL */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Server URL</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Server URL</label>
+                    <div className="group relative">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-72 -translate-x-1/2 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        {getServerHelpText(
+                          (config as LocalServerConfig).serverType,
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <Input
-                    placeholder="http://localhost:8000/v1"
-                    value={(config as LocalServerConfig).url}
+                    placeholder="http://127.0.0.1:4096"
+                    value={(config as LocalServerConfig).url || ""}
                     onChange={(e) => {
+                      const newUrl = e.target.value;
                       setConfig({
                         ...config,
-                        url: e.target.value,
+                        url: newUrl,
                       } as LocalServerConfig);
-                      setConnectionStatus("idle");
-                      setConnectionError(null);
+                      setLocalModels([]);
                     }}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Default:{" "}
+                    {SERVER_PRESETS.find(
+                      (p) =>
+                        p.type === (config as LocalServerConfig).serverType,
+                    )?.defaultUrl || "Not set"}
+                  </p>
                 </div>
 
                 {/* Advanced Settings */}
@@ -685,96 +773,58 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                   )}
                 </div>
 
-                {/* Connection Status */}
-                {connectionStatus === "connected" && (
-                  <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
-                    <Check className="h-4 w-4 shrink-0" />
-                    <span>
-                      Connected successfully! Found {localModels.length} model
-                      {localModels.length !== 1 ? "s" : ""}.
-                    </span>
-                  </div>
-                )}
-
-                {connectionStatus === "error" && connectionError && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
-                    <div className="flex items-center gap-2 text-destructive mb-2">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span className="font-medium">Connection failed</span>
-                    </div>
-                    <p className="text-destructive/90 mb-2">
-                      {connectionError}
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Make sure your local server is running and accessible.
-                    </p>
-                    <a
-                      href="https://github.com/AchuAshwath/drawmaid/issues/new?template=bug_report.md&title=[Local%20Server]%20Connection%20Error"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Report this issue on GitHub
-                    </a>
-                  </div>
-                )}
-
                 {/* Model Selection */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Model</label>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        handleFetchModels(
-                          (config as LocalServerConfig).url,
-                          (config as LocalServerConfig).apiKey,
-                        )
-                      }
-                      disabled={isFetchingModels}
-                      className="h-6 text-xs"
-                    >
-                      {isFetchingModels ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          Connecting...
-                        </>
-                      ) : (
-                        <>Refresh Models</>
-                      )}
-                    </Button>
-                  </div>
+                  <label className="text-sm font-medium">Model</label>
 
                   {localModels.length > 0 ? (
-                    <select
+                    <Select
                       value={(config as LocalServerConfig).model || ""}
-                      onChange={(e) =>
+                      onValueChange={(value) => {
+                        if (
+                          (config as LocalServerConfig).serverType ===
+                          "opencode"
+                        ) {
+                          resetOpenCodeSession(
+                            (config as LocalServerConfig).url,
+                          );
+                        }
                         setConfig({
                           ...config,
-                          model: e.target.value,
-                        } as LocalServerConfig)
-                      }
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+                          model: value,
+                        } as LocalServerConfig);
+                      }}
                     >
-                      <option value="">Select a model...</option>
-                      {localModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a model..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[240px]">
+                        {localModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input
                       placeholder="Enter model name (e.g., qwen2.5-coder-1.5b)"
-                      value={(config as LocalServerConfig).model}
-                      onChange={(e) =>
+                      value={(config as LocalServerConfig).model || ""}
+                      onChange={(e) => {
+                        const nextModel = e.target.value;
+                        if (
+                          (config as LocalServerConfig).serverType ===
+                          "opencode"
+                        ) {
+                          resetOpenCodeSession(
+                            (config as LocalServerConfig).url,
+                          );
+                        }
                         setConfig({
                           ...config,
-                          model: e.target.value,
-                        } as LocalServerConfig)
-                      }
+                          model: nextModel,
+                        } as LocalServerConfig);
+                      }}
                     />
                   )}
                   <p className="text-xs text-muted-foreground">
@@ -804,12 +854,19 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
               </div>
             )}
 
-            {testStatus === "success" &&
-              !testError &&
-              activeTab === "local" && (
-                <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
-                  <Check className="h-4 w-4 shrink-0" />
-                  <span>Connection successful!</span>
+            {activeTab === "local" &&
+              connectionStatus === "connected" &&
+              (config as LocalServerConfig).model && (
+                <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mb-2">
+                    <Check className="h-4 w-4 shrink-0" />
+                    <span>
+                      Connected — {(config as LocalServerConfig).model}
+                    </span>
+                  </div>
+                  {testStatus === "success" && testResponse && (
+                    <p className="text-sm text-foreground">{testResponse}</p>
+                  )}
                 </div>
               )}
           </div>

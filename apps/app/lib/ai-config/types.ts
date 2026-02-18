@@ -25,9 +25,8 @@ export const SERVER_PRESETS: ServerPreset[] = [
   {
     type: "opencode",
     name: "OpenCode Serve",
-    defaultUrl: "http://127.0.0.1:4096/v1",
+    defaultUrl: "http://127.0.0.1:4096",
     description: "OpenCode's built-in local server",
-    recommended: true,
   },
   {
     type: "ollama",
@@ -94,7 +93,7 @@ export const DEFAULT_CONFIG: WebLLMConfig = {
 export const DEFAULT_LOCAL_SERVER: LocalServerConfig = {
   type: "local",
   serverType: "opencode",
-  url: "http://127.0.0.1:4096/v1",
+  url: "http://127.0.0.1:4096",
   model: "",
 };
 
@@ -116,4 +115,6 @@ export interface TestConnectionResult {
 export interface LocalModel {
   id: string;
   name: string;
+  providerId?: string;
+  modelId?: string;
 }
