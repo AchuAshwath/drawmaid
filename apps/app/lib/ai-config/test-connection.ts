@@ -1,10 +1,12 @@
-export async function testLocalServer(
+import type { LocalModel } from "./types";
+
+export async function fetchLocalServerModels(
   url: string,
   apiKey?: string,
-): Promise<boolean> {
+): Promise<{ success: boolean; models?: LocalModel[]; error?: string }> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(`${url}/models`, {
       method: "GET",
@@ -13,15 +15,58 @@ export async function testLocalServer(
     });
 
     clearTimeout(timeoutId);
-    return response.ok;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Server returned ${response.status}: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+
+    // Handle different API formats
+    const models: LocalModel[] = [];
+
+    if (data.data && Array.isArray(data.data)) {
+      // OpenAI format
+      for (const model of data.data) {
+        if (model.id) {
+          models.push({
+            id: model.id,
+            name: model.id,
+          });
+        }
+      }
+    } else if (Array.isArray(data)) {
+      // Some servers return array directly
+      for (const model of data) {
+        if (typeof model === "string") {
+          models.push({ id: model, name: model });
+        } else if (model.id) {
+          models.push({ id: model.id, name: model.id });
+        }
+      }
+    }
+
+    return { success: true, models };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      console.warn("Local server test timed out");
-    } else {
-      console.warn("Local server test failed:", error);
+      return { success: false, error: "Connection timed out" };
     }
-    return false;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch models",
+    };
   }
+}
+
+export async function testLocalServer(
+  url: string,
+  apiKey?: string,
+): Promise<boolean> {
+  const result = await fetchLocalServerModels(url, apiKey);
+  return result.success;
 }
 
 export async function testLocalServerChat(

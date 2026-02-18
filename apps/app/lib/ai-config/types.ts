@@ -5,8 +5,65 @@ export interface WebLLMConfig {
   modelId: string;
 }
 
+export type LocalServerType =
+  | "opencode"
+  | "ollama"
+  | "vllm"
+  | "lmstudio"
+  | "llamacpp"
+  | "custom";
+
+export interface ServerPreset {
+  type: LocalServerType;
+  name: string;
+  defaultUrl: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+export const SERVER_PRESETS: ServerPreset[] = [
+  {
+    type: "opencode",
+    name: "OpenCode Serve",
+    defaultUrl: "http://127.0.0.1:4096/v1",
+    description: "OpenCode's built-in local server",
+    recommended: true,
+  },
+  {
+    type: "ollama",
+    name: "Ollama",
+    defaultUrl: "http://localhost:11434/v1",
+    description: "Popular local LLM runner",
+  },
+  {
+    type: "vllm",
+    name: "vLLM",
+    defaultUrl: "http://localhost:8000/v1",
+    description: "High-throughput inference engine",
+  },
+  {
+    type: "lmstudio",
+    name: "LM Studio",
+    defaultUrl: "http://localhost:1234/v1",
+    description: "User-friendly local LLM UI",
+  },
+  {
+    type: "llamacpp",
+    name: "llama.cpp / llamafile",
+    defaultUrl: "http://localhost:8080/v1",
+    description: "Lightweight C++ inference",
+  },
+  {
+    type: "custom",
+    name: "Custom",
+    defaultUrl: "http://localhost:8000/v1",
+    description: "Custom OpenAI-compatible endpoint",
+  },
+];
+
 export interface LocalServerConfig {
   type: "local";
+  serverType: LocalServerType;
   url: string;
   apiKey?: string;
   model: string;
@@ -36,8 +93,9 @@ export const DEFAULT_CONFIG: WebLLMConfig = {
 
 export const DEFAULT_LOCAL_SERVER: LocalServerConfig = {
   type: "local",
-  url: "http://localhost:11434/v1",
-  model: "qwen2.5-coder-1.5b",
+  serverType: "opencode",
+  url: "http://127.0.0.1:4096/v1",
+  model: "",
 };
 
 export interface WebLLMModelInfo {
@@ -53,4 +111,9 @@ export type TestConnectionStatus = "idle" | "testing" | "success" | "error";
 export interface TestConnectionResult {
   status: TestConnectionStatus;
   error?: string;
+}
+
+export interface LocalModel {
+  id: string;
+  name: string;
 }
