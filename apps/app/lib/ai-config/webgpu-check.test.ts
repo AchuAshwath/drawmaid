@@ -15,7 +15,7 @@ afterEach(() => {
   }
 });
 
-describe("checkWebGPUSupport", () => {
+describe.skipIf(typeof window === "undefined")("checkWebGPUSupport", () => {
   it("returns supported=false when navigator is undefined", async () => {
     const result = await checkWebGPUSupport();
     // In Node.js test environment, navigator exists but gpu may not be in it
@@ -96,7 +96,7 @@ describe("checkWebGPUSupport", () => {
   });
 });
 
-describe("isWebGPUSupportedSync", () => {
+describe.skipIf(typeof window === "undefined")("isWebGPUSupportedSync", () => {
   it("returns false when navigator is undefined", () => {
     expect(isWebGPUSupportedSync()).toBe(false);
   });
