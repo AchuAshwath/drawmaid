@@ -101,6 +101,7 @@ export default defineProject(({ mode }) => {
 
     test: {
       environment: "happy-dom",
+      exclude: ["e2e/**", "**/e2e/**"],
     },
   };
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { AIConfig } from "./types";
+import type { AIConfig, LocalServerConfig } from "./types";
 import {
   saveConfig,
   loadConfig,
@@ -68,8 +68,9 @@ describe("getConfigDescription", () => {
   });
 
   it("handles local config type", () => {
-    const config: AIConfig = {
+    const config: LocalServerConfig = {
       type: "local",
+      serverType: "opencode",
       url: "http://localhost:11434",
       model: "llama3",
     };
@@ -91,8 +92,9 @@ describe("getConfigDescription", () => {
   });
 
   it("uses default port when not specified for local", () => {
-    const config: AIConfig = {
+    const config: LocalServerConfig = {
       type: "local",
+      serverType: "opencode",
       url: "http://localhost",
       model: "llama3",
     };

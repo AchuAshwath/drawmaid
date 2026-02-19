@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { localServerGenerate, generateWithLocalServer } from "./local";
+import type { LocalServerConfig } from "../types";
 
 describe("local provider module exports", () => {
   it("exports localServerGenerate function", () => {
@@ -12,21 +13,33 @@ describe("local provider module exports", () => {
 });
 
 describe("localServerGenerate", () => {
-  it("is an async generator function", async () => {
-    const gen = localServerGenerate(
-      { url: "http://localhost:11434", model: "test" },
-      [{ role: "user", content: "hello" }],
-    );
-    expect(gen[Symbol.asyncIterator]).toBeDefined();
-    gen.return?.();
+  it("is a function that returns async generator", () => {
+    const config: LocalServerConfig = {
+      type: "local",
+      serverType: "opencode",
+      url: "http://localhost:11434",
+      model: "test",
+    };
+    const gen = localServerGenerate(config, [
+      { role: "user", content: "hello" },
+    ]);
+    expect(gen).toBeDefined();
+    expect(typeof gen[Symbol.asyncIterator]).toBe("function");
   });
 });
 
 describe("generateWithLocalServer", () => {
   it("returns a promise", () => {
+    const config: LocalServerConfig = {
+      type: "local",
+      serverType: "opencode",
+      url: "http://localhost:11434",
+      model: "test",
+    };
     const result = generateWithLocalServer(
-      { url: "http://localhost:11434", model: "test" },
-      [{ role: "user", content: "hello" }],
+      config,
+      "You are a helpful assistant.",
+      "Hello",
     );
     expect(result).toBeInstanceOf(Promise);
   });
