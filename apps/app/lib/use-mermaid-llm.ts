@@ -7,9 +7,13 @@ import {
   abort,
   unload,
   isWebGPUSupported,
+  SYSTEM_PROMPT,
   type Status,
   type GenerateOptions,
 } from "./mermaid-llm";
+import { loadConfigAsync } from "./ai-config/storage";
+import { generateWithLocalServer } from "./ai-config/providers/local";
+import { generateWithOpenCode } from "./ai-config/providers/opencode";
 
 const UNSUPPORTED_ERROR = "WebGPU is not supported in this browser";
 
@@ -38,11 +42,39 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
   const snap = useSyncExternalStore(subscribe, getSnapshot);
   const supported = isWebGPUSupported();
 
+  const generate: UseMermaidLlmReturn["generate"] = async (prompt, opts) => {
+    const config = await loadConfigAsync();
+
+    if (config.type === "local") {
+      if (config.serverType === "opencode") {
+        return generateWithOpenCode(
+          config,
+          opts?.systemPrompt ?? SYSTEM_PROMPT,
+          prompt,
+        );
+      }
+
+      return generateWithLocalServer(
+        config,
+        opts?.systemPrompt ?? SYSTEM_PROMPT,
+        prompt,
+        {
+          maxTokens: opts?.maxTokens,
+          temperature: opts?.temperature,
+          timeoutMs: opts?.timeoutMs,
+        },
+      );
+    }
+
+    if (!supported) return unsupportedGenerate(prompt, opts);
+    return engineGenerate(prompt, opts);
+  };
+
   return {
     isSupported: supported,
     ...snap,
     load: supported ? engineLoad : unsupportedLoad,
-    generate: supported ? engineGenerate : unsupportedGenerate,
+    generate,
     abort,
     unload,
   };

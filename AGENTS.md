@@ -18,7 +18,7 @@
 - **Backend:** Hono, tRPC 11, Better Auth (email OTP, Google OAuth, anonymous)
 - **Database:** Cloudflare D1 (SQLite), Drizzle ORM (`snake_case` casing)
 - **Email:** React Email, Resend
-- **Testing:** Vitest, Happy DOM
+- **Testing:** Vitest, Happy DOM, Playwright
 - **Deployment:** Cloudflare Workers (Wrangler), Terraform
 - **LLM:** WebLLM (Qwen2.5-Coder-1.5B-Instruct) for on-device diagram generation
 
@@ -35,6 +35,49 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 # Per-app: bun {web,app,api}:{dev,build,test,deploy}
 # Database: bun db:{push,generate,studio,seed} (append :staging or :prod)
 ```
+
+## Testing
+
+### Unit Tests (Vitest)
+
+```bash
+bun test                       # Run all unit tests
+bun test --watch               # Watch mode
+bun test apps/app/lib/         # Run specific test file
+```
+
+### Integration Tests (Playwright)
+
+```bash
+cd apps/app
+bun run test:e2e              # Run Playwright integration tests
+npx playwright install        # Install browsers (first time)
+```
+
+Note: E2E tests use `.playwright.ts` extension to avoid conflict with Vitest.
+
+## CI Checklist Before Push
+
+Always run these before pushing to PR:
+
+```bash
+bun run typecheck             # Must pass (0 errors)
+bun run lint                  # Must pass (0 errors)
+bun test                      # Must pass
+bun run build                 # Must pass
+cd apps/app && bun run test:e2e  # Integration tests (if changed)
+```
+
+## Pushing to PR
+
+1. Make changes on feature branch
+2. Run CI checklist above
+3. Commit with descriptive message
+4. Push to remote:
+   ```bash
+   git push origin <branch-name>
+   ```
+5. Create/update PR on GitHub
 
 ## Architecture
 
