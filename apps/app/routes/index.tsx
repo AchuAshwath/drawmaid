@@ -32,6 +32,7 @@ function Home() {
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
@@ -55,6 +56,7 @@ function Home() {
 
   const handleGenerate = async () => {
     setError(null);
+    setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
     const intent = extractIntent(prompt);
@@ -65,6 +67,7 @@ function Home() {
         systemPrompt: SYSTEM_PROMPT,
       });
     } catch (err) {
+      setIsGenerating(false);
       if (isAbortError(err)) return;
       if (isTimeoutError(err)) {
         setError(
@@ -80,6 +83,8 @@ function Home() {
       return;
     }
 
+    setIsGenerating(false);
+
     if (!mermaidOutput?.trim()) {
       return;
     }
@@ -91,10 +96,12 @@ function Home() {
     try {
       mermaidCode = normalizeMermaid(mermaidOutput);
       if (!mermaidCode) {
+        setIsGenerating(false);
         return;
       }
       await insertMermaidIntoCanvas(api, mermaidCode);
     } catch (err) {
+      setIsGenerating(false);
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorPrompt = buildErrorRecoveryPrompt({
         originalInput: prompt,
@@ -126,6 +133,7 @@ function Home() {
 
         await insertMermaidIntoCanvas(api, recoveredCode);
       } catch (recoveryErr) {
+        setIsGenerating(false);
         if (isAbortError(recoveryErr)) return;
         setError(
           recoveryErr instanceof Error
@@ -248,14 +256,16 @@ function Home() {
               !isSupported ||
               !apiReady
             }
-            generating={status === "generating"}
+            generating={status === "generating" || isGenerating}
             onTranscript={(text) => {
               setPrompt(text);
               setError(null);
             }}
             onRecognitionError={(message) => setError(message)}
             error={error}
-            loading={status === "loading"}
+            loading={
+              status === "loading" || (isGenerating && mode === "normal")
+            }
             loadProgress={loadProgress}
             inputAriaDescribedBy={error ? "home-error" : undefined}
             inputAriaInvalid={!!error}
