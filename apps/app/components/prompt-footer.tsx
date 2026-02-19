@@ -1,8 +1,10 @@
 import { CenteredStrip } from "@/components/centered-strip";
 import { usePromptFooterState } from "@/lib/use-prompt-footer-state";
 import { VoiceInputButton } from "@/components/voice-input-button";
+import { ModelSelector } from "@/components/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
+import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -21,6 +23,10 @@ export interface PromptFooterProps {
   loadProgress?: number;
   inputAriaDescribedBy?: string;
   inputAriaInvalid?: boolean;
+  webLLMModels?: WebLLMModelInfo[];
+  localModels?: LocalModel[];
+  currentModel?: string;
+  onSelectModel?: (modelId: string) => void;
 }
 
 export function PromptFooter({
@@ -38,6 +44,10 @@ export function PromptFooter({
   loadProgress = 0,
   inputAriaDescribedBy,
   inputAriaInvalid = false,
+  webLLMModels,
+  localModels,
+  currentModel,
+  onSelectModel,
 }: PromptFooterProps) {
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
@@ -49,18 +59,20 @@ export function PromptFooter({
 
   return (
     <CenteredStrip className="flex-col gap-2 text-foreground">
-      {loading && (
+      {(loading || generating) && (
         <div
           className="h-1.5 w-full max-w-[550px] mx-auto rounded-full bg-muted overflow-hidden"
           role="progressbar"
-          aria-valuenow={Math.round(loadProgress * 100)}
+          aria-valuenow={loading ? Math.round(loadProgress * 100) : undefined}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Downloading model"
+          aria-label={loading ? "Downloading model" : "Generating diagram"}
         >
           <div
-            className="h-full bg-primary transition-all duration-150"
-            style={{ width: `${loadProgress * 100}%` }}
+            className={`h-full bg-primary transition-all duration-150 ${
+              generating && !loading ? "animate-pulse" : ""
+            }`}
+            style={{ width: loading ? `${loadProgress * 100}%` : "100%" }}
           />
         </div>
       )}
@@ -143,16 +155,26 @@ export function PromptFooter({
                 </div>
               </div>
             </div>
-            <Button
-              type="button"
-              onClick={onGenerate}
-              disabled={generateDisabled}
-              variant="default"
-              size="icon"
-              aria-label={generating ? "Generating..." : "Generate diagram"}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {webLLMModels?.length || localModels?.length ? (
+                <ModelSelector
+                  webLLMModels={webLLMModels || []}
+                  localModels={localModels || []}
+                  currentModel={currentModel || "Select model"}
+                  onSelectModel={onSelectModel || (() => {})}
+                />
+              ) : null}
+              <Button
+                type="button"
+                onClick={onGenerate}
+                disabled={generateDisabled}
+                variant="default"
+                size="icon"
+                aria-label={generating ? "Generating..." : "Generate diagram"}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -45,17 +45,19 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
   const generate: UseMermaidLlmReturn["generate"] = async (prompt, opts) => {
     const config = await loadConfigAsync();
 
-    if (config.type === "local") {
+    // Use local server if explicitly requested via useLocalServer option
+    if (opts?.useLocalServer && config.type === "local") {
+      const model = opts?.modelId || config.model;
       if (config.serverType === "opencode") {
         return generateWithOpenCode(
-          config,
+          { ...config, model },
           opts?.systemPrompt ?? SYSTEM_PROMPT,
           prompt,
         );
       }
 
       return generateWithLocalServer(
-        config,
+        { ...config, model },
         opts?.systemPrompt ?? SYSTEM_PROMPT,
         prompt,
         {
@@ -66,6 +68,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
       );
     }
 
+    // Otherwise use WebLLM
     if (!supported) return unsupportedGenerate(prompt, opts);
     return engineGenerate(prompt, opts);
   };

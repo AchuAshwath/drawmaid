@@ -15,6 +15,8 @@ export interface GenerateOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  modelId?: string;
+  useLocalServer?: boolean;
 }
 
 // 10s: timeout after which output is likely degraded/incomplete since
@@ -193,9 +195,9 @@ export async function generate(
   // Clear output/error immediately
   emit({ output: "", error: null });
 
-  // Auto-load if engine isn't ready
+  // Auto-load if engine isn't ready, with specific model if provided
   if (!engine) {
-    await load();
+    await load(opts?.modelId);
     if (!engine) throw new Error("Engine failed to load");
   }
 

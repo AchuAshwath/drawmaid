@@ -19,7 +19,31 @@ import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun, Settings } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
-import { useEffect, useRef, useState } from "react";
+import { prebuiltAppConfig } from "@mlc-ai/web-llm";
+import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import {
+  loadConfig,
+  getDownloadedModels,
+  subscribeToConfigChanges,
+} from "@/lib/ai-config/storage";
+import type {
+  WebLLMModelInfo,
+  LocalModel,
+  AIConfig,
+} from "@/lib/ai-config/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
+
+const webLLMModels: WebLLMModelInfo[] = prebuiltAppConfig.model_list.map(
+  (m) => ({
+    id: m.model_id,
+    name: m.model_id,
+    vramMB: Math.round(m.vram_required_MB ?? 0),
+    lowResource: m.low_resource_required ?? false,
+    contextWindow: 4096,
+  }),
+);
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -33,8 +57,79 @@ function Home() {
   const [error, setError] = useState<string | null>(null);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [localModels, setLocalModels] = useState<LocalModel[]>([]);
+  const [currentModel, setCurrentModel] =
+    useState<string>(DEFAULT_WEBLLM_MODEL);
+  const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
+    getDownloadedModels(),
+  );
+  const availableWebLLMModels = webLLMModels.filter((m) =>
+    downloadedModelIds.includes(m.id),
+  );
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
+
+  // Fetch local server models
+  const fetchModels = useCallback((config: AIConfig) => {
+    if (config.type === "local" && config.url) {
+      fetchLocalServerModels(config.url, config.apiKey, config.serverType).then(
+        (result) => {
+          if (result.success && result.models) {
+            setLocalModels(result.models);
+          }
+        },
+      );
+    }
+  }, []);
+
+  // Initial load and subscribe to config changes
+  useEffect(() => {
+    const config = loadConfig();
+
+    if (config.type === "local") {
+      if (config.model) {
+        // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+        setCurrentModel(config.model);
+      }
+      fetchModels(config);
+    } else {
+      const downloaded = getDownloadedModels();
+      const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setCurrentModel(defaultModel);
+    }
+
+    // Subscribe to config changes (when user saves new config)
+    const unsubscribe = subscribeToConfigChanges((newConfig) => {
+      if (newConfig.type === "local") {
+        if (newConfig.model) {
+          setCurrentModel(newConfig.model);
+        }
+        fetchModels(newConfig);
+      } else {
+        const downloaded = getDownloadedModels();
+        const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
+        setCurrentModel(defaultModel);
+      }
+    });
+
+    return unsubscribe;
+  }, [fetchModels]);
+
+  // Listen for storage changes (when new models are downloaded)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "drawmaid-downloaded-models") {
+        setDownloadedModelIds(getDownloadedModels());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const handleSelectModel = (modelId: string) => {
+    setCurrentModel(modelId);
+  };
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -62,9 +157,15 @@ function Home() {
     const intent = extractIntent(prompt);
     const userPrompt = buildUserPrompt(prompt, intent);
 
+    // Determine which provider to use based on selected model
+    const isLocalModel = localModels.some((m) => m.id === currentModel);
+    const useLocalServer = isLocalModel && localModels.length > 0;
+
     try {
       mermaidOutput = await generate(userPrompt, {
         systemPrompt: SYSTEM_PROMPT,
+        modelId: currentModel,
+        useLocalServer,
       });
     } catch (err) {
       setIsGenerating(false);
@@ -114,6 +215,8 @@ function Home() {
         const recoveredOutput = await generate(errorPrompt, {
           systemPrompt: SYSTEM_PROMPT,
           maxTokens: 512,
+          modelId: currentModel,
+          useLocalServer,
         });
 
         if (!recoveredOutput?.trim()) {
@@ -269,6 +372,10 @@ function Home() {
             loadProgress={loadProgress}
             inputAriaDescribedBy={error ? "home-error" : undefined}
             inputAriaInvalid={!!error}
+            webLLMModels={availableWebLLMModels}
+            localModels={localModels}
+            currentModel={currentModel}
+            onSelectModel={handleSelectModel}
           />
         </div>
       </div>
