@@ -17,6 +17,7 @@ export interface GenerateOptions {
   timeoutMs?: number;
   modelId?: string;
   useLocalServer?: boolean;
+  disableAbort?: boolean;
 }
 
 // 10s: timeout after which output is likely degraded/incomplete since
@@ -184,11 +185,16 @@ export async function generate(
   prompt: string,
   opts?: GenerateOptions,
 ): Promise<string> {
+  const disableAbort = opts?.disableAbort ?? false;
+
   // Cancel-previous: stop backend inference and invalidate stale stream
-  try {
-    engine?.interruptGenerate();
-  } catch {
-    /* no active generation — safe to ignore */
+  // Skip if disableAbort is true (for auto mode)
+  if (!disableAbort) {
+    try {
+      engine?.interruptGenerate();
+    } catch {
+      /* no active generation — safe to ignore */
+    }
   }
   const id = ++generationId;
 
@@ -201,8 +207,8 @@ export async function generate(
     if (!engine) throw new Error("Engine failed to load");
   }
 
-  // Superseded during auto-load
-  if (id !== generationId) throw abortError();
+  // Superseded during auto-load - skip check if disableAbort
+  if (!disableAbort && id !== generationId) throw abortError();
 
   emit({ status: "generating" });
 
@@ -232,7 +238,7 @@ export async function generate(
     const chunks: string[] = [];
     let accumulated = "";
     for await (const chunk of stream) {
-      if (id !== generationId) break;
+      if (!disableAbort && id !== generationId) break;
       const content = chunk.choices[0]?.delta?.content ?? "";
       if (content) {
         chunks.push(content);
@@ -242,12 +248,21 @@ export async function generate(
     }
     const result = chunks.join("");
 
-    if (id !== generationId) throw abortError();
+    if (!disableAbort && id !== generationId) throw abortError();
     emit({ status: "ready" });
     return result;
   } catch (err) {
     if (isAbortError(err)) throw err;
-    if (id !== generationId) throw abortError();
+    if (!disableAbort && id !== generationId) throw abortError();
+
+    if (isTimeoutError(err)) {
+      try {
+        engine?.interruptGenerate();
+      } catch {
+        /* safe to ignore */
+      }
+    }
+
     emit({
       status: "error",
       error: err instanceof Error ? err.message : String(err),

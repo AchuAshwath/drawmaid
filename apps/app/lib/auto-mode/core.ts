@@ -12,13 +12,18 @@ export type ResultCallback = (
   task: GenerationTask,
 ) => void;
 
+function log(prefix: string, message: string): void {
+  console.log(`[${prefix}] ${message}`);
+}
+
 export class AutoModeEngine {
   private state: AutoModeState;
   private config: AutoModeConfig;
-  private activeGenerations: Set<number> = new Set();
-  private checkIntervalId: ReturnType<typeof setInterval> | null = null;
+  private activeGenerations: Map<number, number> = new Map(); // genId -> startTime
+  private checkTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private onGenerate: GenerateFn;
   private onResult: ResultCallback;
+  private transcriptGetter: () => string = () => "";
 
   constructor(
     config: Partial<AutoModeConfig> = {},
@@ -37,20 +42,66 @@ export class AutoModeEngine {
     };
   }
 
-  start(transcriptGetter: () => string): void {
-    if (this.checkIntervalId !== null) return;
+  private getDynamicInterval(genId: number): number {
+    const logValue = Math.log2(genId + 1);
+    const interval =
+      this.config.intervalBaselineMs + logValue * this.config.intervalScaleMs;
+    return Math.min(interval, this.config.maxIntervalMs);
+  }
 
-    this.checkIntervalId = setInterval(() => {
-      const currentTranscript = transcriptGetter();
-      this.checkAndTrigger(currentTranscript);
-    }, this.config.checkIntervalMs);
+  private getOldestGenerationId(): number | null {
+    let oldestId: number | null = null;
+    let oldestTime = Infinity;
+
+    for (const [id, startTime] of this.activeGenerations) {
+      if (startTime < oldestTime) {
+        oldestTime = startTime;
+        oldestId = id;
+      }
+    }
+
+    return oldestId;
+  }
+
+  start(transcriptGetter: () => string): void {
+    if (this.checkTimeoutId !== null) return;
+
+    this.transcriptGetter = transcriptGetter;
+    log("AUTO_MODE_START", `Starting auto mode`);
+    this.scheduleNextCheck();
   }
 
   stop(): void {
-    if (this.checkIntervalId !== null) {
-      clearInterval(this.checkIntervalId);
-      this.checkIntervalId = null;
+    if (this.checkTimeoutId !== null) {
+      clearTimeout(this.checkTimeoutId);
+      this.checkTimeoutId = null;
     }
+    this.activeGenerations.clear();
+    log("AUTO_MODE_STOP", "Stopping auto mode");
+  }
+
+  private scheduleNextCheck(): void {
+    if (this.checkTimeoutId !== null) {
+      clearTimeout(this.checkTimeoutId);
+    }
+
+    const genId = this.state.generationCounter + 1;
+    const interval = this.getDynamicInterval(genId);
+    log(
+      "DYNAMIC_INTERVAL",
+      `genId=${genId} interval=${interval}ms active=${this.activeGenerations.size}`,
+    );
+
+    this.checkTimeoutId = setTimeout(() => {
+      try {
+        this.checkAndTrigger(this.transcriptGetter());
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        log("SCHEDULER_ERROR", `checkAndTrigger failed: ${errorMessage}`);
+      }
+      this.scheduleNextCheck();
+    }, interval);
   }
 
   checkAndTrigger(transcript: string): void {
@@ -61,6 +112,20 @@ export class AutoModeEngine {
       return;
     }
 
+    // Check concurrent limit and kill oldest if at max
+    if (this.activeGenerations.size >= this.config.maxConcurrentGenerations) {
+      const oldestId = this.getOldestGenerationId();
+      if (oldestId !== null) {
+        this.activeGenerations.delete(oldestId);
+        log(
+          "CONCURRENT_LIMIT",
+          `Killing genId=${oldestId}, starting genId=${
+            this.state.generationCounter + 1
+          }`,
+        );
+      }
+    }
+
     const task: GenerationTask = {
       id: ++this.state.generationCounter,
       transcript,
@@ -69,7 +134,12 @@ export class AutoModeEngine {
       useLocalServer: false,
     };
 
-    this.activeGenerations.add(task.id);
+    this.activeGenerations.set(task.id, Date.now());
+    log(
+      "TRIGGER",
+      `genId=${task.id} transcript="${transcript.slice(0, 30)}..."`,
+    );
+
     this.executeGeneration(task);
   }
 
@@ -79,6 +149,7 @@ export class AutoModeEngine {
 
       if (task.id < this.state.lastSuccessfulGenId) {
         this.activeGenerations.delete(task.id);
+        log("CANVAS_INSERT", `genId=${task.id} discarded (stale)`);
         return;
       }
 
@@ -90,10 +161,15 @@ export class AutoModeEngine {
 
       this.activeGenerations.delete(task.id);
       this.onResult(result, task);
+
+      if (result) {
+        log("CANVAS_INSERT", `genId=${task.id} succeeded, applied to canvas`);
+      }
     } catch (error) {
-      console.error(`[AutoMode] Generation ${task.id} failed:`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      log("ERROR", `genId=${task.id} ${errorMessage}`);
       this.activeGenerations.delete(task.id);
-      this.scheduleImmediateRetry();
     }
   }
 
@@ -105,17 +181,15 @@ export class AutoModeEngine {
     }
   }
 
-  private scheduleImmediateRetry(): void {
-    setTimeout(() => {
-      // Check will happen on next interval
-    }, 100);
-  }
-
   getState(): AutoModeState {
     return { ...this.state };
   }
 
   isRunning(): boolean {
-    return this.checkIntervalId !== null;
+    return this.checkTimeoutId !== null;
+  }
+
+  getActiveCount(): number {
+    return this.activeGenerations.size;
   }
 }

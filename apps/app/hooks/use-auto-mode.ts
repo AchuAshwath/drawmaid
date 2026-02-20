@@ -34,14 +34,7 @@ interface UseAutoModeReturn {
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
-  const {
-    excalidrawApiRef,
-    isAutoMode,
-    isMicActive,
-    transcript,
-    onError,
-    onGeneratingChange,
-  } = options;
+  const { excalidrawApiRef, isAutoMode, isMicActive, transcript } = options;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
@@ -52,47 +45,47 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   optionsRef.current = options;
   transcriptRef.current = transcript;
 
-  const handleGenerate = useCallback(
-    async (task: { transcript: string }) => {
-      setIsGenerating(true);
-      onGeneratingChange?.(true);
+  const handleGenerate = useCallback(async (task: { transcript: string }) => {
+    const { onError, onGeneratingChange } = optionsRef.current;
 
-      const {
-        currentModel: model,
-        localModels: models,
-        generate: gen,
-      } = optionsRef.current;
-      const isLocal = models.some((m) => m.id === model);
-      const useLocal = isLocal && models.length > 0;
+    setIsGenerating(true);
+    onGeneratingChange?.(true);
 
-      try {
-        const intent = extractIntent(task.transcript);
-        const userPrompt = buildUserPrompt(task.transcript, intent);
+    const {
+      currentModel: model,
+      localModels: models,
+      generate: gen,
+    } = optionsRef.current;
+    const isLocal = models.some((m) => m.id === model);
+    const useLocal = isLocal && models.length > 0;
 
-        const result = await gen(userPrompt, {
-          systemPrompt: SYSTEM_PROMPT,
-          modelId: model,
-          useLocalServer: useLocal,
-          disableAbort: true,
-          timeoutMs: useLocal ? undefined : 30000,
-        } as Parameters<typeof gen>[1]);
+    try {
+      const intent = extractIntent(task.transcript);
+      const userPrompt = buildUserPrompt(task.transcript, intent);
 
-        return result;
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Generation failed";
-        onError?.(message);
-        return null;
-      } finally {
-        setIsGenerating(false);
-        onGeneratingChange?.(false);
-      }
-    },
-    [onError, onGeneratingChange],
-  );
+      const result = await gen(userPrompt, {
+        systemPrompt: SYSTEM_PROMPT,
+        modelId: model,
+        useLocalServer: useLocal,
+        disableAbort: true,
+        timeoutMs: useLocal ? undefined : 30000,
+      } as Parameters<typeof gen>[1]);
+
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Generation failed";
+      onError?.(message);
+      return null;
+    } finally {
+      setIsGenerating(false);
+      onGeneratingChange?.(false);
+    }
+  }, []);
 
   const handleResult = useCallback(
     async (result: string | null, task: { transcript: string }) => {
+      const { onError } = optionsRef.current;
       const api = excalidrawApiRef.current;
       if (!result || !api) {
         return;
@@ -126,7 +119,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onError?.(errorMessage);
       }
     },
-    [excalidrawApiRef, onError],
+    [excalidrawApiRef],
   );
 
   useEffect(() => {
