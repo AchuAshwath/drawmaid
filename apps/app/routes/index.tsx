@@ -1,6 +1,7 @@
 import { PromptFooter } from "@/components/prompt-footer";
 import { AIConfigPopup } from "@/components/ai-config-popup";
 import { WebGPUBanner } from "@/components/webgpu-banner";
+import { useAutoMode } from "@/hooks/use-auto-mode";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
@@ -74,6 +75,16 @@ function Home() {
   );
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
+
+  const { isGenerating: autoModeGenerating } = useAutoMode({
+    excalidrawApiRef,
+    generate,
+    currentModel,
+    localModels,
+    isAutoMode: mode === "auto",
+    transcript: prompt,
+    onError: setError,
+  });
 
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
@@ -364,13 +375,16 @@ function Home() {
             onModeChange={handleModeChange}
             onGenerate={handleGenerate}
             generateDisabled={
+              mode === "auto" ||
               !prompt ||
               status === "loading" ||
               status === "generating" ||
               !isSupported ||
               !apiReady
             }
-            generating={status === "generating" || isGenerating}
+            generating={
+              status === "generating" || isGenerating || autoModeGenerating
+            }
             onTranscript={(text) => {
               setPrompt(text);
               setError(null);
