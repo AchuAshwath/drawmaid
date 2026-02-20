@@ -59,6 +59,7 @@ function Home() {
   const [mode, setMode] = useState<"auto" | "normal">(() =>
     loadAutoModePreference() ? "auto" : "normal",
   );
+  const [isMicActive, setIsMicActive] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +83,7 @@ function Home() {
     currentModel,
     localModels,
     isAutoMode: mode === "auto",
+    isMicActive,
     transcript: prompt,
     onError: setError,
   });
@@ -155,6 +157,10 @@ function Home() {
   const handleModeChange = (newMode: "auto" | "normal") => {
     setMode(newMode);
     saveAutoModePreference(newMode === "auto");
+  };
+
+  const handleMicStateChange = (active: boolean) => {
+    setIsMicActive(active);
   };
 
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
@@ -390,6 +396,7 @@ function Home() {
               setError(null);
             }}
             onRecognitionError={(message) => setError(message)}
+            onMicStateChange={handleMicStateChange}
             error={error}
             loading={
               status === "loading" || (isGenerating && mode === "normal")

@@ -2,6 +2,7 @@ import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 import { Button, cn } from "@repo/ui";
 import { Mic, MicOff } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
+import { useEffect } from "react";
 
 export interface VoiceInputButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -10,12 +11,14 @@ export interface VoiceInputButtonProps extends Omit<
   lang?: string;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onRecognitionError?: (error: string) => void;
+  onMicStateChange?: (isActive: boolean) => void;
 }
 
 export function VoiceInputButton({
   lang,
   onTranscript,
   onRecognitionError,
+  onMicStateChange,
   onClick,
   className,
   ...props
@@ -25,6 +28,10 @@ export function VoiceInputButton({
     onTranscript,
     onError: onRecognitionError,
   });
+
+  useEffect(() => {
+    onMicStateChange?.(isListening);
+  }, [isListening, onMicStateChange]);
 
   if (!isSupported) return null;
 

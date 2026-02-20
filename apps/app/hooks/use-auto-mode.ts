@@ -22,6 +22,7 @@ interface UseAutoModeOptions {
   currentModel: string;
   localModels: { id: string }[];
   isAutoMode: boolean;
+  isMicActive: boolean;
   transcript: string;
   onError?: (message: string) => void;
   onGeneratingChange?: (generating: boolean) => void;
@@ -36,6 +37,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const {
     excalidrawApiRef,
     isAutoMode,
+    isMicActive,
     transcript,
     onError,
     onGeneratingChange,
@@ -44,9 +46,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
   const lastProcessedRef = useRef("");
-  const isMicActiveRef = useRef(false);
   const optionsRef = useRef(options);
+  const transcriptRef = useRef(transcript);
+
   optionsRef.current = options;
+  transcriptRef.current = transcript;
 
   const handleGenerate = useCallback(
     async (task: { transcript: string }) => {
@@ -69,7 +73,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           systemPrompt: SYSTEM_PROMPT,
           modelId: model,
           useLocalServer: useLocal,
-        });
+          disableAbort: true,
+        } as Parameters<typeof gen>[1]);
 
         return result;
       } catch (error) {
@@ -100,10 +105,24 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       try {
         await insertMermaidIntoCanvas(api, mermaidCode);
         lastProcessedRef.current = task.transcript;
+        console.log(`[CANVAS_INSERT] genId succeeded, applied to canvas`);
       } catch (error) {
-        const message =
+        const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
-        onError?.(message);
+        console.log(`[CANVAS_ERROR] ${errorMessage}`);
+
+        const activeCount = engineRef.current?.getActiveCount() ?? 0;
+        if (activeCount === 0) {
+          console.log(
+            `[CANVAS_ERROR] Retry triggered (no other generation running)`,
+          );
+          engineRef.current?.checkAndTrigger(task.transcript);
+        } else {
+          console.log(
+            `[CANVAS_ERROR] Retry not triggered (${activeCount} generation(s) still running)`,
+          );
+        }
+        onError?.(errorMessage);
       }
     },
     [excalidrawApiRef, onError],
@@ -118,7 +137,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
     engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
 
-    engineRef.current.start(() => transcript);
+    engineRef.current.start(() => transcriptRef.current);
 
     return () => {
       engineRef.current?.stop();
@@ -142,21 +161,20 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     [isAutoMode],
   );
 
-  const debouncedCheckRef = useRef(
-    debounce(() => {
-      if (!isAutoMode || !engineRef.current) return;
-
-      if (transcript.length > lastProcessedRef.current.length) {
-        engineRef.current.checkAndTrigger(transcript);
-      }
-    }, 1500),
-  );
-
   useEffect(() => {
-    if (isAutoMode && !isMicActiveRef.current) {
-      debouncedCheckRef.current();
-    }
-  }, [transcript, isAutoMode]);
+    if (!isAutoMode || isMicActive || !engineRef.current) return;
+
+    const debouncedCheck = debounce(() => {
+      if (
+        transcriptRef.current.length > lastProcessedRef.current.length &&
+        engineRef.current
+      ) {
+        engineRef.current.checkAndTrigger(transcriptRef.current);
+      }
+    }, 1500);
+
+    debouncedCheck();
+  }, [transcript, isAutoMode, isMicActive]);
 
   return {
     isGenerating,
