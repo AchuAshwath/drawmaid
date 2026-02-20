@@ -26,6 +26,10 @@ import {
   getDownloadedModels,
   subscribeToConfigChanges,
 } from "@/lib/ai-config/storage";
+import {
+  loadAutoModePreference,
+  saveAutoModePreference,
+} from "@/lib/auto-mode/storage";
 import type {
   WebLLMModelInfo,
   LocalModel,
@@ -51,7 +55,9 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<"auto" | "normal">("normal");
+  const [mode, setMode] = useState<"auto" | "normal">(() =>
+    loadAutoModePreference() ? "auto" : "normal",
+  );
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +139,11 @@ function Home() {
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleModeChange = (newMode: "auto" | "normal") => {
+    setMode(newMode);
+    saveAutoModePreference(newMode === "auto");
   };
 
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
@@ -350,7 +361,7 @@ function Home() {
               if (error) setError(null);
             }}
             mode={mode}
-            onModeChange={setMode}
+            onModeChange={handleModeChange}
             onGenerate={handleGenerate}
             generateDisabled={
               !prompt ||
