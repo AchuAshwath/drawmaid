@@ -74,6 +74,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           modelId: model,
           useLocalServer: useLocal,
           disableAbort: true,
+          timeoutMs: useLocal ? undefined : 30000,
         } as Parameters<typeof gen>[1]);
 
         return result;
