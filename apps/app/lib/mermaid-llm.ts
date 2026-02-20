@@ -207,6 +207,13 @@ export async function generate(
     if (!engine) throw new Error("Engine failed to load");
   }
 
+  // Reset chat history to prevent context accumulation between generations
+  try {
+    engine.resetChat();
+  } catch {
+    /* safe to ignore */
+  }
+
   // Superseded during auto-load - skip check if disableAbort
   if (!disableAbort && id !== generationId) throw abortError();
 
