@@ -123,6 +123,7 @@ export function PromptFooter({
               <VoiceInputButton
                 onTranscript={onTranscript}
                 onRecognitionError={onRecognitionError}
+                autoMode={mode === "auto"}
               />
               <div className="relative inline-flex h-6 w-[calc(3.5rem+1.25rem)] items-center rounded-full bg-input/50 px-0.5 overflow-hidden shadow-sm">
                 <Switch
@@ -171,6 +172,9 @@ export function PromptFooter({
                 variant="default"
                 size="icon"
                 aria-label={generating ? "Generating..." : "Generate diagram"}
+                title={
+                  mode === "auto" ? "Submit disabled in auto mode" : undefined
+                }
               >
                 <ArrowUp className="h-4 w-4" />
               </Button>
