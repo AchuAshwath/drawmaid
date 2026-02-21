@@ -18,7 +18,6 @@ export interface PromptFooterProps {
   generating?: boolean;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onRecognitionError?: (error: string) => void;
-  error?: string | null;
   loading?: boolean;
   loadProgress?: number;
   inputAriaDescribedBy?: string;
@@ -40,7 +39,6 @@ export function PromptFooter({
   generating = false,
   onTranscript,
   onRecognitionError,
-  error = null,
   loading = false,
   loadProgress = 0,
   inputAriaDescribedBy,
@@ -187,15 +185,6 @@ export function PromptFooter({
           </div>
         </div>
       </div>
-      {error && (
-        <p
-          id="home-error"
-          className="w-full text-sm text-destructive"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
     </CenteredStrip>
   );
 }

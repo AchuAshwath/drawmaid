@@ -18,7 +18,7 @@ import { useMermaidLlm } from "@/lib/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
-import { Github, Moon, Sun, Settings } from "lucide-react";
+import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
@@ -62,6 +62,13 @@ function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-dismiss error after 8 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 8000);
+    return () => clearTimeout(timer);
+  }, [error]);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
@@ -377,7 +384,6 @@ function Home() {
             prompt={prompt}
             onPromptChange={(value) => {
               setPrompt(value);
-              if (error) setError(null);
             }}
             mode={mode}
             onModeChange={handleModeChange}
@@ -395,16 +401,12 @@ function Home() {
             }
             onTranscript={(text) => {
               setPrompt(text);
-              setError(null);
             }}
             onRecognitionError={(message) => setError(message)}
-            error={error}
             loading={
               status === "loading" || (isGenerating && mode === "normal")
             }
             loadProgress={loadProgress}
-            inputAriaDescribedBy={error ? "home-error" : undefined}
-            inputAriaInvalid={!!error}
             webLLMModels={availableWebLLMModels}
             localModels={localModels}
             currentModel={currentModel}
@@ -414,7 +416,60 @@ function Home() {
         </div>
       </div>
 
+      {/* Error alert at top-right */}
+      {error && (
+        <div className="pointer-events-none absolute top-4 right-4 z-50">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-destructive-foreground shadow-lg backdrop-blur-sm">
+            <span className="text-sm">{error}</span>
+            <ErrorAlertActions error={error} onDismiss={() => setError(null)} />
+          </div>
+        </div>
+      )}
+
       <AIConfigPopup open={aiConfigOpen} onOpenChange={setAiConfigOpen} />
+    </div>
+  );
+}
+
+function ErrorAlertActions({
+  error,
+  onDismiss,
+}: {
+  error: string;
+  onDismiss: () => void;
+}) {
+  const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(error);
+    setCopyStatus("copied");
+    setTimeout(() => setCopyStatus("copy"), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded p-1 hover:bg-white/20 transition-colors"
+        aria-label="Copy error"
+        title="Copy error"
+      >
+        {copyStatus === "copy" ? (
+          <Copy className="h-3.5 w-3.5" />
+        ) : (
+          <Check className="h-3.5 w-3.5 text-green-400" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="rounded p-1 hover:bg-white/20 transition-colors"
+        aria-label="Dismiss error"
+        title="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
