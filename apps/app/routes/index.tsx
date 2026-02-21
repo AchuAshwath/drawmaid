@@ -124,7 +124,6 @@ function Home() {
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
       const newIsLocal = newConfig.type === "local";
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setLocalServerConfigured(newIsLocal);
 
       if (newIsLocal) {

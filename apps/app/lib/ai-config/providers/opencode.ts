@@ -41,8 +41,12 @@ async function getOrCreateSession(
   apiKey?: string,
 ): Promise<string> {
   const stored = localStorage.getItem(getSessionKey(baseUrl));
-  if (stored) return stored;
+  if (stored) {
+    console.log("[OPENCODE] using cached session", { sessionId: stored });
+    return stored;
+  }
 
+  console.log("[OPENCODE] creating new session...", { baseUrl });
   const response = await fetch(`${baseUrl}/session`, {
     method: "POST",
     headers: {
@@ -120,34 +124,49 @@ async function sendMessage(
   system: string,
   prompt: string,
   apiKey?: string,
+  timeoutMs: number = 30000,
 ): Promise<OpenCodeMessageResponse> {
   const [providerID, modelID] = model.includes(":")
     ? model.split(":", 2)
     : ["opencode", model];
 
-  const response = await fetch(`${baseUrl}/session/${sessionId}/message`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(apiKey
-        ? { Authorization: `Basic ${btoa(`opencode:${apiKey}`)}` }
-        : {}),
-    },
-    body: JSON.stringify({
-      model: { providerID, modelID },
-      system,
-      parts: [{ type: "text", text: prompt }],
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(
-      `OpenCode message error: ${response.status} - ${errorBody}`,
-    );
+  try {
+    const response = await fetch(`${baseUrl}/session/${sessionId}/message`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey
+          ? { Authorization: `Basic ${btoa(`opencode:${apiKey}`)}` }
+          : {}),
+      },
+      body: JSON.stringify({
+        model: { providerID, modelID },
+        system,
+        parts: [{ type: "text", text: prompt }],
+      }),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `OpenCode message error: ${response.status} - ${errorBody}`,
+      );
+    }
+
+    return (await response.json()) as OpenCodeMessageResponse;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`OpenCode request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
   }
-
-  return (await response.json()) as OpenCodeMessageResponse;
 }
 
 async function compactSession(
@@ -182,35 +201,81 @@ export async function generateWithOpenCode(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
+  console.log("[OPENCODE] generateWithOpenCode() start", {
+    url: config.url,
+    model: config.model,
+  });
   const baseUrl = config.url.replace(/\/$/, "");
-  const sessionId = await getOrCreateSession(baseUrl, config.apiKey);
-  const summary = localStorage.getItem(getSummaryKey(baseUrl));
-  const prompt = summary
-    ? `Context summary:\n${summary}\n\n${userPrompt}`
-    : userPrompt;
 
-  const response = await sendMessage(
-    baseUrl,
-    sessionId,
-    config.model,
-    systemPrompt,
-    prompt,
-    config.apiKey,
-  );
+  try {
+    const sessionId = await getOrCreateSession(baseUrl, config.apiKey);
+    console.log("[OPENCODE] session created", { sessionId });
 
-  const usagePercent = findUsagePercent(response);
-  if (typeof usagePercent === "number") {
-    localStorage.setItem(getUsageKey(baseUrl), String(usagePercent));
-    if (usagePercent >= USAGE_THRESHOLD) {
-      await compactSession(
+    const summary = localStorage.getItem(getSummaryKey(baseUrl));
+    const prompt = summary
+      ? `Context summary:\n${summary}\n\n${userPrompt}`
+      : userPrompt;
+
+    console.log("[OPENCODE] sending message...", {
+      promptLength: prompt.length,
+    });
+    const response = await sendMessage(
+      baseUrl,
+      sessionId,
+      config.model,
+      systemPrompt,
+      prompt,
+      config.apiKey,
+    );
+    console.log("[OPENCODE] message response received", {
+      hasParts: !!response.parts,
+    });
+
+    const usagePercent = findUsagePercent(response);
+    if (typeof usagePercent === "number") {
+      localStorage.setItem(getUsageKey(baseUrl), String(usagePercent));
+      if (usagePercent >= USAGE_THRESHOLD) {
+        await compactSession(
+          baseUrl,
+          sessionId,
+          config.model,
+          systemPrompt,
+          config.apiKey,
+        );
+      }
+    }
+
+    return extractTextFromParts(response.parts);
+  } catch (error) {
+    // If timeout or session error, reset session and retry once
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (
+      errorMessage.includes("timed out") ||
+      errorMessage.includes("session") ||
+      errorMessage.includes("aborted")
+    ) {
+      console.log("[OPENCODE] Session error, resetting and retrying...", {
+        error: errorMessage,
+      });
+      resetOpenCodeSession(baseUrl);
+      localStorage.removeItem(getSummaryKey(baseUrl));
+      localStorage.removeItem(getUsageKey(baseUrl));
+
+      // Retry once with fresh session
+      const newSessionId = await getOrCreateSession(baseUrl, config.apiKey);
+      const retryPrompt = userPrompt; // Don't include summary on retry
+
+      const retryResponse = await sendMessage(
         baseUrl,
-        sessionId,
+        newSessionId,
         config.model,
         systemPrompt,
+        retryPrompt,
         config.apiKey,
       );
-    }
-  }
 
-  return extractTextFromParts(response.parts);
+      return extractTextFromParts(retryResponse.parts);
+    }
+    throw error;
+  }
 }

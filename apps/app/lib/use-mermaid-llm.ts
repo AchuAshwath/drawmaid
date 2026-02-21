@@ -12,6 +12,7 @@ import {
   type GenerateOptions,
 } from "./mermaid-llm";
 import { loadConfigAsync } from "./ai-config/storage";
+import type { LocalServerConfig } from "./ai-config/types";
 import { generateWithLocalServer } from "./ai-config/providers/local";
 import { generateWithOpenCode } from "./ai-config/providers/opencode";
 
@@ -43,17 +44,35 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
   const supported = isWebGPUSupported();
 
   const generate: UseMermaidLlmReturn["generate"] = async (prompt, opts) => {
+    console.log("[USE_MERMAID_LLM] generate() start", {
+      useLocalServer: opts?.useLocalServer,
+      modelId: opts?.modelId,
+    });
+
     const config = await loadConfigAsync();
+    console.log("[USE_MERMAID_LLM] config loaded", {
+      configType: config.type,
+      serverType: (config as LocalServerConfig).serverType,
+    });
 
     // Use local server if explicitly requested via useLocalServer option
     if (opts?.useLocalServer && config.type === "local") {
-      const model = opts?.modelId || config.model;
-      if (config.serverType === "opencode") {
-        return generateWithOpenCode(
+      const localConfig = config as LocalServerConfig;
+      const model = opts?.modelId || localConfig.model;
+      console.log("[USE_MERMAID_LLM] using local server", {
+        serverType: localConfig.serverType,
+        model,
+      });
+      if (localConfig.serverType === "opencode") {
+        const result = await generateWithOpenCode(
           { ...config, model },
           opts?.systemPrompt ?? SYSTEM_PROMPT,
           prompt,
         );
+        console.log("[USE_MERMAID_LLM] opencode result", {
+          resultLength: result?.length,
+        });
+        return result;
       }
 
       return generateWithLocalServer(
@@ -68,6 +87,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
       );
     }
 
+    console.log("[USE_MERMAID_LLM] using WebLLM", { supported });
     // Otherwise use WebLLM
     if (!supported) return unsupportedGenerate(prompt, opts);
     return engineGenerate(prompt, opts);
