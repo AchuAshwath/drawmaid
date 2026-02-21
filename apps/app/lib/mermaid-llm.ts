@@ -234,15 +234,21 @@ export async function generate(
   }
 
   // If a generation or load is already in progress and disableAbort is true (auto mode),
-  // skip this generation to avoid overwhelming the engine
+  // interrupt the current generation and start fresh (newest text wins)
   if (
     disableAbort &&
     (snapshot.status === "generating" || snapshot.status === "loading")
   ) {
-    console.log("[MERMAID_LLM] Generation/load in progress, skipping", {
+    console.log("[MERMAID_LLM] Generation/load in progress, interrupting...", {
       status: snapshot.status,
     });
-    throw new Error("Generation already in progress");
+    try {
+      engine?.interruptGenerate();
+    } catch {
+      /* safe to ignore */
+    }
+    emit({ status: "ready" });
+    // Continue with new generation...
   }
 
   // Cancel-previous: stop backend inference and invalidate stale stream

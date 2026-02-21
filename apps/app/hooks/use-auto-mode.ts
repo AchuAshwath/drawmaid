@@ -97,11 +97,17 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const { onError } = optionsRef.current;
       const api = excalidrawApiRef.current;
       if (!result || !api) {
+        // No result - will retry on next tick
         return;
       }
 
       const mermaidCode = normalizeMermaid(result);
       if (!mermaidCode) {
+        // Parsing failed - retry immediately
+        console.log(
+          "[AUTO_MODE_HOOK] Mermaid parsing failed, retrying immediately",
+        );
+        engineRef.current?.retryWithCurrentTranscript();
         return;
       }
 
@@ -112,6 +118,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
         onError?.(errorMessage);
+        // Insertion failed - retry immediately
+        engineRef.current?.retryWithCurrentTranscript();
       }
     },
     [excalidrawApiRef],

@@ -156,7 +156,8 @@ export class AutoModeEngine {
     };
 
     this._activeGenerations.set(task.id, Date.now());
-    this.lastTriggeredText = transcript;
+    // DON'T update lastTriggeredText here - only on successful generation
+    // This ensures that if generation fails/skips, the next tick will retry
 
     // Grow interval based on generation count
     this.currentIntervalMs = this.getIntervalForGeneration(
@@ -193,8 +194,15 @@ export class AutoModeEngine {
       if (result) {
         this.state.lastSuccessfulGenId = task.id;
         this.state.lastProcessedTranscript = task.transcript;
+        this.lastTriggeredText = task.transcript; // Only update on success
         this.pushToStack(result);
         console.log("[AUTO_MODE] Generation successful, applying to canvas", {
+          genId: task.id,
+        });
+      } else {
+        // No result (null/failed) - don't update lastTriggeredText
+        // Next tick will retry with current text
+        console.log("[AUTO_MODE] Generation returned null, will retry", {
           genId: task.id,
         });
       }
@@ -228,5 +236,19 @@ export class AutoModeEngine {
 
   getActiveCount(): number {
     return this._activeGenerations.size;
+  }
+
+  /**
+   * Retry immediately with current transcript.
+   * Use when parsing/insertion fails but LLM generation succeeded.
+   */
+  retryWithCurrentTranscript(): void {
+    const currentText = this.transcriptGetter();
+    if (currentText.trim().length >= this.config.minTranscriptLength) {
+      console.log("[AUTO_MODE] retryWithCurrentTranscript()", {
+        transcript: currentText.slice(0, 50),
+      });
+      this.triggerGeneration(currentText);
+    }
   }
 }
