@@ -45,10 +45,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const handleGenerate = useCallback(async (task: { transcript: string }) => {
     const { onError, onGeneratingChange } = optionsRef.current;
 
-    console.log("[AUTO_MODE_HOOK] handleGenerate", {
-      transcript: task.transcript.slice(0, 50),
-    });
-
     setIsGenerating(true);
     onGeneratingChange?.(true);
 
@@ -64,8 +60,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const intent = extractIntent(task.transcript);
       const userPrompt = buildUserPrompt(task.transcript, intent);
 
-      console.log("[AUTO_MODE_HOOK] Calling generate...", { useLocal, model });
-
       const result = await gen(userPrompt, {
         systemPrompt: SYSTEM_PROMPT,
         modelId: model,
@@ -74,16 +68,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         timeoutMs: useLocal ? undefined : 15000,
       } as Parameters<typeof gen>[1]);
 
-      console.log("[AUTO_MODE_HOOK] generate returned", {
-        hasResult: !!result,
-        resultLength: result?.length,
-      });
-
       return result;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Generation failed";
-      console.log("[AUTO_MODE_HOOK] handleGenerate error", { message });
       onError?.(message);
       return null;
     } finally {
@@ -97,16 +85,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const { onError } = optionsRef.current;
       const api = excalidrawApiRef.current;
       if (!result || !api) {
-        // No result - will retry on next tick
         return;
       }
 
       const mermaidCode = normalizeMermaid(result);
       if (!mermaidCode) {
-        // Parsing failed - retry immediately
-        console.log(
-          "[AUTO_MODE_HOOK] Mermaid parsing failed, retrying immediately",
-        );
         engineRef.current?.retryWithCurrentTranscript();
         return;
       }
@@ -118,7 +101,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
         onError?.(errorMessage);
-        // Insertion failed - retry immediately
         engineRef.current?.retryWithCurrentTranscript();
       }
     },
@@ -126,21 +108,16 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   );
 
   useEffect(() => {
-    console.log("[AUTO_MODE_HOOK] useEffect", { isAutoMode });
-
     if (!isAutoMode) {
       engineRef.current?.stop();
       engineRef.current = null;
       return;
     }
 
-    console.log("[AUTO_MODE_HOOK] Creating new AutoModeEngine");
     engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
     engineRef.current.start(() => transcriptRef.current);
-    console.log("[AUTO_MODE_HOOK] Engine started");
 
     return () => {
-      console.log("[AUTO_MODE_HOOK] Cleanup - stopping engine");
       engineRef.current?.stop();
       engineRef.current = null;
     };

@@ -42,11 +42,9 @@ async function getOrCreateSession(
 ): Promise<string> {
   const stored = localStorage.getItem(getSessionKey(baseUrl));
   if (stored) {
-    console.log("[OPENCODE] using cached session", { sessionId: stored });
     return stored;
   }
 
-  console.log("[OPENCODE] creating new session...", { baseUrl });
   const response = await fetch(`${baseUrl}/session`, {
     method: "POST",
     headers: {
@@ -201,24 +199,16 @@ export async function generateWithOpenCode(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
-  console.log("[OPENCODE] generateWithOpenCode() start", {
-    url: config.url,
-    model: config.model,
-  });
   const baseUrl = config.url.replace(/\/$/, "");
 
   try {
     const sessionId = await getOrCreateSession(baseUrl, config.apiKey);
-    console.log("[OPENCODE] session created", { sessionId });
 
     const summary = localStorage.getItem(getSummaryKey(baseUrl));
     const prompt = summary
       ? `Context summary:\n${summary}\n\n${userPrompt}`
       : userPrompt;
 
-    console.log("[OPENCODE] sending message...", {
-      promptLength: prompt.length,
-    });
     const response = await sendMessage(
       baseUrl,
       sessionId,
@@ -227,9 +217,6 @@ export async function generateWithOpenCode(
       prompt,
       config.apiKey,
     );
-    console.log("[OPENCODE] message response received", {
-      hasParts: !!response.parts,
-    });
 
     const usagePercent = findUsagePercent(response);
     if (typeof usagePercent === "number") {
@@ -249,29 +236,27 @@ export async function generateWithOpenCode(
   } catch (error) {
     // If timeout or session error, reset session and retry once
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
+    const isRetryable =
       errorMessage.includes("timed out") ||
       errorMessage.includes("session") ||
-      errorMessage.includes("aborted")
-    ) {
-      console.log("[OPENCODE] Session error, resetting and retrying...", {
-        error: errorMessage,
-      });
+      errorMessage.includes("aborted");
+
+    if (isRetryable) {
       resetOpenCodeSession(baseUrl);
       localStorage.removeItem(getSummaryKey(baseUrl));
       localStorage.removeItem(getUsageKey(baseUrl));
 
-      // Retry once with fresh session
+      // Retry once with fresh session and shorter timeout
       const newSessionId = await getOrCreateSession(baseUrl, config.apiKey);
-      const retryPrompt = userPrompt; // Don't include summary on retry
 
       const retryResponse = await sendMessage(
         baseUrl,
         newSessionId,
         config.model,
         systemPrompt,
-        retryPrompt,
+        userPrompt,
         config.apiKey,
+        15000, // shorter timeout for retry
       );
 
       return extractTextFromParts(retryResponse.parts);

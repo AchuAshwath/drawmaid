@@ -64,12 +64,10 @@ export class AutoModeEngine {
 
   start(transcriptGetter: () => string): void {
     this.transcriptGetter = transcriptGetter;
-    console.log("[AUTO_MODE] start() called");
     this.scheduleNextTick();
   }
 
   stop(): void {
-    console.log("[AUTO_MODE] stop() called");
     if (this.checkTimeoutId !== null) {
       clearTimeout(this.checkTimeoutId);
       this.checkTimeoutId = null;
@@ -88,10 +86,6 @@ export class AutoModeEngine {
       clearTimeout(this.checkTimeoutId);
     }
 
-    console.log("[AUTO_MODE] scheduleNextTick()", {
-      intervalMs: this.currentIntervalMs,
-    });
-
     this.checkTimeoutId = setTimeout(() => {
       this.onIntervalTick();
     }, this.currentIntervalMs);
@@ -101,28 +95,15 @@ export class AutoModeEngine {
     const currentText = this.transcriptGetter();
     const trimmedLength = currentText.trim().length;
 
-    console.log("[AUTO_MODE] onIntervalTick()", {
-      currentText: currentText.slice(0, 50),
-      trimmedLength,
-      lastTriggeredText: this.lastTriggeredText.slice(0, 50),
-      activeCount: this._activeGenerations.size,
-    });
-
     // Skip if text is too short, but keep interval running
     if (trimmedLength < this.config.minTranscriptLength) {
-      console.log(
-        "[AUTO_MODE] Text too short, skipping (keeping interval running)",
-      );
       this.scheduleNextTick();
       return;
     }
 
     // Check if text changed from last triggered
     if (currentText !== this.lastTriggeredText) {
-      console.log("[AUTO_MODE] Text changed, triggering generation");
       this.triggerGeneration(currentText);
-    } else {
-      console.log("[AUTO_MODE] Text unchanged, skipping");
     }
 
     // Schedule next tick
@@ -130,17 +111,10 @@ export class AutoModeEngine {
   }
 
   private triggerGeneration(transcript: string): void {
-    console.log("[AUTO_MODE] triggerGeneration()", {
-      transcript: transcript.slice(0, 50),
-      activeCount: this._activeGenerations.size,
-      maxConcurrent: this.config.maxConcurrentGenerations,
-    });
-
     // Kill oldest if at max concurrent
     if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
       const oldestId = this.getOldestGenerationId();
       if (oldestId !== null) {
-        console.log("[AUTO_MODE] Killing oldest generation", { oldestId });
         this._activeGenerations.delete(oldestId);
       }
     }
@@ -156,37 +130,22 @@ export class AutoModeEngine {
     };
 
     this._activeGenerations.set(task.id, Date.now());
-    // DON'T update lastTriggeredText here - only on successful generation
-    // This ensures that if generation fails/skips, the next tick will retry
 
     // Grow interval based on generation count
     this.currentIntervalMs = this.getIntervalForGeneration(
       this.state.generationCounter,
     );
 
-    console.log("[AUTO_MODE] Generation started", {
-      genId,
-      newIntervalMs: this.currentIntervalMs,
-    });
-
     // Fire-and-forget
     this.executeGeneration(task);
   }
 
   private async executeGeneration(task: GenerationTask): Promise<void> {
-    console.log("[AUTO_MODE] executeGeneration() start", { genId: task.id });
-
     try {
       const result = await this.onGenerate(task);
-      console.log("[AUTO_MODE] executeGeneration() result", {
-        genId: task.id,
-        hasResult: !!result,
-        resultLength: result?.length,
-      });
 
       // Discard stale results
       if (task.id < this.state.lastSuccessfulGenId) {
-        console.log("[AUTO_MODE] Discarding stale result", { genId: task.id });
         this._activeGenerations.delete(task.id);
         return;
       }
@@ -194,26 +153,13 @@ export class AutoModeEngine {
       if (result) {
         this.state.lastSuccessfulGenId = task.id;
         this.state.lastProcessedTranscript = task.transcript;
-        this.lastTriggeredText = task.transcript; // Only update on success
+        this.lastTriggeredText = task.transcript;
         this.pushToStack(result);
-        console.log("[AUTO_MODE] Generation successful, applying to canvas", {
-          genId: task.id,
-        });
-      } else {
-        // No result (null/failed) - don't update lastTriggeredText
-        // Next tick will retry with current text
-        console.log("[AUTO_MODE] Generation returned null, will retry", {
-          genId: task.id,
-        });
       }
 
       this._activeGenerations.delete(task.id);
       this.onResult(result, task);
-    } catch (error) {
-      console.log("[AUTO_MODE] executeGeneration() error", {
-        genId: task.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    } catch {
       this._activeGenerations.delete(task.id);
     }
   }
@@ -238,16 +184,9 @@ export class AutoModeEngine {
     return this._activeGenerations.size;
   }
 
-  /**
-   * Retry immediately with current transcript.
-   * Use when parsing/insertion fails but LLM generation succeeded.
-   */
   retryWithCurrentTranscript(): void {
     const currentText = this.transcriptGetter();
     if (currentText.trim().length >= this.config.minTranscriptLength) {
-      console.log("[AUTO_MODE] retryWithCurrentTranscript()", {
-        transcript: currentText.slice(0, 50),
-      });
       this.triggerGeneration(currentText);
     }
   }
