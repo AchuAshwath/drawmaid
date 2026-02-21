@@ -197,18 +197,34 @@ Result: Canvas shows the more complete diagram
 
 ## Canvas Update Strategy
 
+### Implementation: Track Element IDs (Option A)
+
+We track the IDs of elements from the last auto-mode diagram. On each new generation, we:
+
+1. Filter out elements with tracked IDs from the scene
+2. Insert the new diagram elements
+3. Update tracked IDs to the new elements
+
+**Benefits:**
+
+- Only removes auto-mode diagrams, preserves manual edits
+- No custom properties needed
+- Reliable across Excalidraw operations
+
 ### Success Path
 
 ```
-Previous: [Diagram A] on canvas, Stack: [Mermaid A]
+Previous: [Diagram A] on canvas (element IDs: [id1, id2]), Stack: [Mermaid A]
 
 New generation succeeds:
   1. Push Mermaid B to stack: [Mermaid A, Mermaid B]
-  2. Undo Diagram A (canvas now shows previous state)
-  3. Insert Diagram B
-  4. Canvas shows: [Diagram B]
+  2. Get current scene elements
+  3. Filter out elements with IDs [id1, id2] (keep manual edits)
+  4. Insert Diagram B elements
+  5. Update tracked IDs to new element IDs [id3, id4, id5]
+  6. Canvas shows: [Diagram B] + any manual edits
 
-Result: Smooth visual transition
+Result: Smooth visual transition, manual edits preserved
 ```
 
 ### Failure Path

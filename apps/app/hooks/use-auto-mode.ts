@@ -106,7 +106,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       }
 
       try {
-        await insertMermaidIntoCanvas(api, mermaidCode);
+        await insertMermaidIntoCanvas(api, mermaidCode, { replace: true });
         lastProcessedRef.current = task.transcript;
       } catch (error) {
         const errorMessage =

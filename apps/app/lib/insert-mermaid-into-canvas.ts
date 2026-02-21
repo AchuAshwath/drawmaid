@@ -5,6 +5,7 @@ import {
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 
 interface ExcalidrawElement {
+  id: string;
   x: number;
   y: number;
   width: number;
@@ -44,6 +45,12 @@ export interface ExcalidrawCanvasApi {
 }
 
 const SCROLL_DURATION_MS = 300;
+
+/**
+ * Tracks element IDs from the last auto-mode diagram.
+ * Used to replace the previous diagram when a new one is generated.
+ */
+let lastAutoModeElementIds: string[] = [];
 
 /**
  * Gets the viewport center in scene coordinates.
@@ -123,12 +130,15 @@ function positionElementsAtViewportCenter(
  * Parses Mermaid code, converts to Excalidraw elements, appends to the current
  * scene, adds any files, and positions the diagram at the center of the
  * current viewport.
- * Behavior: always appends (does not replace). For a single-diagram flow, clear
- * the canvas first via MainMenu.DefaultItems.ClearCanvas or updateScene({ elements: [] }).
+ *
+ * @param api - The Excalidraw canvas API
+ * @param mermaidCode - The Mermaid diagram code
+ * @param options.replace - If true, removes the previous auto-mode diagram before inserting
  */
 export async function insertMermaidIntoCanvas(
   api: ExcalidrawCanvasApi,
   mermaidCode: string,
+  options?: { replace?: boolean },
 ): Promise<void> {
   const { elements: skeleton, files } =
     await parseMermaidToExcalidraw(mermaidCode);
@@ -149,9 +159,26 @@ export async function insertMermaidIntoCanvas(
     viewportCenter,
   );
 
-  const current = api.getSceneElements();
+  const current = api.getSceneElements() as ExcalidrawElement[];
+
+  let elementsToInsert: ExcalidrawElement[];
+
+  if (options?.replace && lastAutoModeElementIds.length > 0) {
+    // Filter out previous auto-mode diagram elements (preserve manual edits)
+    const filtered = current.filter(
+      (el) => !lastAutoModeElementIds.includes(el.id),
+    );
+    elementsToInsert = [...filtered, ...positionedElements];
+  } else {
+    // Just append
+    elementsToInsert = [...current, ...positionedElements];
+  }
+
+  // Update tracked element IDs for next replacement
+  lastAutoModeElementIds = positionedElements.map((el) => el.id);
+
   api.updateScene({
-    elements: [...current, ...positionedElements],
+    elements: elementsToInsert,
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 
@@ -166,4 +193,12 @@ export async function insertMermaidIntoCanvas(
     animate: true,
     duration: SCROLL_DURATION_MS,
   });
+}
+
+/**
+ * Clears the tracked auto-mode element IDs.
+ * Use this when user clears the canvas manually.
+ */
+export function clearAutoModeElementIds(): void {
+  lastAutoModeElementIds = [];
 }
