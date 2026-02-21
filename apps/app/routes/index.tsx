@@ -61,12 +61,25 @@ function Home() {
   );
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
+
+  type ErrorContext = {
+    message: string;
+    timestamp: string;
+    mode: "auto" | "normal";
+    model: string;
+    transcript: string;
+    provider: "webllm" | "local";
+  };
   const [error, setError] = useState<string | null>(null);
+  const [errorContext, setErrorContext] = useState<ErrorContext | null>(null);
 
   // Auto-dismiss error after 8 seconds
   useEffect(() => {
     if (!error) return;
-    const timer = setTimeout(() => setError(null), 8000);
+    const timer = setTimeout(() => {
+      setError(null);
+      setErrorContext(null);
+    }, 8000);
     return () => clearTimeout(timer);
   }, [error]);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
@@ -91,8 +104,35 @@ function Home() {
     localModels,
     isAutoMode: mode === "auto",
     transcript: prompt,
-    onError: setError,
+    onError: (message) => {
+      const isLocal = localModels.some((m) => m.id === currentModel);
+      const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
+      setError(message);
+      setErrorContext({
+        message,
+        timestamp: new Date().toISOString(),
+        mode,
+        model: currentModel,
+        transcript: prompt,
+        provider,
+      });
+    },
   });
+
+  // Helper to set error with full context
+  const handleError = (message: string) => {
+    const isLocal = localModels.some((m) => m.id === currentModel);
+    const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
+    setError(message);
+    setErrorContext({
+      message,
+      timestamp: new Date().toISOString(),
+      mode,
+      model: currentModel,
+      transcript: prompt,
+      provider,
+    });
+  };
 
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
@@ -208,12 +248,12 @@ function Home() {
       setIsGenerating(false);
       if (isAbortError(err)) return;
       if (isTimeoutError(err)) {
-        setError(
+        handleError(
           "Generation timed out. Try a simpler request or check your connection.",
         );
         return;
       }
-      setError(
+      handleError(
         err instanceof Error
           ? err.message
           : "Generation failed. Please try again.",
@@ -257,7 +297,7 @@ function Home() {
         });
 
         if (!recoveredOutput?.trim()) {
-          setError(
+          handleError(
             "Could not fix diagram syntax. Please try a different description.",
           );
           return;
@@ -265,7 +305,7 @@ function Home() {
 
         const recoveredCode = normalizeMermaid(recoveredOutput);
         if (!recoveredCode) {
-          setError(
+          handleError(
             "Could not fix diagram syntax. Please try a different description.",
           );
           return;
@@ -275,7 +315,7 @@ function Home() {
       } catch (recoveryErr) {
         setIsGenerating(false);
         if (isAbortError(recoveryErr)) return;
-        setError(
+        handleError(
           recoveryErr instanceof Error
             ? recoveryErr.message
             : "Could not add diagram to canvas. Check the diagram syntax.",
@@ -402,7 +442,7 @@ function Home() {
             onTranscript={(text) => {
               setPrompt(text);
             }}
-            onRecognitionError={(message) => setError(message)}
+            onRecognitionError={(message) => handleError(message)}
             loading={
               status === "loading" || (isGenerating && mode === "normal")
             }
@@ -421,7 +461,13 @@ function Home() {
         <div className="pointer-events-none absolute top-4 right-4 z-50">
           <div className="pointer-events-auto flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-destructive-foreground shadow-lg backdrop-blur-sm">
             <span className="text-sm">{error}</span>
-            <ErrorAlertActions error={error} onDismiss={() => setError(null)} />
+            <ErrorAlertActions
+              errorContext={errorContext}
+              onDismiss={() => {
+                setError(null);
+                setErrorContext(null);
+              }}
+            />
           </div>
         </div>
       )}
@@ -432,16 +478,45 @@ function Home() {
 }
 
 function ErrorAlertActions({
-  error,
+  errorContext,
   onDismiss,
 }: {
-  error: string;
+  errorContext: {
+    message: string;
+    timestamp: string;
+    mode: "auto" | "normal";
+    model: string;
+    transcript: string;
+    provider: "webllm" | "local";
+  } | null;
   onDismiss: () => void;
 }) {
   const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(error);
+    if (!errorContext) {
+      await navigator.clipboard.writeText("No error details available");
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("copy"), 2000);
+      return;
+    }
+
+    const details = `[Drawmaid Error Report]
+Time: ${errorContext.timestamp}
+Mode: ${errorContext.mode}
+Provider: ${errorContext.provider}
+Model: ${errorContext.model}
+
+Transcript:
+${errorContext.transcript || "(empty)"}
+
+Error Message:
+${errorContext.message}
+
+---
+Generated by Drawmaid`;
+
+    await navigator.clipboard.writeText(details);
     setCopyStatus("copied");
     setTimeout(() => setCopyStatus("copy"), 2000);
   };
