@@ -27,6 +27,7 @@ export interface PromptFooterProps {
   localModels?: LocalModel[];
   currentModel?: string;
   onSelectModel?: (modelId: string) => void;
+  localServerConfigured?: boolean;
 }
 
 export function PromptFooter({
@@ -48,6 +49,7 @@ export function PromptFooter({
   localModels,
   currentModel,
   onSelectModel,
+  localServerConfigured = false,
 }: PromptFooterProps) {
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
@@ -157,12 +159,15 @@ export function PromptFooter({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {webLLMModels?.length || localModels?.length ? (
+              {webLLMModels?.length ||
+              localModels?.length ||
+              localServerConfigured ? (
                 <ModelSelector
                   webLLMModels={webLLMModels || []}
                   localModels={localModels || []}
                   currentModel={currentModel || "Select model"}
                   onSelectModel={onSelectModel || (() => {})}
+                  localServerConfigured={localServerConfigured}
                 />
               ) : null}
               <Button

@@ -19,6 +19,7 @@ export interface ServerPreset {
   defaultUrl: string;
   description?: string;
   recommended?: boolean;
+  comingSoon?: boolean;
 }
 
 export const SERVER_PRESETS: ServerPreset[] = [
@@ -33,30 +34,35 @@ export const SERVER_PRESETS: ServerPreset[] = [
     name: "Ollama",
     defaultUrl: "http://localhost:11434/v1",
     description: "Popular local LLM runner",
+    comingSoon: true,
   },
   {
     type: "vllm",
     name: "vLLM",
     defaultUrl: "http://localhost:8000/v1",
     description: "High-throughput inference engine",
+    comingSoon: true,
   },
   {
     type: "lmstudio",
     name: "LM Studio",
     defaultUrl: "http://localhost:1234/v1",
     description: "User-friendly local LLM UI",
+    comingSoon: true,
   },
   {
     type: "llamacpp",
     name: "llama.cpp / llamafile",
     defaultUrl: "http://localhost:8080/v1",
     description: "Lightweight C++ inference",
+    comingSoon: true,
   },
   {
     type: "custom",
     name: "Custom",
     defaultUrl: "http://localhost:8000/v1",
     description: "Custom OpenAI-compatible endpoint",
+    comingSoon: true,
   },
 ];
 

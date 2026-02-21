@@ -67,6 +67,7 @@ function Home() {
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
+  const [localServerConfigured, setLocalServerConfigured] = useState(false);
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
@@ -88,7 +89,7 @@ function Home() {
 
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
-    if (config.type === "local" && config.url) {
+    if (config.type === "local" && "url" in config && config.url) {
       fetchLocalServerModels(config.url, config.apiKey, config.serverType).then(
         (result) => {
           if (result.success && result.models) {
@@ -103,7 +104,11 @@ function Home() {
   useEffect(() => {
     const config = loadConfig();
 
-    if (config.type === "local") {
+    const isLocal = config.type === "local";
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setLocalServerConfigured(isLocal);
+
+    if (isLocal) {
       if (config.model) {
         // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
         setCurrentModel(config.model);
@@ -118,7 +123,11 @@ function Home() {
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
-      if (newConfig.type === "local") {
+      const newIsLocal = newConfig.type === "local";
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setLocalServerConfigured(newIsLocal);
+
+      if (newIsLocal) {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
         }
@@ -401,6 +410,7 @@ function Home() {
             localModels={localModels}
             currentModel={currentModel}
             onSelectModel={handleSelectModel}
+            localServerConfigured={localServerConfigured}
           />
         </div>
       </div>

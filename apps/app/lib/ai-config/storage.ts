@@ -106,7 +106,12 @@ export function loadConfig(): AIConfig {
   }
 
   try {
-    return JSON.parse(stored) as AIConfig;
+    const parsed = JSON.parse(stored);
+    // Unwrap if stored as {config: ...}
+    if (parsed && typeof parsed === "object" && "config" in parsed) {
+      return parsed.config as AIConfig;
+    }
+    return parsed as AIConfig;
   } catch {
     return DEFAULT_CONFIG;
   }
