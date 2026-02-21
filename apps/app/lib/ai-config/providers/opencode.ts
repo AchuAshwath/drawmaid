@@ -232,6 +232,9 @@ export async function generateWithOpenCode(
       }
     }
 
+    // Reset session after each request to avoid context accumulation
+    resetOpenCodeSession(baseUrl);
+
     return extractTextFromParts(response.parts);
   } catch (error) {
     // If timeout or session error, reset session and retry once
@@ -258,6 +261,9 @@ export async function generateWithOpenCode(
         config.apiKey,
         15000, // shorter timeout for retry
       );
+
+      // Reset session after retry to avoid context accumulation
+      resetOpenCodeSession(baseUrl);
 
       return extractTextFromParts(retryResponse.parts);
     }
