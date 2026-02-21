@@ -15,17 +15,19 @@ export interface GenerationTask {
 }
 
 export interface AutoModeConfig {
-  checkIntervalMs: number;
-  wordThreshold: number;
-  debounceMs: number;
-  maxStackSize: number;
+  intervalBaselineMs: number;
+  intervalScaleMs: number;
+  maxIntervalMs: number;
+  maxConcurrentGenerations: number;
   minTranscriptLength: number;
+  maxStackSize: number;
 }
 
 export const DEFAULT_AUTO_MODE_CONFIG: AutoModeConfig = {
-  checkIntervalMs: 3000,
-  wordThreshold: 8,
-  debounceMs: 1500,
-  maxStackSize: 50,
+  intervalBaselineMs: 1000,
+  intervalScaleMs: 2500,
+  maxIntervalMs: 8000,
+  maxConcurrentGenerations: 2,
   minTranscriptLength: 3,
+  maxStackSize: 50,
 };

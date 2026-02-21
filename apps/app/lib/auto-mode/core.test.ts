@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { AutoModeEngine } from "./core";
 import { DEFAULT_AUTO_MODE_CONFIG } from "./types";
 
@@ -11,6 +11,11 @@ describe("AutoModeEngine", () => {
   beforeEach(() => {
     mockGenerate = vi.fn().mockResolvedValue("flowchart TD\n  A --> B");
     mockOnResult = vi.fn();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("initialization", () => {
@@ -24,95 +29,171 @@ describe("AutoModeEngine", () => {
       expect(state.lastSuccessfulGenId).toBe(-1);
     });
 
-    it("accepts custom config", () => {
-      const customEngine = new AutoModeEngine(
-        { intervalBaselineMs: 500, wordThreshold: 10 },
-        mockGenerate,
-        mockOnResult,
-      );
-      expect(customEngine.getState()).toBeDefined();
-    });
-  });
-
-  describe("start/stop", () => {
-    it("start creates interval", () => {
+    it("starts ticking immediately", () => {
       const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.start(() => "");
+      engine.start(() => "test");
       expect(engine.isRunning()).toBe(true);
       engine.stop();
     });
+  });
 
-    it("stop clears interval", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.start(() => "");
+  describe("state transitions", () => {
+    it("triggers generation when content appears", async () => {
+      let transcript = "";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      expect(engine.isRunning()).toBe(true);
+      expect(mockGenerate).not.toHaveBeenCalled();
+
+      // Simulate text input
+      transcript = "create a diagram";
+
+      // Advance timer to trigger interval check
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+      engine.stop();
+    });
+
+    it("keeps running when text becomes empty", async () => {
+      let transcript = "create a diagram";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      // First tick triggers generation
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.isRunning()).toBe(true);
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      // Clear text
+      transcript = "";
+
+      // Next tick should NOT stop, just skip
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.isRunning()).toBe(true);
+
+      engine.stop();
+    });
+
+    it("stops when stop() is called", () => {
+      const transcript = "create a diagram";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      vi.advanceTimersByTime(100);
+      expect(engine.isRunning()).toBe(true);
+
       engine.stop();
       expect(engine.isRunning()).toBe(false);
     });
+  });
 
-    it("start does nothing if already running", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.start(() => "");
-      const firstRunning = engine.isRunning();
-      engine.start(() => "");
-      expect(engine.isRunning()).toBe(firstRunning);
+  describe("generation triggering", () => {
+    it("triggers generation when text changes", async () => {
+      const transcript = "first text";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      // First tick - transitions to active, triggers generation
+      vi.advanceTimersByTime(100);
+      await Promise.resolve(); // Flush microtasks
+
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({ transcript: "first text" }),
+      );
+
       engine.stop();
     });
-  });
 
-  describe("checkAndTrigger", () => {
-    it("skips short transcripts below minTranscriptLength", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.checkAndTrigger("ab");
-      expect(mockGenerate).not.toHaveBeenCalled();
+    it("does not trigger when text unchanged", async () => {
+      const transcript = "same text";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      // First tick - triggers
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      // Text unchanged - should not trigger again
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      engine.stop();
     });
 
-    it("allows duplicate transcripts to be triggered (debounced by generation)", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.checkAndTrigger("create flowchart");
-      engine.checkAndTrigger("create flowchart");
-      // Current implementation allows duplicate triggers
-      // The generation itself would handle debouncing
+    it("triggers again when text changes after first generation", async () => {
+      let transcript = "first text";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      // First tick
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      // Change text
+      transcript = "second text";
+
+      // Next tick should trigger
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
       expect(mockGenerate).toHaveBeenCalledTimes(2);
-    });
-
-    it("creates generation task with unique ID", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.checkAndTrigger("create flowchart");
-      expect(mockGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 1,
-          transcript: "create flowchart",
-        }),
+      expect(mockGenerate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ transcript: "second text" }),
       );
+
+      engine.stop();
     });
 
-    it("increments generation counter for each trigger", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      engine.checkAndTrigger("first");
-      engine.checkAndTrigger("second");
-      expect(mockGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 1, transcript: "first" }),
+    it("skips short transcripts", async () => {
+      const transcript = "ab"; // Less than minTranscriptLength (3)
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
       );
-      expect(mockGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 2, transcript: "second" }),
-      );
-    });
-  });
+      engine.start(() => transcript);
 
-  describe("getState", () => {
-    it("returns immutable copy", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      const state1 = engine.getState();
-      const state2 = engine.getState();
-      expect(state1).not.toBe(state2);
-      expect(state1).toEqual(state2);
-    });
-  });
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
 
-  describe("config defaults", () => {
-    it("has correct default checkIntervalMs", () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-      expect(engine.getState()).toBeDefined();
+      // Should not trigger generation, but keep running
+      expect(mockGenerate).not.toHaveBeenCalled();
+      expect(engine.isRunning()).toBe(true);
+
+      engine.stop();
     });
   });
 
@@ -135,53 +216,40 @@ describe("AutoModeEngine", () => {
             }),
         );
 
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      let transcript = "first text";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("first transcript");
-      engine.checkAndTrigger("second transcript");
+      // First generation starts
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
 
+      // Change text - will trigger second generation on next tick
+      transcript = "second text";
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      // Complete second generation first
       resolveGen2!("second result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
 
+      // Complete first generation second (stale)
       resolveGen1!("first result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
 
+      // Only second result should be applied
       expect(mockOnResult).toHaveBeenCalledTimes(1);
+      expect(mockOnResult).toHaveBeenCalledWith(
+        "second result",
+        expect.objectContaining({ id: 2 }),
+      );
       expect(engine.getState().lastSuccessfulGenId).toBe(2);
-    });
 
-    it("updates lastSuccessfulGenId only for newer generations", async () => {
-      let resolveGen1: (value: string | null) => void;
-      let resolveGen2: (value: string | null) => void;
-
-      mockGenerate
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              resolveGen1 = resolve;
-            }),
-        )
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) => {
-              resolveGen2 = resolve;
-            }),
-        );
-
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-
-      engine.checkAndTrigger("first");
-      engine.checkAndTrigger("second");
-
-      resolveGen1!("first result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(engine.getState().lastSuccessfulGenId).toBe(1);
-
-      resolveGen2!("second result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(engine.getState().lastSuccessfulGenId).toBe(2);
+      engine.stop();
     });
   });
 
@@ -204,31 +272,87 @@ describe("AutoModeEngine", () => {
             }),
         );
 
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      let transcript = "first text";
+      const engine = new AutoModeEngine(
+        {
+          maxConcurrentGenerations: 2,
+          intervalBaselineMs: 100,
+          intervalScaleMs: 0,
+          maxIntervalMs: 100,
+        },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("first");
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(1);
 
-      engine.checkAndTrigger("second");
+      transcript = "second text";
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(2);
 
       resolveGen1!("result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(1);
 
       resolveGen2!("result");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(0);
+
+      engine.stop();
+    });
+
+    it("kills oldest generation when at max concurrent", async () => {
+      mockGenerate.mockImplementation(() => new Promise(() => {})); // Never resolves
+
+      let transcript = "first";
+      const engine = new AutoModeEngine(
+        {
+          maxConcurrentGenerations: 2,
+          intervalBaselineMs: 100,
+          intervalScaleMs: 0,
+          maxIntervalMs: 100,
+        },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+
+      transcript = "second";
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(2);
+
+      transcript = "third";
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      // Should still be 2 (oldest killed)
+      expect(engine.getActiveCount()).toBe(2);
+
+      engine.stop();
     });
 
     it("clears active generations on stop", async () => {
       mockGenerate.mockImplementation(() => new Promise(() => {}));
 
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      const transcript = "test";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("first");
-      engine.checkAndTrigger("second");
-      expect(engine.getActiveCount()).toBe(2);
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
 
       engine.stop();
       expect(engine.getActiveCount()).toBe(0);
@@ -237,34 +361,52 @@ describe("AutoModeEngine", () => {
 
   describe("mermaid stack", () => {
     it("pushes successful results to stack", async () => {
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
-
-      engine.checkAndTrigger("first");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(engine.getState().mermaidStack).toHaveLength(1);
-      expect(engine.getState().mermaidStack[0]).toBe("flowchart TD\n  A --> B");
-    });
-
-    it("limits stack size to maxStackSize", async () => {
+      const transcript = "test diagram";
       const engine = new AutoModeEngine(
-        { maxStackSize: 3 },
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
         mockGenerate,
         mockOnResult,
       );
+      engine.start(() => transcript);
+
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      expect(engine.getState().mermaidStack).toHaveLength(1);
+      expect(engine.getState().mermaidStack[0]).toBe("flowchart TD\n  A --> B");
+
+      engine.stop();
+    });
+
+    it("limits stack size to maxStackSize", async () => {
+      let transcript = "text";
+      const engine = new AutoModeEngine(
+        {
+          maxStackSize: 3,
+          intervalBaselineMs: 100,
+          intervalScaleMs: 0,
+          maxIntervalMs: 100,
+        },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
       for (let i = 0; i < 5; i++) {
         mockGenerate.mockResolvedValueOnce(`code ${i}`);
-        engine.checkAndTrigger(`transcript ${i}`);
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        transcript = `transcript ${i}`;
+        vi.advanceTimersByTime(100);
+        await Promise.resolve();
       }
 
       expect(engine.getState().mermaidStack).toHaveLength(3);
       expect(engine.getState().mermaidStack[0]).toBe("code 2");
+
+      engine.stop();
     });
   });
 
-  describe("dynamic interval calculation", () => {
+  describe("interval growth", () => {
     it("uses logarithmic growth formula", () => {
       const calculateInterval = (genId: number) => {
         const logValue = Math.log2(genId + 1);
@@ -279,29 +421,70 @@ describe("AutoModeEngine", () => {
       expect(calculateInterval(3)).toBeCloseTo(6000, -2);
       expect(calculateInterval(7)).toBe(DEFAULT_AUTO_MODE_CONFIG.maxIntervalMs);
     });
+
+    it("resets generation counter on stop", async () => {
+      let transcript = "text";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 100, maxIntervalMs: 500 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
+
+      // Trigger a generation
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      expect(engine.getState().generationCounter).toBe(1);
+
+      engine.stop();
+
+      // Start again with fresh state
+      transcript = "new text";
+      engine.start(() => transcript);
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+
+      // After restart, counter should start from 1 again (reset)
+      expect(engine.getState().generationCounter).toBe(1);
+
+      engine.stop();
+    });
   });
 
   describe("error handling", () => {
     it("removes generation from active set on error", async () => {
       mockGenerate.mockRejectedValueOnce(new Error("Generation failed"));
 
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      const transcript = "test";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("test");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
 
       expect(engine.getActiveCount()).toBe(0);
+
+      engine.stop();
     });
 
     it("does not update lastSuccessfulGenId on error", async () => {
       mockGenerate.mockRejectedValueOnce(new Error("Generation failed"));
 
+      const transcript = "test";
       const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("test");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.advanceTimersByTime(DEFAULT_AUTO_MODE_CONFIG.intervalBaselineMs);
+      await Promise.resolve();
 
       expect(engine.getState().lastSuccessfulGenId).toBe(-1);
+
+      engine.stop();
     });
   });
 
@@ -309,23 +492,35 @@ describe("AutoModeEngine", () => {
     it("does not push to stack when result is null", async () => {
       mockGenerate.mockResolvedValueOnce(null);
 
-      const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      const transcript = "test";
+      const engine = new AutoModeEngine(
+        { intervalBaselineMs: 100, intervalScaleMs: 0, maxIntervalMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("test");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
 
       expect(engine.getState().mermaidStack).toHaveLength(0);
+
+      engine.stop();
     });
 
     it("does not update lastSuccessfulGenId when result is null", async () => {
       mockGenerate.mockResolvedValueOnce(null);
 
+      const transcript = "test";
       const engine = new AutoModeEngine({}, mockGenerate, mockOnResult);
+      engine.start(() => transcript);
 
-      engine.checkAndTrigger("test");
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.advanceTimersByTime(DEFAULT_AUTO_MODE_CONFIG.intervalBaselineMs);
+      await Promise.resolve();
 
       expect(engine.getState().lastSuccessfulGenId).toBe(-1);
+
+      engine.stop();
     });
   });
 });

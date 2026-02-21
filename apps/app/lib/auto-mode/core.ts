@@ -12,18 +12,16 @@ export type ResultCallback = (
   task: GenerationTask,
 ) => void;
 
-function log(prefix: string, message: string): void {
-  console.log(`[${prefix}] ${message}`);
-}
-
 export class AutoModeEngine {
   private state: AutoModeState;
   private config: AutoModeConfig;
-  private activeGenerations: Map<number, number> = new Map(); // genId -> startTime
   private checkTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private currentIntervalMs: number;
   private onGenerate: GenerateFn;
   private onResult: ResultCallback;
+  private lastTriggeredText: string = "";
   private transcriptGetter: () => string = () => "";
+  private _activeGenerations: Map<number, number> = new Map();
 
   constructor(
     config: Partial<AutoModeConfig> = {},
@@ -31,6 +29,7 @@ export class AutoModeEngine {
     onResult: ResultCallback,
   ) {
     this.config = { ...DEFAULT_AUTO_MODE_CONFIG, ...config };
+    this.currentIntervalMs = this.config.intervalBaselineMs;
     this.onGenerate = onGenerate;
     this.onResult = onResult;
     this.state = {
@@ -42,8 +41,8 @@ export class AutoModeEngine {
     };
   }
 
-  private getDynamicInterval(genId: number): number {
-    const logValue = Math.log2(genId + 1);
+  private getIntervalForGeneration(genCount: number): number {
+    const logValue = Math.log2(genCount + 1);
     const interval =
       this.config.intervalBaselineMs + logValue * this.config.intervalScaleMs;
     return Math.min(interval, this.config.maxIntervalMs);
@@ -53,7 +52,7 @@ export class AutoModeEngine {
     let oldestId: number | null = null;
     let oldestTime = Infinity;
 
-    for (const [id, startTime] of this.activeGenerations) {
+    for (const [id, startTime] of this._activeGenerations.entries()) {
       if (startTime < oldestTime) {
         oldestTime = startTime;
         oldestId = id;
@@ -64,92 +63,130 @@ export class AutoModeEngine {
   }
 
   start(transcriptGetter: () => string): void {
-    if (this.checkTimeoutId !== null) return;
-
     this.transcriptGetter = transcriptGetter;
-    log("AUTO_MODE_START", `Starting auto mode`);
-    this.scheduleNextCheck();
+    console.log("[AUTO_MODE] start() called");
+    this.scheduleNextTick();
   }
 
   stop(): void {
+    console.log("[AUTO_MODE] stop() called");
     if (this.checkTimeoutId !== null) {
       clearTimeout(this.checkTimeoutId);
       this.checkTimeoutId = null;
     }
-    this.activeGenerations.clear();
-    log("AUTO_MODE_STOP", "Stopping auto mode");
+    this._activeGenerations.clear();
+    this.lastTriggeredText = "";
+    this.currentIntervalMs = this.config.intervalBaselineMs;
+    this.state.generationCounter = 0;
+    this.state.lastSuccessfulGenId = -1;
+    this.state.lastProcessedTranscript = "";
+    this.state.mermaidStack = [];
   }
 
-  private scheduleNextCheck(): void {
+  private scheduleNextTick(): void {
     if (this.checkTimeoutId !== null) {
       clearTimeout(this.checkTimeoutId);
     }
 
-    const genId = this.state.generationCounter + 1;
-    const interval = this.getDynamicInterval(genId);
-    log(
-      "DYNAMIC_INTERVAL",
-      `genId=${genId} interval=${interval}ms active=${this.activeGenerations.size}`,
-    );
+    console.log("[AUTO_MODE] scheduleNextTick()", {
+      intervalMs: this.currentIntervalMs,
+    });
 
     this.checkTimeoutId = setTimeout(() => {
-      try {
-        this.checkAndTrigger(this.transcriptGetter());
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        log("SCHEDULER_ERROR", `checkAndTrigger failed: ${errorMessage}`);
-      }
-      this.scheduleNextCheck();
-    }, interval);
+      this.onIntervalTick();
+    }, this.currentIntervalMs);
   }
 
-  checkAndTrigger(transcript: string): void {
-    if (
-      transcript.trim().length < this.config.minTranscriptLength ||
-      transcript === this.state.lastProcessedTranscript
-    ) {
+  private onIntervalTick(): void {
+    const currentText = this.transcriptGetter();
+    const trimmedLength = currentText.trim().length;
+
+    console.log("[AUTO_MODE] onIntervalTick()", {
+      currentText: currentText.slice(0, 50),
+      trimmedLength,
+      lastTriggeredText: this.lastTriggeredText.slice(0, 50),
+      activeCount: this._activeGenerations.size,
+    });
+
+    // Skip if text is too short, but keep interval running
+    if (trimmedLength < this.config.minTranscriptLength) {
+      console.log(
+        "[AUTO_MODE] Text too short, skipping (keeping interval running)",
+      );
+      this.scheduleNextTick();
       return;
     }
 
-    // Check concurrent limit and kill oldest if at max
-    if (this.activeGenerations.size >= this.config.maxConcurrentGenerations) {
+    // Check if text changed from last triggered
+    if (currentText !== this.lastTriggeredText) {
+      console.log("[AUTO_MODE] Text changed, triggering generation");
+      this.triggerGeneration(currentText);
+    } else {
+      console.log("[AUTO_MODE] Text unchanged, skipping");
+    }
+
+    // Schedule next tick
+    this.scheduleNextTick();
+  }
+
+  private triggerGeneration(transcript: string): void {
+    console.log("[AUTO_MODE] triggerGeneration()", {
+      transcript: transcript.slice(0, 50),
+      activeCount: this._activeGenerations.size,
+      maxConcurrent: this.config.maxConcurrentGenerations,
+    });
+
+    // Kill oldest if at max concurrent
+    if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
       const oldestId = this.getOldestGenerationId();
       if (oldestId !== null) {
-        this.activeGenerations.delete(oldestId);
-        log(
-          "CONCURRENT_LIMIT",
-          `Killing genId=${oldestId}, starting genId=${
-            this.state.generationCounter + 1
-          }`,
-        );
+        console.log("[AUTO_MODE] Killing oldest generation", { oldestId });
+        this._activeGenerations.delete(oldestId);
       }
     }
 
+    const genId = ++this.state.generationCounter;
+
     const task: GenerationTask = {
-      id: ++this.state.generationCounter,
+      id: genId,
       transcript,
       timestamp: Date.now(),
       modelId: "",
       useLocalServer: false,
     };
 
-    this.activeGenerations.set(task.id, Date.now());
-    log(
-      "TRIGGER",
-      `genId=${task.id} transcript="${transcript.slice(0, 30)}..."`,
+    this._activeGenerations.set(task.id, Date.now());
+    this.lastTriggeredText = transcript;
+
+    // Grow interval based on generation count
+    this.currentIntervalMs = this.getIntervalForGeneration(
+      this.state.generationCounter,
     );
 
+    console.log("[AUTO_MODE] Generation started", {
+      genId,
+      newIntervalMs: this.currentIntervalMs,
+    });
+
+    // Fire-and-forget
     this.executeGeneration(task);
   }
 
   private async executeGeneration(task: GenerationTask): Promise<void> {
+    console.log("[AUTO_MODE] executeGeneration() start", { genId: task.id });
+
     try {
       const result = await this.onGenerate(task);
+      console.log("[AUTO_MODE] executeGeneration() result", {
+        genId: task.id,
+        hasResult: !!result,
+        resultLength: result?.length,
+      });
 
+      // Discard stale results
       if (task.id < this.state.lastSuccessfulGenId) {
-        this.activeGenerations.delete(task.id);
-        log("CANVAS_INSERT", `genId=${task.id} discarded (stale)`);
+        console.log("[AUTO_MODE] Discarding stale result", { genId: task.id });
+        this._activeGenerations.delete(task.id);
         return;
       }
 
@@ -157,19 +194,19 @@ export class AutoModeEngine {
         this.state.lastSuccessfulGenId = task.id;
         this.state.lastProcessedTranscript = task.transcript;
         this.pushToStack(result);
+        console.log("[AUTO_MODE] Generation successful, applying to canvas", {
+          genId: task.id,
+        });
       }
 
-      this.activeGenerations.delete(task.id);
+      this._activeGenerations.delete(task.id);
       this.onResult(result, task);
-
-      if (result) {
-        log("CANVAS_INSERT", `genId=${task.id} succeeded, applied to canvas`);
-      }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      log("ERROR", `genId=${task.id} ${errorMessage}`);
-      this.activeGenerations.delete(task.id);
+      console.log("[AUTO_MODE] executeGeneration() error", {
+        genId: task.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this._activeGenerations.delete(task.id);
     }
   }
 
@@ -190,6 +227,6 @@ export class AutoModeEngine {
   }
 
   getActiveCount(): number {
-    return this.activeGenerations.size;
+    return this._activeGenerations.size;
   }
 }

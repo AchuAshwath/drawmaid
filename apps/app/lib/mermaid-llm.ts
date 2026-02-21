@@ -94,19 +94,31 @@ export function isWebGPUSupported(): boolean {
 
 export function load(modelId?: string): Promise<void> {
   const modelToLoad = modelId || DEFAULT_MODEL;
+  console.log("[MERMAID_LLM] load() called", {
+    modelToLoad,
+    hasEngine: !!engine,
+    status: snapshot.status,
+  });
   // Engine already alive — generation errors don't corrupt the engine,
   // so it's still usable. Just clear the error and return.
   if (engine) {
+    console.log("[MERMAID_LLM] Engine already loaded, returning");
     if (snapshot.status === "error") emit({ status: "ready", error: null });
     return Promise.resolve();
   }
 
   // Load in progress — return the same promise (idempotent)
-  if (snapshot.status === "loading" && enginePromise) return enginePromise;
+  if (snapshot.status === "loading" && enginePromise) {
+    console.log(
+      "[MERMAID_LLM] Load already in progress, returning existing promise",
+    );
+    return enginePromise;
+  }
 
   // Fresh load from idle or error (engine is null — load failure)
   const epoch = engineEpoch;
   emit({ status: "loading", loadProgress: 0, error: null });
+  console.log("[MERMAID_LLM] Starting fresh load...", { modelToLoad });
 
   // Set up cancellation before any async work so unload() can
   // reject a hanging load() at any point, not just after race setup.
@@ -121,24 +133,34 @@ export function load(modelId?: string): Promise<void> {
     let engineCreation: Promise<WebWorkerMLCEngine> | null = null;
 
     try {
+      console.log("[MERMAID_LLM] Importing @mlc-ai/web-llm...");
       const { CreateWebWorkerMLCEngine } = await Promise.race([
         import("@mlc-ai/web-llm"),
         cancelPromise,
       ]);
 
+      console.log("[MERMAID_LLM] Creating worker...");
       localWorker = new Worker(
         new URL("./mermaid-llm.worker.ts", import.meta.url),
         { type: "module" },
       );
       pendingWorker = localWorker; // expose to unload() for cancellation
 
+      console.log("[MERMAID_LLM] Creating WebLLM engine...", {
+        model: modelToLoad,
+      });
       engineCreation = CreateWebWorkerMLCEngine(localWorker, modelToLoad, {
         initProgressCallback: (report) => {
           if (epoch !== engineEpoch) return;
+          console.log("[MERMAID_LLM] Load progress", {
+            progress: report.progress,
+            report: report.text,
+          });
           emit({ loadProgress: report.progress });
         },
       });
 
+      console.log("[MERMAID_LLM] Waiting for engine to be ready...");
       const localEngine = await Promise.race([engineCreation, cancelPromise]);
 
       rejectPendingLoad = null;
@@ -153,8 +175,13 @@ export function load(modelId?: string): Promise<void> {
       engine = localEngine;
       worker = localWorker;
       pendingWorker = null;
+      console.log("[MERMAID_LLM] Engine ready!");
       emit({ status: "ready", loadProgress: 1 });
     } catch (err) {
+      console.log("[MERMAID_LLM] Load error", {
+        error: err instanceof Error ? err.message : String(err),
+        isAbort: isAbortError(err),
+      });
       rejectPendingLoad = null;
       // Terminate worker unless it was promoted to module-level
       if (localWorker && localWorker !== worker) localWorker.terminate();
@@ -187,6 +214,37 @@ export async function generate(
 ): Promise<string> {
   const disableAbort = opts?.disableAbort ?? false;
 
+  console.log("[MERMAID_LLM] generate() called", {
+    modelId: opts?.modelId,
+    useLocalServer: opts?.useLocalServer,
+    timeoutMs: opts?.timeoutMs,
+    hasEngine: !!engine,
+    status: snapshot.status,
+  });
+
+  // If engine is in error state, try to recover by reloading
+  if (snapshot.status === "error" && engine) {
+    console.log("[MERMAID_LLM] Engine in error state, reloading...");
+    try {
+      await unload();
+    } catch {
+      /* safe to ignore */
+    }
+    engine = null;
+  }
+
+  // If a generation or load is already in progress and disableAbort is true (auto mode),
+  // skip this generation to avoid overwhelming the engine
+  if (
+    disableAbort &&
+    (snapshot.status === "generating" || snapshot.status === "loading")
+  ) {
+    console.log("[MERMAID_LLM] Generation/load in progress, skipping", {
+      status: snapshot.status,
+    });
+    throw new Error("Generation already in progress");
+  }
+
   // Cancel-previous: stop backend inference and invalidate stale stream
   // Skip if disableAbort is true (for auto mode)
   if (!disableAbort) {
@@ -203,6 +261,7 @@ export async function generate(
 
   // Auto-load if engine isn't ready, with specific model if provided
   if (!engine) {
+    console.log("[MERMAID_LLM] Engine not loaded, auto-loading...");
     await load(opts?.modelId);
     if (!engine) throw new Error("Engine failed to load");
   }
@@ -220,12 +279,17 @@ export async function generate(
   emit({ status: "generating" });
 
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  console.log("[MERMAID_LLM] Starting LLM generation...", { id, timeoutMs });
+
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs);
   });
 
   try {
+    console.log("[MERMAID_LLM] Calling engine.chat.completions.create...", {
+      id,
+    });
     const stream = await Promise.race([
       engine.chat.completions.create({
         messages: [
@@ -259,6 +323,12 @@ export async function generate(
     emit({ status: "ready" });
     return result;
   } catch (err) {
+    console.log("[MERMAID_LLM] Generation error", {
+      id,
+      error: err instanceof Error ? err.message : String(err),
+      isTimeout: isTimeoutError(err),
+      isAbort: isAbortError(err),
+    });
     if (isAbortError(err)) throw err;
     if (!disableAbort && id !== generationId) throw abortError();
 

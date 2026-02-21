@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AutoModeEngine } from "@/lib/auto-mode/core";
-import { hasMeaningfulChange, debounce } from "@/lib/auto-mode/utils";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
@@ -22,7 +21,6 @@ interface UseAutoModeOptions {
   currentModel: string;
   localModels: { id: string }[];
   isAutoMode: boolean;
-  isMicActive: boolean;
   transcript: string;
   onError?: (message: string) => void;
   onGeneratingChange?: (generating: boolean) => void;
@@ -30,11 +28,10 @@ interface UseAutoModeOptions {
 
 interface UseAutoModeReturn {
   isGenerating: boolean;
-  triggerGeneration: (transcript: string) => void;
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
-  const { excalidrawApiRef, isAutoMode, isMicActive, transcript } = options;
+  const { excalidrawApiRef, isAutoMode, transcript } = options;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
@@ -47,6 +44,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   const handleGenerate = useCallback(async (task: { transcript: string }) => {
     const { onError, onGeneratingChange } = optionsRef.current;
+
+    console.log("[AUTO_MODE_HOOK] handleGenerate", {
+      transcript: task.transcript.slice(0, 50),
+    });
 
     setIsGenerating(true);
     onGeneratingChange?.(true);
@@ -63,18 +64,26 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const intent = extractIntent(task.transcript);
       const userPrompt = buildUserPrompt(task.transcript, intent);
 
+      console.log("[AUTO_MODE_HOOK] Calling generate...", { useLocal, model });
+
       const result = await gen(userPrompt, {
         systemPrompt: SYSTEM_PROMPT,
         modelId: model,
         useLocalServer: useLocal,
         disableAbort: true,
-        timeoutMs: useLocal ? undefined : 30000,
+        timeoutMs: useLocal ? undefined : 15000,
       } as Parameters<typeof gen>[1]);
+
+      console.log("[AUTO_MODE_HOOK] generate returned", {
+        hasResult: !!result,
+        resultLength: result?.length,
+      });
 
       return result;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Generation failed";
+      console.log("[AUTO_MODE_HOOK] handleGenerate error", { message });
       onError?.(message);
       return null;
     } finally {
@@ -99,23 +108,9 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       try {
         await insertMermaidIntoCanvas(api, mermaidCode);
         lastProcessedRef.current = task.transcript;
-        console.log(`[CANVAS_INSERT] genId succeeded, applied to canvas`);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
-        console.log(`[CANVAS_ERROR] ${errorMessage}`);
-
-        const activeCount = engineRef.current?.getActiveCount() ?? 0;
-        if (activeCount === 0) {
-          console.log(
-            `[CANVAS_ERROR] Retry triggered (no other generation running)`,
-          );
-          engineRef.current?.checkAndTrigger(task.transcript);
-        } else {
-          console.log(
-            `[CANVAS_ERROR] Retry not triggered (${activeCount} generation(s) still running)`,
-          );
-        }
         onError?.(errorMessage);
       }
     },
@@ -123,55 +118,27 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   );
 
   useEffect(() => {
+    console.log("[AUTO_MODE_HOOK] useEffect", { isAutoMode });
+
     if (!isAutoMode) {
       engineRef.current?.stop();
       engineRef.current = null;
       return;
     }
 
+    console.log("[AUTO_MODE_HOOK] Creating new AutoModeEngine");
     engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
-
     engineRef.current.start(() => transcriptRef.current);
+    console.log("[AUTO_MODE_HOOK] Engine started");
 
     return () => {
+      console.log("[AUTO_MODE_HOOK] Cleanup - stopping engine");
       engineRef.current?.stop();
       engineRef.current = null;
     };
   }, [isAutoMode, handleGenerate, handleResult]);
 
-  useEffect(() => {
-    if (!isAutoMode || !engineRef.current) return;
-
-    if (hasMeaningfulChange(transcript, lastProcessedRef.current, 8)) {
-      engineRef.current.checkAndTrigger(transcript);
-    }
-  }, [transcript, isAutoMode]);
-
-  const triggerGeneration = useCallback(
-    (transcriptToGenerate: string) => {
-      if (!isAutoMode || !engineRef.current) return;
-      engineRef.current.checkAndTrigger(transcriptToGenerate);
-    },
-    [isAutoMode],
-  );
-
-  useEffect(() => {
-    if (!isAutoMode || isMicActive || !engineRef.current) return;
-
-    const debouncedCheck = debounce(() => {
-      if (
-        transcriptRef.current.length > lastProcessedRef.current.length &&
-        engineRef.current
-      ) {
-        engineRef.current.checkAndTrigger(transcriptRef.current);
-      }
-    }, 1500);
-
-    debouncedCheck();
-  }, [transcript, isAutoMode, isMicActive]);
-
   return {
     isGenerating,
-    triggerGeneration,
   };
 }

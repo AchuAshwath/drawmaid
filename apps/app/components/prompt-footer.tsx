@@ -18,7 +18,6 @@ export interface PromptFooterProps {
   generating?: boolean;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onRecognitionError?: (error: string) => void;
-  onMicStateChange?: (isActive: boolean) => void;
   error?: string | null;
   loading?: boolean;
   loadProgress?: number;
@@ -40,7 +39,6 @@ export function PromptFooter({
   generating = false,
   onTranscript,
   onRecognitionError,
-  onMicStateChange,
   error = null,
   loading = false,
   loadProgress = 0,
@@ -125,7 +123,6 @@ export function PromptFooter({
               <VoiceInputButton
                 onTranscript={onTranscript}
                 onRecognitionError={onRecognitionError}
-                onMicStateChange={onMicStateChange}
               />
               <div className="relative inline-flex h-6 w-[calc(3.5rem+1.25rem)] items-center rounded-full bg-input/50 px-0.5 overflow-hidden shadow-sm">
                 <Switch
