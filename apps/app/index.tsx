@@ -13,6 +13,7 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultNotFoundComponent: NotFound,
+  basepath: "/drawmaid",
 });
 
 const container = document.getElementById("root");
