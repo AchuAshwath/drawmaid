@@ -447,7 +447,7 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
             <div className="flex gap-2">
               <Button
                 variant={activeTab === "webllm" ? "default" : "outline"}
@@ -571,7 +571,7 @@ export function AIConfigPopup({
                   />
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-2 min-h-0 custom-scrollbar">
                   {webllmSubTab === "available" &&
                     filteredAvailableModels.map((model) => (
                       <div
