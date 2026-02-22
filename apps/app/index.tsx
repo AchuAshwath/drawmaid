@@ -13,8 +13,18 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultNotFoundComponent: NotFound,
-  basepath: "/drawmaid",
 });
+
+if (typeof window !== "undefined") {
+  const redirect = sessionStorage.redirect;
+  if (redirect) {
+    delete sessionStorage.redirect;
+    const url = new URL(redirect);
+    if (url.pathname !== window.location.pathname) {
+      router.navigate({ to: url.pathname, replace: true });
+    }
+  }
+}
 
 const container = document.getElementById("root");
 const root = createRoot(container!);

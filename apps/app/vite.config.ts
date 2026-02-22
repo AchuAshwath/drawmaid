@@ -27,7 +27,7 @@ export default defineProject(({ mode }) => {
   });
 
   return {
-    base: process.env.GITHUB_PAGES === "true" ? "/drawmaid/" : "/",
+    base: "/drawmaid/",
     cacheDir: fileURLToPath(new URL("../../.cache/vite-app", import.meta.url)),
 
     build: {

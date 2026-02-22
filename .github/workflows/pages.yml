@@ -32,9 +32,6 @@ jobs:
           GOOGLE_CLOUD_PROJECT: "placeholder"
           GA_MEASUREMENT_ID: "placeholder"
 
-      - name: Create SPA fallback
-        run: cp apps/app/dist/index.html apps/app/dist/404.html
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
