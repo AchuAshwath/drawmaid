@@ -30,6 +30,7 @@ import {
   loadConfig,
   getDownloadedModels,
   subscribeToConfigChanges,
+  subscribeToDownloadedModelsChanges,
 } from "@/lib/ai-config/storage";
 import {
   loadAutoModePreference,
@@ -191,15 +192,16 @@ function Home() {
     return unsubscribe;
   }, [fetchModels]);
 
-  // Listen for storage changes (when new models are downloaded)
+  // Listen for downloaded models changes
   useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "drawmaid-downloaded-models") {
-        setDownloadedModelIds(getDownloadedModels());
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setDownloadedModelIds(getDownloadedModels());
+
+    const unsubscribe = subscribeToDownloadedModelsChanges((models) => {
+      setDownloadedModelIds(models);
+    });
+
+    return unsubscribe;
   }, []);
 
   const handleSelectModel = (modelId: string) => {

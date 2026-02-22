@@ -52,6 +52,7 @@ export function PromptFooter({
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
       mode,
+      transcript: prompt,
       onModeChange,
       onGenerate,
       isGenerateDisabled: generateDisabled,
