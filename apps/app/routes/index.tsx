@@ -41,7 +41,7 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 
@@ -88,6 +88,11 @@ function Home() {
   );
   const [webLLMModels, setWebLLMModels] = useState<WebLLMModelInfo[]>([]);
 
+  const localModelIds = useMemo(
+    () => new Set(localModels.map((m) => m.id)),
+    [localModels],
+  );
+
   // Load WebLLM models on mount
   useEffect(() => {
     getWebLLMModelInfos()
@@ -109,7 +114,7 @@ function Home() {
     isAutoMode: mode === "auto",
     transcript: prompt,
     onError: (message) => {
-      const isLocal = localModels.some((m) => m.id === currentModel);
+      const isLocal = localModelIds.has(currentModel);
       const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
       setError(message);
       setErrorContext({
@@ -125,7 +130,7 @@ function Home() {
 
   // Helper to set error with full context
   const handleError = (message: string) => {
-    const isLocal = localModels.some((m) => m.id === currentModel);
+    const isLocal = localModelIds.has(currentModel);
     const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
     setError(message);
     setErrorContext({
@@ -240,7 +245,7 @@ function Home() {
     const userPrompt = buildUserPrompt(prompt, intent);
 
     // Determine which provider to use based on selected model
-    const isLocalModel = localModels.some((m) => m.id === currentModel);
+    const isLocalModel = localModelIds.has(currentModel);
     const useLocalServer = isLocalModel && localModels.length > 0;
 
     try {

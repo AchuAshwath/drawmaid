@@ -11,7 +11,7 @@ import {
   type Status,
   type GenerateOptions,
 } from "./mermaid-llm";
-import { loadConfigAsync } from "../ai-config/storage";
+import { getCachedConfigAsync } from "../ai-config/storage";
 import type { LocalServerConfig } from "../ai-config/types";
 import { generateWithLocalServer } from "../ai-config/providers/local";
 import { generateWithOpenCode } from "../ai-config/providers/opencode";
@@ -44,7 +44,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
   const supported = isWebGPUSupported();
 
   const generate: UseMermaidLlmReturn["generate"] = async (prompt, opts) => {
-    const config = await loadConfigAsync();
+    const config = await getCachedConfigAsync();
 
     // Use local server if explicitly requested via useLocalServer option
     if (opts?.useLocalServer && config.type === "local") {
