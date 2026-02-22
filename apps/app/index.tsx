@@ -1,6 +1,10 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
+import {
+  createHashHistory,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { NotFound } from "./components/not-found";
@@ -13,18 +17,8 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: "intent",
   defaultNotFoundComponent: NotFound,
+  history: createHashHistory(),
 });
-
-if (typeof window !== "undefined") {
-  const redirect = sessionStorage.redirect;
-  if (redirect) {
-    delete sessionStorage.redirect;
-    const url = new URL(redirect);
-    if (url.pathname !== window.location.pathname) {
-      router.navigate({ to: url.pathname, replace: true });
-    }
-  }
-}
 
 const container = document.getElementById("root");
 const root = createRoot(container!);
