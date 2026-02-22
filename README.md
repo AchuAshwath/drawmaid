@@ -56,12 +56,12 @@ Recommended models:
 
 ### Local Server Options
 
-| Provider  | Description                                  | Default URL                 |
-| --------- | -------------------------------------------- | --------------------------- |
-| OpenCode  | Full-featured local AI server                | `http://127.0.0.1:4096`     |
-| Ollama    | Run Llama, Mistral, and other models locally | `http://localhost:11434/v1` |
-| LM Studio | Desktop app for running LLMs                 | `http://localhost:1234/v1`  |
-| vLLM      | High-performance LLM serving                 | `http://localhost:8000/v1`  |
+| Provider  | Description                                  | Default URL                 | Status       |
+| --------- | -------------------------------------------- | --------------------------- | ------------ |
+| OpenCode  | Full-featured local AI server                | `http://127.0.0.1:4096`     | ✅ Available |
+| Ollama    | Run Llama, Mistral, and other models locally | `http://localhost:11434/v1` | Coming Soon  |
+| LM Studio | Desktop app for running LLMs                 | `http://localhost:1234/v1`  | Coming Soon  |
+| vLLM      | High-performance LLM serving                 | `http://localhost:8000/v1`  | Coming Soon  |
 
 ## Tech Stack
 
@@ -80,4 +80,4 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 ---
 
-Built with ❤️ using WebLLM and Excalidraw
+Built with ❤️ using [React Starter Kit](https://github.com/kriasoft/react-starter-kit), WebLLM and Excalidraw
