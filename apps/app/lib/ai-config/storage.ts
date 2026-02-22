@@ -10,16 +10,82 @@ import { DEFAULT_CONFIG } from "./types";
 const STORAGE_KEY = "drawmaid-ai-config";
 const DOWNLOADED_MODELS_KEY = "drawmaid-downloaded-models";
 
+// Cache for config (used in Phase 3)
+let configCache: AIConfig | null = null;
+let configCacheValid = false;
+let downloadedModelsCache: string[] | null = null;
+
+function invalidateConfigCache(): void {
+  configCacheValid = false;
+  configCache = null;
+}
+
+function invalidateDownloadedModelsCache(): void {
+  downloadedModelsCache = null;
+}
+
+export function getCachedConfig(): AIConfig {
+  if (configCacheValid && configCache) {
+    return configCache;
+  }
+  configCache = loadConfig();
+  configCacheValid = true;
+  return configCache;
+}
+
+export async function getCachedConfigAsync(): Promise<AIConfig> {
+  if (configCacheValid && configCache) {
+    return configCache;
+  }
+  try {
+    configCache = await loadConfigAsync();
+    configCacheValid = true;
+    return configCache;
+  } catch {
+    configCache = DEFAULT_CONFIG;
+    configCacheValid = true;
+    return configCache;
+  }
+}
+
 type ConfigChangeListener = (config: AIConfig) => void;
 const listeners = new Set<ConfigChangeListener>();
 
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (event) => {
+type DownloadedModelsListener = (modelIds: string[]) => void;
+const downloadedModelsListeners = new Set<DownloadedModelsListener>();
+
+let storageHandler: ((event: StorageEvent) => void) | null = null;
+let storageHandlerAttached = false;
+
+function attachStorageHandler() {
+  if (storageHandlerAttached || typeof window === "undefined") return;
+
+  storageHandler = async (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) {
-      const newConfig = loadConfig();
+      const newConfig = await loadConfigAsync();
       listeners.forEach((listener) => listener(newConfig));
+      invalidateConfigCache();
+    } else if (event.key === DOWNLOADED_MODELS_KEY) {
+      const models = getDownloadedModels();
+      downloadedModelsListeners.forEach((listener) => listener(models));
+      invalidateDownloadedModelsCache();
     }
-  });
+  };
+
+  window.addEventListener("storage", storageHandler);
+  storageHandlerAttached = true;
+}
+
+function cleanupStorageHandler() {
+  if (storageHandler) {
+    window.removeEventListener("storage", storageHandler);
+    storageHandler = null;
+    storageHandlerAttached = false;
+  }
+}
+
+if (typeof window !== "undefined") {
+  attachStorageHandler();
 }
 
 export function subscribeToConfigChanges(
@@ -28,7 +94,23 @@ export function subscribeToConfigChanges(
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+    if (listeners.size === 0) {
+      cleanupStorageHandler();
+    }
   };
+}
+
+export function subscribeToDownloadedModelsChanges(
+  listener: DownloadedModelsListener,
+): () => void {
+  downloadedModelsListeners.add(listener);
+  return () => {
+    downloadedModelsListeners.delete(listener);
+  };
+}
+
+export function notifyDownloadedModelsChanged(modelIds: string[]): void {
+  downloadedModelsListeners.forEach((listener) => listener(modelIds));
 }
 
 async function serializeConfig(config: AIConfig): Promise<string> {
@@ -149,10 +231,13 @@ export function getConfigDescription(config: AIConfig): string {
 }
 
 export function getDownloadedModels(): string[] {
+  if (downloadedModelsCache) return downloadedModelsCache;
+
   const stored = localStorage.getItem(DOWNLOADED_MODELS_KEY);
   if (!stored) return [];
   try {
-    return JSON.parse(stored) as string[];
+    downloadedModelsCache = JSON.parse(stored) as string[];
+    return downloadedModelsCache;
   } catch {
     return [];
   }
@@ -162,14 +247,18 @@ export function addDownloadedModel(modelId: string): void {
   const models = getDownloadedModels();
   if (!models.includes(modelId)) {
     models.push(modelId);
+    downloadedModelsCache = models;
     localStorage.setItem(DOWNLOADED_MODELS_KEY, JSON.stringify(models));
+    notifyDownloadedModelsChanged(models);
   }
 }
 
 export function removeDownloadedModel(modelId: string): void {
   const models = getDownloadedModels();
   const filtered = models.filter((m) => m !== modelId);
+  downloadedModelsCache = filtered;
   localStorage.setItem(DOWNLOADED_MODELS_KEY, JSON.stringify(filtered));
+  notifyDownloadedModelsChanged(filtered);
 }
 
 export function isModelDownloaded(modelId: string): boolean {

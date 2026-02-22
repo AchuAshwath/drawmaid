@@ -27,6 +27,7 @@ export default defineProject(({ mode }) => {
   });
 
   return {
+    base: process.env.GITHUB_PAGES === "true" ? "/drawmaid/" : "/",
     cacheDir: fileURLToPath(new URL("../../.cache/vite-app", import.meta.url)),
 
     build: {
@@ -48,6 +49,7 @@ export default defineProject(({ mode }) => {
               "clsx",
               "tailwind-merge",
             ],
+            webllm: ["@mlc-ai/web-llm"],
           },
         },
       },

@@ -24,12 +24,13 @@ import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
-import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
   loadConfig,
   getDownloadedModels,
   subscribeToConfigChanges,
+  subscribeToDownloadedModelsChanges,
 } from "@/lib/ai-config/storage";
 import {
   loadAutoModePreference,
@@ -40,19 +41,9 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
-
-const webLLMModels: WebLLMModelInfo[] = prebuiltAppConfig.model_list.map(
-  (m) => ({
-    id: m.model_id,
-    name: m.model_id,
-    vramMB: Math.round(m.vram_required_MB ?? 0),
-    lowResource: m.low_resource_required ?? false,
-    contextWindow: 4096,
-  }),
-);
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -95,6 +86,20 @@ function Home() {
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
+  const [webLLMModels, setWebLLMModels] = useState<WebLLMModelInfo[]>([]);
+
+  const localModelIds = useMemo(
+    () => new Set(localModels.map((m) => m.id)),
+    [localModels],
+  );
+
+  // Load WebLLM models on mount
+  useEffect(() => {
+    getWebLLMModelInfos()
+      .then(setWebLLMModels)
+      .catch((err) => console.error("Failed to load WebLLM models:", err));
+  }, []);
+
   const availableWebLLMModels = webLLMModels.filter((m) =>
     downloadedModelIds.includes(m.id),
   );
@@ -109,7 +114,7 @@ function Home() {
     isAutoMode: mode === "auto",
     transcript: prompt,
     onError: (message) => {
-      const isLocal = localModels.some((m) => m.id === currentModel);
+      const isLocal = localModelIds.has(currentModel);
       const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
       setError(message);
       setErrorContext({
@@ -125,7 +130,7 @@ function Home() {
 
   // Helper to set error with full context
   const handleError = (message: string) => {
-    const isLocal = localModels.some((m) => m.id === currentModel);
+    const isLocal = localModelIds.has(currentModel);
     const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
     setError(message);
     setErrorContext({
@@ -192,15 +197,16 @@ function Home() {
     return unsubscribe;
   }, [fetchModels]);
 
-  // Listen for storage changes (when new models are downloaded)
+  // Listen for downloaded models changes
   useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "drawmaid-downloaded-models") {
-        setDownloadedModelIds(getDownloadedModels());
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setDownloadedModelIds(getDownloadedModels());
+
+    const unsubscribe = subscribeToDownloadedModelsChanges((models) => {
+      setDownloadedModelIds(models);
+    });
+
+    return unsubscribe;
   }, []);
 
   const handleSelectModel = (modelId: string) => {
@@ -239,7 +245,7 @@ function Home() {
     const userPrompt = buildUserPrompt(prompt, intent);
 
     // Determine which provider to use based on selected model
-    const isLocalModel = localModels.some((m) => m.id === currentModel);
+    const isLocalModel = localModelIds.has(currentModel);
     const useLocalServer = isLocalModel && localModels.length > 0;
 
     try {

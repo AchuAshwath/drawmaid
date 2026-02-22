@@ -4,6 +4,7 @@ export type PromptFooterMode = "auto" | "normal";
 
 export interface UsePromptFooterStateOptions {
   mode: PromptFooterMode;
+  transcript?: string;
   onModeChange?: (mode: PromptFooterMode) => void;
   onGenerate?: () => void;
   isGenerateDisabled?: boolean;
@@ -35,6 +36,7 @@ export function usePromptFooterState(
 ): UsePromptFooterStateReturn {
   const {
     mode,
+    transcript,
     onModeChange,
     onGenerate,
     isGenerateDisabled = false,
@@ -93,7 +95,7 @@ export function usePromptFooterState(
     textarea.style.height = nextHeight + "px";
     textarea.style.overflowY =
       nextHeight >= MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
-  });
+  }, [isCollapsed, transcript]);
 
   useEffect(() => {
     if (!isCollapsed) {

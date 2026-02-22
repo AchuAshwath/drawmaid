@@ -14,76 +14,75 @@ export interface Intent {
   entities: string[];
 }
 
-// Pre-compute keyword arrays at module load (computed once)
-type KeywordEntry = { key: string; keyword: string; length: number };
+// Pre-compute combined regex for O(n) keyword search
+type KeywordMatch = { key: string; match: string; position: number };
 
-function buildKeywordIndex(keywords: Record<string, string[]>): KeywordEntry[] {
-  const entries: KeywordEntry[] = [];
+function buildKeywordRegex(keywords: Record<string, string[]>): {
+  regex: RegExp;
+  keyMap: Map<string, string>;
+} {
+  const keyMap = new Map<string, string>();
+  const allKeywords: string[] = [];
+
   for (const [key, kws] of Object.entries(keywords)) {
     for (const kw of kws) {
-      entries.push({ key, keyword: kw, length: kw.length });
+      allKeywords.push(kw);
+      keyMap.set(kw.toLowerCase(), key);
     }
   }
-  return entries.sort((a, b) => b.length - a.length);
+
+  // Sort by length descending for longest-match-wins
+  allKeywords.sort((a, b) => b.length - a.length);
+
+  // Escape special regex characters and build combined pattern
+  const escaped = allKeywords.map((k) =>
+    k.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&"),
+  );
+  const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+
+  return { regex, keyMap };
 }
 
-const DIAGRAM_TYPE_INDEX = buildKeywordIndex(DIAGRAM_TYPE_KEYWORDS);
-const DIRECTION_INDEX = buildKeywordIndex(DIRECTION_KEYWORDS);
-
-function isWordBoundary(text: string, index: number): boolean {
-  if (index < 0 || index >= text.length) return true;
-  const char = text[index];
-  const prevChar = index > 0 ? text[index - 1] : " ";
-  const nextChar = index < text.length - 1 ? text[index + 1] : " ";
-
-  const isAlpha = (c: string) => /[a-zA-Z]/.test(c);
-  const prevIsAlpha = isAlpha(prevChar);
-  const nextIsAlpha = isAlpha(nextChar);
-
-  if (isAlpha(char)) {
-    return !prevIsAlpha || !nextIsAlpha;
-  }
-  return true;
-}
+const DIAGRAM_TYPE_SEARCH = buildKeywordRegex(DIAGRAM_TYPE_KEYWORDS);
+const DIRECTION_SEARCH = buildKeywordRegex(DIRECTION_KEYWORDS);
 
 function findKeywordBackwards(
   transcript: string,
-  keywordIndex: KeywordEntry[],
-): { key: string; match: string; position: number } | null {
+  search: { regex: RegExp; keyMap: Map<string, string> },
+): KeywordMatch | null {
   const lowerTranscript = transcript.toLowerCase();
-  const matches: { key: string; match: string; position: number }[] = [];
+  const matches: KeywordMatch[] = [];
 
-  for (const { key, keyword, length } of keywordIndex) {
-    let searchFrom = 0;
-    while (true) {
-      const idx = lowerTranscript.indexOf(keyword, searchFrom);
-      if (idx === -1) break;
+  let match: RegExpExecArray | null;
+  // Reset regex state
+  search.regex.lastIndex = 0;
 
-      if (
-        isWordBoundary(lowerTranscript, idx) &&
-        isWordBoundary(lowerTranscript, idx + length - 1)
-      ) {
-        matches.push({ key, match: keyword, position: idx });
-        searchFrom = idx + 1;
-      } else {
-        searchFrom = idx + 1;
-      }
+  while ((match = search.regex.exec(lowerTranscript)) !== null) {
+    const matchedKeyword = match[1];
+    const key = search.keyMap.get(matchedKeyword);
+    if (key) {
+      matches.push({
+        key,
+        match: matchedKeyword,
+        position: match.index,
+      });
     }
   }
 
   if (matches.length === 0) return null;
 
+  // Return the last match (backwards scan)
   matches.sort((a, b) => b.position - a.position);
   return matches[0];
 }
 
 function extractDiagramType(transcript: string): string | null {
-  const result = findKeywordBackwards(transcript, DIAGRAM_TYPE_INDEX);
+  const result = findKeywordBackwards(transcript, DIAGRAM_TYPE_SEARCH);
   return result?.key ?? null;
 }
 
 function extractDirection(transcript: string): string | null {
-  const result = findKeywordBackwards(transcript, DIRECTION_INDEX);
+  const result = findKeywordBackwards(transcript, DIRECTION_SEARCH);
   return result?.key ?? null;
 }
 

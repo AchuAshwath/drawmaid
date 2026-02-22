@@ -1,66 +1,17 @@
-import { AuthForm } from "@/components/auth";
-import { getSafeRedirectUrl } from "@/lib/auth-config";
-import { revalidateSession, sessionQueryOptions } from "@/lib/queries/session";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  isRedirect,
-  redirect,
-  useRouter,
-} from "@tanstack/react-router";
-import { z } from "zod";
-
-// Sanitize returnTo at parse time - consumers get a safe value or undefined
-const searchSchema = z.object({
-  returnTo: z
-    .string()
-    .optional()
-    .transform((val) => {
-      const safe = getSafeRedirectUrl(val);
-      return safe === "/" || safe === "/dashboard" ? undefined : safe;
-    })
-    .catch(undefined),
-});
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/(auth)/login")({
-  validateSearch: searchSchema,
-  beforeLoad: async ({ context, search }) => {
-    try {
-      const session = await context.queryClient.fetchQuery(
-        sessionQueryOptions(),
-      );
-
-      // Redirect authenticated users to their destination
-      if (session?.user && session?.session) {
-        throw redirect({ to: search.returnTo ?? "/dashboard" });
-      }
-    } catch (error) {
-      // Re-throw redirects, show login form for fetch errors
-      if (isRedirect(error)) throw error;
-    }
+  // Auth disabled for GitHub Pages - redirect to home
+  beforeLoad: async () => {
+    throw redirect({ to: "/" });
   },
   component: LoginPage,
 });
 
 function LoginPage() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const search = Route.useSearch();
-
-  async function handleSuccess() {
-    await revalidateSession(queryClient, router);
-    await router.navigate({ to: search.returnTo ?? "/dashboard" });
-  }
-
-  return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-muted/40 p-6 md:p-10">
-      <div className="w-full max-w-sm rounded-xl bg-background p-8 shadow-sm ring-1 ring-border/50">
-        <AuthForm
-          mode="login"
-          onSuccess={handleSuccess}
-          returnTo={search.returnTo}
-        />
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    window.location.href = "/";
+  }, []);
+  return null;
 }
