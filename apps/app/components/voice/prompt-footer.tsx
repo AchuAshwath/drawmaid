@@ -1,7 +1,7 @@
 import { CenteredStrip } from "@/components/centered-strip";
-import { usePromptFooterState } from "@/lib/use-prompt-footer-state";
-import { VoiceInputButton } from "@/components/voice-input-button";
-import { ModelSelector } from "@/components/model-selector";
+import { usePromptFooterState } from "@/lib/voice/use-prompt-footer-state";
+import { VoiceInputButton } from "@/components/voice/voice-input-button";
+import { ModelSelector } from "@/components/ai-config/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";

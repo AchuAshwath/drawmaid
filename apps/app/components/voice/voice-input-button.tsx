@@ -1,4 +1,4 @@
-import { useSpeechRecognition } from "@/lib/use-speech-recognition";
+import { useSpeechRecognition } from "@/lib/voice/use-speech-recognition";
 import { Button, cn } from "@repo/ui";
 import { Mic, MicOff } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";

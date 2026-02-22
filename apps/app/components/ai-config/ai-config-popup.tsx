@@ -54,7 +54,7 @@ import {
   getSnapshot,
   load as loadEngine,
   generate as generateFromEngine,
-} from "@/lib/mermaid-llm";
+} from "@/lib/llm/mermaid-llm";
 import { localServerGenerate } from "@/lib/ai-config/providers/local";
 import {
   generateWithOpenCode,
@@ -77,7 +77,7 @@ const webLLMModels = prebuiltAppConfig.model_list.map((m) => ({
   lowResource: m.low_resource_required ?? false,
 }));
 
-import SYSTEM_PROMPT from "../prompts/system-prompt.md?raw";
+import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";

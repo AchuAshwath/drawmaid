@@ -11,10 +11,10 @@ import {
   type Status,
   type GenerateOptions,
 } from "./mermaid-llm";
-import { loadConfigAsync } from "./ai-config/storage";
-import type { LocalServerConfig } from "./ai-config/types";
-import { generateWithLocalServer } from "./ai-config/providers/local";
-import { generateWithOpenCode } from "./ai-config/providers/opencode";
+import { loadConfigAsync } from "../ai-config/storage";
+import type { LocalServerConfig } from "../ai-config/types";
+import { generateWithLocalServer } from "../ai-config/providers/local";
+import { generateWithOpenCode } from "../ai-config/providers/opencode";
 
 const UNSUPPORTED_ERROR = "WebGPU is not supported in this browser";
 

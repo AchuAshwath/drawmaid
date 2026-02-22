@@ -2,7 +2,7 @@
 // The runtime import happens lazily inside load().
 import type { WebWorkerMLCEngine } from "@mlc-ai/web-llm";
 
-import SYSTEM_PROMPT from "../prompts/system-prompt.md?raw";
+import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 export { SYSTEM_PROMPT };
 

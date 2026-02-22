@@ -3,10 +3,10 @@ import { AutoModeEngine } from "@/lib/auto-mode/core";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
-} from "@/lib/insert-mermaid-into-canvas";
-import { buildUserPrompt, extractIntent } from "@/lib/intent-extraction";
-import { SYSTEM_PROMPT } from "@/lib/mermaid-llm";
-import { normalizeMermaid } from "@/lib/normalize-mermaid";
+} from "@/lib/canvas/insert-mermaid-into-canvas";
+import { buildUserPrompt, extractIntent } from "@/lib/llm/intent-extraction";
+import { SYSTEM_PROMPT } from "@/lib/llm/mermaid-llm";
+import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 
 interface UseAutoModeOptions {
   excalidrawApiRef: React.MutableRefObject<ExcalidrawCanvasApi | null>;

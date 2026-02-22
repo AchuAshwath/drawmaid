@@ -1,4 +1,4 @@
-import DIAGRAM_CONFIGS_JSON from "../config/diagram-configs.json";
+import DIAGRAM_CONFIGS_JSON from "../../config/diagram-configs.json";
 
 export interface DiagramConfig {
   id: string;

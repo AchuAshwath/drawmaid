@@ -1,20 +1,24 @@
-import { PromptFooter } from "@/components/prompt-footer";
-import { AIConfigPopup } from "@/components/ai-config-popup";
+import { PromptFooter } from "@/components/voice/prompt-footer";
+import { AIConfigPopup } from "@/components/ai-config/ai-config-popup";
 import { WebGPUBanner } from "@/components/webgpu-banner";
-import { useAutoMode } from "@/hooks/use-auto-mode";
+import { useAutoMode } from "@/lib/auto-mode";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
-} from "@/lib/insert-mermaid-into-canvas";
+} from "@/lib/canvas/insert-mermaid-into-canvas";
 import {
   buildErrorRecoveryPrompt,
   buildUserPrompt,
   extractIntent,
-} from "@/lib/intent-extraction";
-import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
-import { normalizeMermaid } from "@/lib/normalize-mermaid";
+} from "@/lib/llm/intent-extraction";
+import {
+  isAbortError,
+  isTimeoutError,
+  SYSTEM_PROMPT,
+} from "@/lib/llm/mermaid-llm";
+import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import { useExcalidrawThemeBridge } from "@/lib/use-excalidraw-theme";
-import { useMermaidLlm } from "@/lib/use-mermaid-llm";
+import { useMermaidLlm } from "@/lib/llm/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
