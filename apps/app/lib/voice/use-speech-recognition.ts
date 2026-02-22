@@ -110,6 +110,8 @@ export function useSpeechRecognition(
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const statusRef = useRef<Status>("idle");
   const shouldRestartRef = useRef(false);
+  const accumulatedTranscriptRef = useRef("");
+  const lastProcessedIndexRef = useRef(-1);
 
   // Keep callbacks fresh without re-creating the recognition instance
   const onTranscriptRef = useRef(onTranscript);
@@ -134,30 +136,37 @@ export function useSpeechRecognition(
       setIsListening(true);
     };
 
-    // Rebuild from full event.results each time — the array is cumulative for the
-    // session, so a full scan is duplication-safe and avoids stale-index edge cases.
+    // Accumulate final results and append interim results for display
+    // This preserves transcript across recognition restarts (silence gaps)
+    // Track last processed index to avoid duplicates within a session
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const finalParts: string[] = [];
       const interimParts: string[] = [];
 
-      for (let i = 0; i < event.results.length; i++) {
+      for (
+        let i = lastProcessedIndexRef.current + 1;
+        i < event.results.length;
+        i++
+      ) {
         const result = event.results[i];
         const t = result[0].transcript.trim();
         if (!t) continue;
         if (result.isFinal) {
-          finalParts.push(t);
+          accumulatedTranscriptRef.current = accumulatedTranscriptRef.current
+            ? `${accumulatedTranscriptRef.current} ${t}`
+            : t;
+          lastProcessedIndexRef.current = i;
         } else {
           interimParts.push(t);
         }
       }
 
-      const finalTranscript = finalParts.join(" ");
       const interimTranscript = interimParts.join(" ");
-      const text = [finalTranscript, interimTranscript]
+      const text = [accumulatedTranscriptRef.current, interimTranscript]
         .filter(Boolean)
         .join(" ");
       const isFinal =
-        interimTranscript.length === 0 && finalTranscript.length > 0;
+        interimTranscript.length === 0 &&
+        accumulatedTranscriptRef.current.length > 0;
 
       setTranscript(text);
       onTranscriptRef.current?.(text, isFinal);
@@ -181,6 +190,7 @@ export function useSpeechRecognition(
       setIsListening(false);
 
       if (continuousRef.current && shouldRestartRef.current) {
+        lastProcessedIndexRef.current = -1;
         try {
           statusRef.current = "starting";
           recognition.start();
@@ -209,6 +219,8 @@ export function useSpeechRecognition(
     const recognition = getRecognition();
     if (!recognition) return;
 
+    accumulatedTranscriptRef.current = "";
+    lastProcessedIndexRef.current = -1;
     setTranscript("");
     shouldRestartRef.current = true;
     statusRef.current = "starting";
@@ -230,6 +242,8 @@ export function useSpeechRecognition(
       return;
 
     shouldRestartRef.current = false;
+    accumulatedTranscriptRef.current = "";
+    lastProcessedIndexRef.current = -1;
     statusRef.current = "stopping";
 
     try {

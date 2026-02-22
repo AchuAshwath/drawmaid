@@ -3,10 +3,10 @@ import {
   DIAGRAM_TYPE_KEYWORDS,
   DIRECTION_KEYWORDS,
   COMMON_FILTER,
-} from "./constants";
+} from "../constants";
 
-import USER_PROMPT_RULES from "../prompts/user-prompt-rules.md?raw";
-import RECOVERY_PROMPT_RULES from "../prompts/recovery-prompt-rules.md?raw";
+import USER_PROMPT_RULES from "../../prompts/user-prompt-rules.md?raw";
+import RECOVERY_PROMPT_RULES from "../../prompts/recovery-prompt-rules.md?raw";
 
 export interface Intent {
   diagramType: string | null;

@@ -1,2 +1,2 @@
 export { NotFound } from "./not-found";
-export * from "./voice-input-button";
+export * from "./voice/voice-input-button";

@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@repo/ui/components/select";
-import { Brain } from "lucide-react";
+import { Brain, Wifi, WifiOff } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
 
 export interface ModelSelectorProps {
@@ -14,6 +14,7 @@ export interface ModelSelectorProps {
   localModels: LocalModel[];
   currentModel: string;
   onSelectModel: (modelId: string) => void;
+  localServerConfigured?: boolean;
 }
 
 export function ModelSelector({
@@ -21,12 +22,14 @@ export function ModelSelector({
   localModels,
   currentModel,
   onSelectModel,
+  localServerConfigured = false,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
 
   const hasModels = webLLMModels.length > 0 || localModels.length > 0;
+  const showLocalSection = localServerConfigured || localModels.length > 0;
 
-  if (!hasModels) return null;
+  if (!hasModels && !localServerConfigured) return null;
 
   const displayName =
     currentModel.length > 18 ? currentModel.slice(0, 18) + "..." : currentModel;
@@ -63,18 +66,26 @@ export function ModelSelector({
             ))}
           </>
         )}
-        {localModels.length > 0 && (
+        {showLocalSection && (
           <>
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1">
+              <Wifi className="h-3 w-3" />
               Local Server
             </div>
-            {localModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="text-xs">
-                <span className="truncate block max-w-[180px]">
-                  {model.name || model.id}
-                </span>
-              </SelectItem>
-            ))}
+            {localModels.length > 0 ? (
+              localModels.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="text-xs">
+                  <span className="truncate block max-w-[180px]">
+                    {model.name || model.id}
+                  </span>
+                </SelectItem>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-xs text-muted-foreground flex items-center gap-1">
+                <WifiOff className="h-3 w-3" />
+                Not connected
+              </div>
+            )}
           </>
         )}
       </SelectContent>

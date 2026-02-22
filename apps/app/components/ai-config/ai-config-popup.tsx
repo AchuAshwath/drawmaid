@@ -54,7 +54,7 @@ import {
   getSnapshot,
   load as loadEngine,
   generate as generateFromEngine,
-} from "@/lib/mermaid-llm";
+} from "@/lib/llm/mermaid-llm";
 import { localServerGenerate } from "@/lib/ai-config/providers/local";
 import {
   generateWithOpenCode,
@@ -64,6 +64,7 @@ import {
 interface AIConfigPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onModelDownloaded?: () => void;
 }
 
 type TabType = "webllm" | "local" | "byok";
@@ -76,12 +77,16 @@ const webLLMModels = prebuiltAppConfig.model_list.map((m) => ({
   lowResource: m.low_resource_required ?? false,
 }));
 
-import SYSTEM_PROMPT from "../prompts/system-prompt.md?raw";
+import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";
 
-export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
+export function AIConfigPopup({
+  open,
+  onOpenChange,
+  onModelDownloaded,
+}: AIConfigPopupProps) {
   const [activeTab, setActiveTab] = useState<TabType>("webllm");
   const [webllmSubTab, setWebllmSubTab] = useState<WebLLMTabType>("available");
   const [config, setConfig] = useState<AIConfig>(loadConfig());
@@ -152,9 +157,9 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
     try {
       await loadEngine(modelId);
       addDownloadedModel(modelId);
-      // Force re-render by creating new array
       const updatedModels = [...getDownloadedModels()];
       setDownloadedModels(updatedModels);
+      onModelDownloaded?.();
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Download failed");
       setTestStatus("error");
@@ -257,7 +262,7 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
   const getServerHelpText = (serverType?: LocalServerType): string => {
     switch (serverType) {
       case "opencode":
-        return "Run `opencode serve`.";
+        return "Run 'opencode serve' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096";
       case "ollama":
         return "Run `ollama serve` or start Ollama app. Default: http://localhost:11434/v1.";
       case "vllm":
@@ -370,6 +375,21 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
       return;
     }
 
+    // If coming soon server type is selected, switch to opencode
+    if (isComingSoon) {
+      const opencodePreset = SERVER_PRESETS.find((p) => p.type === "opencode");
+      setConfig({
+        ...config,
+        type: "local",
+        serverType: "opencode",
+        url: opencodePreset?.defaultUrl || "http://127.0.0.1:4096",
+        model: "",
+      });
+      setTestError("Coming soon! Switched to OpenCode Serve.");
+      setTestStatus("error");
+      return;
+    }
+
     setSaving(true);
     try {
       await saveConfig(config);
@@ -402,6 +422,13 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
     .filter((m) => m.name.toLowerCase().includes(modelSearch.toLowerCase()));
 
   const isDownloadingThis = downloadingModel !== null;
+
+  const localConfig = config as LocalServerConfig;
+  const currentServerType = localConfig.serverType || "opencode";
+  const currentPreset = SERVER_PRESETS.find(
+    (p) => p.type === currentServerType,
+  );
+  const isComingSoon = currentPreset?.comingSoon ?? false;
 
   return (
     <>
@@ -684,12 +711,19 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                         );
                       }
                     }}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                   >
                     {SERVER_PRESETS.map((preset) => (
-                      <option key={preset.type} value={preset.type}>
+                      <option
+                        key={preset.type}
+                        value={preset.type}
+                        disabled={preset.comingSoon}
+                      >
                         {preset.name}
-                        {preset.type === "opencode" ? " (Recommended)" : ""}
+                        {preset.comingSoon ? " (Coming Soon)" : ""}
+                        {!preset.comingSoon && preset.type === "opencode"
+                          ? " (Recommended)"
+                          : ""}
                       </option>
                     ))}
                   </select>
@@ -708,8 +742,8 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-medium">Server URL</label>
                     <div className="group relative">
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                      <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-72 -translate-x-1/2 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         {getServerHelpText(
                           (config as LocalServerConfig).serverType,
                         )}
@@ -727,7 +761,13 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
                       } as LocalServerConfig);
                       setLocalModels([]);
                     }}
+                    disabled={isComingSoon}
                   />
+                  {isComingSoon && (
+                    <p className="text-xs text-amber-500 font-medium">
+                      Coming soon! Only OpenCode Serve is available now.
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Default:{" "}
                     {SERVER_PRESETS.find(

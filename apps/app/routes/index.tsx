@@ -1,23 +1,28 @@
-import { PromptFooter } from "@/components/prompt-footer";
-import { AIConfigPopup } from "@/components/ai-config-popup";
+import { PromptFooter } from "@/components/voice/prompt-footer";
+import { AIConfigPopup } from "@/components/ai-config/ai-config-popup";
 import { WebGPUBanner } from "@/components/webgpu-banner";
+import { useAutoMode } from "@/lib/auto-mode";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
-} from "@/lib/insert-mermaid-into-canvas";
+} from "@/lib/canvas/insert-mermaid-into-canvas";
 import {
   buildErrorRecoveryPrompt,
   buildUserPrompt,
   extractIntent,
-} from "@/lib/intent-extraction";
-import { isAbortError, isTimeoutError, SYSTEM_PROMPT } from "@/lib/mermaid-llm";
-import { normalizeMermaid } from "@/lib/normalize-mermaid";
+} from "@/lib/llm/intent-extraction";
+import {
+  isAbortError,
+  isTimeoutError,
+  SYSTEM_PROMPT,
+} from "@/lib/llm/mermaid-llm";
+import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import { useExcalidrawThemeBridge } from "@/lib/use-excalidraw-theme";
-import { useMermaidLlm } from "@/lib/use-mermaid-llm";
+import { useMermaidLlm } from "@/lib/llm/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
-import { Github, Moon, Sun, Settings } from "lucide-react";
+import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
@@ -26,6 +31,10 @@ import {
   getDownloadedModels,
   subscribeToConfigChanges,
 } from "@/lib/ai-config/storage";
+import {
+  loadAutoModePreference,
+  saveAutoModePreference,
+} from "@/lib/auto-mode/storage";
 import type {
   WebLLMModelInfo,
   LocalModel,
@@ -51,15 +60,38 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<"auto" | "normal">("normal");
+  const [mode, setMode] = useState<"auto" | "normal">(() =>
+    loadAutoModePreference() ? "auto" : "normal",
+  );
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
+
+  type ErrorContext = {
+    message: string;
+    timestamp: string;
+    mode: "auto" | "normal";
+    model: string;
+    transcript: string;
+    provider: "webllm" | "local";
+  };
   const [error, setError] = useState<string | null>(null);
+  const [errorContext, setErrorContext] = useState<ErrorContext | null>(null);
+
+  // Auto-dismiss error after 8 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => {
+      setError(null);
+      setErrorContext(null);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [error]);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
+  const [localServerConfigured, setLocalServerConfigured] = useState(false);
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
@@ -69,9 +101,46 @@ function Home() {
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
+  const { isGenerating: autoModeGenerating } = useAutoMode({
+    excalidrawApiRef,
+    generate,
+    currentModel,
+    localModels,
+    isAutoMode: mode === "auto",
+    transcript: prompt,
+    onError: (message) => {
+      const isLocal = localModels.some((m) => m.id === currentModel);
+      const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
+      setError(message);
+      setErrorContext({
+        message,
+        timestamp: new Date().toISOString(),
+        mode,
+        model: currentModel,
+        transcript: prompt,
+        provider,
+      });
+    },
+  });
+
+  // Helper to set error with full context
+  const handleError = (message: string) => {
+    const isLocal = localModels.some((m) => m.id === currentModel);
+    const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
+    setError(message);
+    setErrorContext({
+      message,
+      timestamp: new Date().toISOString(),
+      mode,
+      model: currentModel,
+      transcript: prompt,
+      provider,
+    });
+  };
+
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
-    if (config.type === "local" && config.url) {
+    if (config.type === "local" && "url" in config && config.url) {
       fetchLocalServerModels(config.url, config.apiKey, config.serverType).then(
         (result) => {
           if (result.success && result.models) {
@@ -86,7 +155,11 @@ function Home() {
   useEffect(() => {
     const config = loadConfig();
 
-    if (config.type === "local") {
+    const isLocal = config.type === "local";
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setLocalServerConfigured(isLocal);
+
+    if (isLocal) {
       if (config.model) {
         // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
         setCurrentModel(config.model);
@@ -101,15 +174,18 @@ function Home() {
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
-      if (newConfig.type === "local") {
+      const newIsLocal = newConfig.type === "local";
+      setLocalServerConfigured(newIsLocal);
+
+      if (newIsLocal) {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
         }
         fetchModels(newConfig);
-      } else {
-        const downloaded = getDownloadedModels();
-        const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
-        setCurrentModel(defaultModel);
+      } else if (newConfig.type === "webllm") {
+        if (newConfig.modelId) {
+          setCurrentModel(newConfig.modelId);
+        }
       }
     });
 
@@ -133,6 +209,11 @@ function Home() {
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleModeChange = (newMode: "auto" | "normal") => {
+    setMode(newMode);
+    saveAutoModePreference(newMode === "auto");
   };
 
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
@@ -171,12 +252,12 @@ function Home() {
       setIsGenerating(false);
       if (isAbortError(err)) return;
       if (isTimeoutError(err)) {
-        setError(
+        handleError(
           "Generation timed out. Try a simpler request or check your connection.",
         );
         return;
       }
-      setError(
+      handleError(
         err instanceof Error
           ? err.message
           : "Generation failed. Please try again.",
@@ -220,7 +301,7 @@ function Home() {
         });
 
         if (!recoveredOutput?.trim()) {
-          setError(
+          handleError(
             "Could not fix diagram syntax. Please try a different description.",
           );
           return;
@@ -228,7 +309,7 @@ function Home() {
 
         const recoveredCode = normalizeMermaid(recoveredOutput);
         if (!recoveredCode) {
-          setError(
+          handleError(
             "Could not fix diagram syntax. Please try a different description.",
           );
           return;
@@ -238,7 +319,7 @@ function Home() {
       } catch (recoveryErr) {
         setIsGenerating(false);
         if (isAbortError(recoveryErr)) return;
-        setError(
+        handleError(
           recoveryErr instanceof Error
             ? recoveryErr.message
             : "Could not add diagram to canvas. Check the diagram syntax.",
@@ -347,40 +428,138 @@ function Home() {
             prompt={prompt}
             onPromptChange={(value) => {
               setPrompt(value);
-              if (error) setError(null);
             }}
             mode={mode}
-            onModeChange={setMode}
+            onModeChange={handleModeChange}
             onGenerate={handleGenerate}
             generateDisabled={
+              mode === "auto" ||
               !prompt ||
               status === "loading" ||
               status === "generating" ||
               !isSupported ||
               !apiReady
             }
-            generating={status === "generating" || isGenerating}
+            generating={
+              status === "generating" || isGenerating || autoModeGenerating
+            }
             onTranscript={(text) => {
               setPrompt(text);
-              setError(null);
             }}
-            onRecognitionError={(message) => setError(message)}
-            error={error}
+            onRecognitionError={(message) => handleError(message)}
             loading={
               status === "loading" || (isGenerating && mode === "normal")
             }
             loadProgress={loadProgress}
-            inputAriaDescribedBy={error ? "home-error" : undefined}
-            inputAriaInvalid={!!error}
             webLLMModels={availableWebLLMModels}
             localModels={localModels}
             currentModel={currentModel}
             onSelectModel={handleSelectModel}
+            localServerConfigured={localServerConfigured}
           />
         </div>
       </div>
 
-      <AIConfigPopup open={aiConfigOpen} onOpenChange={setAiConfigOpen} />
+      {/* Error alert at top-right */}
+      {error && (
+        <div className="pointer-events-none absolute top-4 right-4 z-50">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-destructive-foreground shadow-lg backdrop-blur-sm max-w-md">
+            <span className="text-sm break-words">{error}</span>
+            <ErrorAlertActions
+              errorContext={errorContext}
+              onDismiss={() => {
+                setError(null);
+                setErrorContext(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <AIConfigPopup
+        open={aiConfigOpen}
+        onOpenChange={setAiConfigOpen}
+        onModelDownloaded={() => {
+          const models = getDownloadedModels();
+          setDownloadedModelIds(models);
+          // Auto-select the newly downloaded model if no model is selected
+          if (models.length > 0 && !currentModel) {
+            setCurrentModel(models[models.length - 1]);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function ErrorAlertActions({
+  errorContext,
+  onDismiss,
+}: {
+  errorContext: {
+    message: string;
+    timestamp: string;
+    mode: "auto" | "normal";
+    model: string;
+    transcript: string;
+    provider: "webllm" | "local";
+  } | null;
+  onDismiss: () => void;
+}) {
+  const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
+
+  const handleCopy = async () => {
+    if (!errorContext) {
+      await navigator.clipboard.writeText("No error details available");
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("copy"), 2000);
+      return;
+    }
+
+    const details = `[Drawmaid Error Report]
+Time: ${errorContext.timestamp}
+Mode: ${errorContext.mode}
+Provider: ${errorContext.provider}
+Model: ${errorContext.model}
+
+Transcript:
+${errorContext.transcript || "(empty)"}
+
+Error Message:
+${errorContext.message}
+
+---
+Generated by Drawmaid`;
+
+    await navigator.clipboard.writeText(details);
+    setCopyStatus("copied");
+    setTimeout(() => setCopyStatus("copy"), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded p-1 hover:bg-white/20 transition-colors"
+        aria-label="Copy error"
+        title="Copy error"
+      >
+        {copyStatus === "copy" ? (
+          <Copy className="h-3.5 w-3.5" />
+        ) : (
+          <Check className="h-3.5 w-3.5 text-green-400" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="rounded p-1 hover:bg-white/20 transition-colors"
+        aria-label="Dismiss error"
+        title="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

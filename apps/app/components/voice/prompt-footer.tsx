@@ -1,7 +1,7 @@
 import { CenteredStrip } from "@/components/centered-strip";
-import { usePromptFooterState } from "@/lib/use-prompt-footer-state";
-import { VoiceInputButton } from "@/components/voice-input-button";
-import { ModelSelector } from "@/components/model-selector";
+import { usePromptFooterState } from "@/lib/voice/use-prompt-footer-state";
+import { VoiceInputButton } from "@/components/voice/voice-input-button";
+import { ModelSelector } from "@/components/ai-config/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
@@ -18,7 +18,6 @@ export interface PromptFooterProps {
   generating?: boolean;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onRecognitionError?: (error: string) => void;
-  error?: string | null;
   loading?: boolean;
   loadProgress?: number;
   inputAriaDescribedBy?: string;
@@ -27,6 +26,7 @@ export interface PromptFooterProps {
   localModels?: LocalModel[];
   currentModel?: string;
   onSelectModel?: (modelId: string) => void;
+  localServerConfigured?: boolean;
 }
 
 export function PromptFooter({
@@ -39,7 +39,6 @@ export function PromptFooter({
   generating = false,
   onTranscript,
   onRecognitionError,
-  error = null,
   loading = false,
   loadProgress = 0,
   inputAriaDescribedBy,
@@ -48,6 +47,7 @@ export function PromptFooter({
   localModels,
   currentModel,
   onSelectModel,
+  localServerConfigured = false,
 }: PromptFooterProps) {
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
@@ -123,6 +123,7 @@ export function PromptFooter({
               <VoiceInputButton
                 onTranscript={onTranscript}
                 onRecognitionError={onRecognitionError}
+                autoMode={mode === "auto"}
               />
               <div className="relative inline-flex h-6 w-[calc(3.5rem+1.25rem)] items-center rounded-full bg-input/50 px-0.5 overflow-hidden shadow-sm">
                 <Switch
@@ -156,12 +157,15 @@ export function PromptFooter({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {webLLMModels?.length || localModels?.length ? (
+              {webLLMModels?.length ||
+              localModels?.length ||
+              localServerConfigured ? (
                 <ModelSelector
                   webLLMModels={webLLMModels || []}
                   localModels={localModels || []}
                   currentModel={currentModel || "Select model"}
                   onSelectModel={onSelectModel || (() => {})}
+                  localServerConfigured={localServerConfigured}
                 />
               ) : null}
               <Button
@@ -171,6 +175,9 @@ export function PromptFooter({
                 variant="default"
                 size="icon"
                 aria-label={generating ? "Generating..." : "Generate diagram"}
+                title={
+                  mode === "auto" ? "Submit disabled in auto mode" : undefined
+                }
               >
                 <ArrowUp className="h-4 w-4" />
               </Button>
@@ -178,15 +185,6 @@ export function PromptFooter({
           </div>
         </div>
       </div>
-      {error && (
-        <p
-          id="home-error"
-          className="w-full text-sm text-destructive"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
     </CenteredStrip>
   );
 }
