@@ -27,7 +27,7 @@ export default defineProject(({ mode }) => {
   });
 
   return {
-    base: "/",
+    base: "/drawmaid/",
     cacheDir: fileURLToPath(new URL("../../.cache/vite-app", import.meta.url)),
 
     build: {
