@@ -24,8 +24,8 @@ import "@excalidraw/excalidraw/index.css";
 import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
-import { prebuiltAppConfig } from "@mlc-ai/web-llm";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
   loadConfig,
   getDownloadedModels,
@@ -43,16 +43,6 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
-
-const webLLMModels: WebLLMModelInfo[] = prebuiltAppConfig.model_list.map(
-  (m) => ({
-    id: m.model_id,
-    name: m.model_id,
-    vramMB: Math.round(m.vram_required_MB ?? 0),
-    lowResource: m.low_resource_required ?? false,
-    contextWindow: 4096,
-  }),
-);
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -95,6 +85,15 @@ function Home() {
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
+  const [webLLMModels, setWebLLMModels] = useState<WebLLMModelInfo[]>([]);
+
+  // Load WebLLM models on mount
+  useEffect(() => {
+    getWebLLMModelInfos()
+      .then(setWebLLMModels)
+      .catch((err) => console.error("Failed to load WebLLM models:", err));
+  }, []);
+
   const availableWebLLMModels = webLLMModels.filter((m) =>
     downloadedModelIds.includes(m.id),
   );

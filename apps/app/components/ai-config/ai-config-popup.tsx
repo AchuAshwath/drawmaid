@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { prebuiltAppConfig } from "@mlc-ai/web-llm";
+import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +46,7 @@ import {
   getDownloadedModels,
   addDownloadedModel,
   removeDownloadedModel,
+  subscribeToConfigChanges,
 } from "@/lib/ai-config/storage";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
 import { WebGPUBanner } from "@/components/webgpu-banner";
@@ -70,13 +71,6 @@ interface AIConfigPopupProps {
 type TabType = "webllm" | "local" | "byok";
 type WebLLMTabType = "available" | "downloaded";
 
-const webLLMModels = prebuiltAppConfig.model_list.map((m) => ({
-  id: m.model_id,
-  name: m.model_id,
-  vramMB: Math.round(m.vram_required_MB ?? 0),
-  lowResource: m.low_resource_required ?? false,
-}));
-
 import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 const TEST_PROMPT =
@@ -89,7 +83,7 @@ export function AIConfigPopup({
 }: AIConfigPopupProps) {
   const [activeTab, setActiveTab] = useState<TabType>("webllm");
   const [webllmSubTab, setWebllmSubTab] = useState<WebLLMTabType>("available");
-  const [config, setConfig] = useState<AIConfig>(loadConfig());
+  const [config, setConfig] = useState<AIConfig>(() => loadConfig());
   const [testStatus, setTestStatus] = useState<TestConnectionStatus>("idle");
   const [testError, setTestError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -104,6 +98,19 @@ export function AIConfigPopup({
     null,
   );
   const [modelSearch, setModelSearch] = useState("");
+  const [webLLMModels, setWebLLMModels] = useState<
+    Awaited<ReturnType<typeof getWebLLMModelInfos>>
+  >([]);
+
+  // Load WebLLM models on mount
+  useEffect(() => {
+    getWebLLMModelInfos()
+      .then(setWebLLMModels)
+      .catch((err) => {
+        console.error("Failed to load WebLLM models:", err);
+        setWebLLMModels([]);
+      });
+  }, []);
 
   // Local Server state
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
@@ -112,26 +119,16 @@ export function AIConfigPopup({
   >("idle");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Subscribe to config changes from other tabs/components
   useEffect(() => {
-    if (open) {
-      const loadedConfig = loadConfig();
-      setConfig(loadedConfig);
-      setActiveTab("webllm");
-      setWebllmSubTab("available");
-      setTestStatus("idle");
-      setTestError(null);
-      setTestResponse(null);
-      setDownloadedModels(getDownloadedModels());
-      setModelSearch("");
-
-      // Reset local server state
-      setLocalModels([]);
-      setConnectionStatus("idle");
-      setShowAdvanced(false);
-    }
-  }, [open]);
+    const unsubscribe = subscribeToConfigChanges((newConfig) => {
+      setConfig(newConfig);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setLoadProgress(getSnapshot().loadProgress);
     const unsubscribe = subscribe(() => {
       setLoadProgress(getSnapshot().loadProgress);
@@ -233,6 +230,7 @@ export function AIConfigPopup({
         url: opencodePreset?.defaultUrl || "http://127.0.0.1:4096",
         model: "",
       };
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setConfig(nextConfig);
       handleFetchModels(
         nextConfig.url,
@@ -249,6 +247,7 @@ export function AIConfigPopup({
       localConfig.url || preset?.defaultUrl || "http://127.0.0.1:4096";
 
     if (nextUrl !== localConfig.url || localConfig.serverType !== serverType) {
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setConfig({
         ...localConfig,
         serverType,
@@ -433,7 +432,10 @@ export function AIConfigPopup({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogContent
+          key={open ? "open" : "closed"}
+          className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0"
+        >
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />

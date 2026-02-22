@@ -48,6 +48,7 @@ export default defineProject(({ mode }) => {
               "clsx",
               "tailwind-merge",
             ],
+            webllm: ["@mlc-ai/web-llm"],
           },
         },
       },
