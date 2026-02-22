@@ -22,6 +22,7 @@ export class AutoModeEngine {
   private lastTriggeredText: string = "";
   private transcriptGetter: () => string = () => "";
   private _activeGenerations: Map<number, number> = new Map();
+  private _oldestGenerationId: number | null = null;
 
   constructor(
     config: Partial<AutoModeConfig> = {},
@@ -36,6 +37,7 @@ export class AutoModeEngine {
       isAutoMode: true,
       lastProcessedTranscript: "",
       mermaidStack: [],
+      mermaidStackHead: 0,
       generationCounter: 0,
       lastSuccessfulGenId: -1,
     };
@@ -46,20 +48,6 @@ export class AutoModeEngine {
     const interval =
       this.config.intervalBaselineMs + logValue * this.config.intervalScaleMs;
     return Math.min(interval, this.config.maxIntervalMs);
-  }
-
-  private getOldestGenerationId(): number | null {
-    let oldestId: number | null = null;
-    let oldestTime = Infinity;
-
-    for (const [id, startTime] of this._activeGenerations.entries()) {
-      if (startTime < oldestTime) {
-        oldestTime = startTime;
-        oldestId = id;
-      }
-    }
-
-    return oldestId;
   }
 
   start(transcriptGetter: () => string): void {
@@ -73,12 +61,14 @@ export class AutoModeEngine {
       this.checkTimeoutId = null;
     }
     this._activeGenerations.clear();
+    this._oldestGenerationId = null;
     this.lastTriggeredText = "";
     this.currentIntervalMs = this.config.intervalBaselineMs;
     this.state.generationCounter = 0;
     this.state.lastSuccessfulGenId = -1;
     this.state.lastProcessedTranscript = "";
     this.state.mermaidStack = [];
+    this.state.mermaidStackHead = 0;
   }
 
   private scheduleNextTick(): void {
@@ -113,9 +103,9 @@ export class AutoModeEngine {
   private triggerGeneration(transcript: string): void {
     // Kill oldest if at max concurrent
     if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
-      const oldestId = this.getOldestGenerationId();
-      if (oldestId !== null) {
-        this._activeGenerations.delete(oldestId);
+      if (this._oldestGenerationId !== null) {
+        this._activeGenerations.delete(this._oldestGenerationId);
+        this._oldestGenerationId = null;
       }
     }
 
@@ -130,6 +120,11 @@ export class AutoModeEngine {
     };
 
     this._activeGenerations.set(task.id, Date.now());
+
+    // Track oldest generation ID
+    if (this._oldestGenerationId === null) {
+      this._oldestGenerationId = genId;
+    }
 
     // Grow interval based on generation count
     this.currentIntervalMs = this.getIntervalForGeneration(
@@ -147,6 +142,9 @@ export class AutoModeEngine {
       // Discard stale results
       if (task.id < this.state.lastSuccessfulGenId) {
         this._activeGenerations.delete(task.id);
+        if (this._oldestGenerationId === task.id) {
+          this._oldestGenerationId = this.findNewOldest();
+        }
         return;
       }
 
@@ -158,17 +156,42 @@ export class AutoModeEngine {
       }
 
       this._activeGenerations.delete(task.id);
+      if (this._oldestGenerationId === task.id) {
+        this._oldestGenerationId = this.findNewOldest();
+      }
       this.onResult(result, task);
     } catch {
       this._activeGenerations.delete(task.id);
+      if (this._oldestGenerationId === task.id) {
+        this._oldestGenerationId = this.findNewOldest();
+      }
     }
   }
 
-  private pushToStack(mermaidCode: string): void {
-    this.state.mermaidStack.push(mermaidCode);
+  private findNewOldest(): number | null {
+    let oldestId: number | null = null;
+    let oldestTime = Infinity;
 
-    if (this.state.mermaidStack.length > this.config.maxStackSize) {
-      this.state.mermaidStack.shift();
+    for (const [id, startTime] of this._activeGenerations.entries()) {
+      if (startTime < oldestTime) {
+        oldestTime = startTime;
+        oldestId = id;
+      }
+    }
+
+    return oldestId;
+  }
+
+  private pushToStack(mermaidCode: string): void {
+    const { mermaidStack, mermaidStackHead } = this.state;
+    const maxSize = this.config.maxStackSize;
+
+    if (mermaidStack.length < maxSize) {
+      mermaidStack.push(mermaidCode);
+    } else {
+      // Circular buffer: overwrite oldest, advance head
+      mermaidStack[mermaidStackHead] = mermaidCode;
+      this.state.mermaidStackHead = (mermaidStackHead + 1) % maxSize;
     }
   }
 

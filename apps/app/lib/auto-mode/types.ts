@@ -2,6 +2,7 @@ export interface AutoModeState {
   isAutoMode: boolean;
   lastProcessedTranscript: string;
   mermaidStack: string[];
+  mermaidStackHead: number;
   generationCounter: number;
   lastSuccessfulGenId: number;
 }

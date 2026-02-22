@@ -400,7 +400,10 @@ describe("AutoModeEngine", () => {
       }
 
       expect(engine.getState().mermaidStack).toHaveLength(3);
-      expect(engine.getState().mermaidStack[0]).toBe("code 2");
+      // Circular buffer overwrites oldest: final = [code 3, code 4, code 2]
+      expect(engine.getState().mermaidStack).toContain("code 2");
+      expect(engine.getState().mermaidStack).toContain("code 3");
+      expect(engine.getState().mermaidStack).toContain("code 4");
 
       engine.stop();
     });
