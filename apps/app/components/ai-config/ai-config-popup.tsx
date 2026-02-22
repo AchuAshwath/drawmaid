@@ -817,7 +817,31 @@ export function AIConfigPopup({
 
                 {/* Model Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Model</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Model</label>
+                    <div className="group relative">
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        For best results, use fast models with good instruction
+                        following:
+                        <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                          <li>
+                            <strong>GPT-4o</strong>,{" "}
+                            <strong>GPT-4o-mini</strong> - Fast & capable
+                          </li>
+                          <li>
+                            <strong>Haiku</strong>, <strong>Flash</strong> -
+                            Very fast
+                          </li>
+                          <li>
+                            <strong>Instruct models</strong> (e.g.,
+                            Qwen2.5-Coder-Instruct) - Great for diagrams
+                          </li>
+                          <li>Avoid: reasoning-heavy models (o1, o3-mini)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
 
                   {localModels.length > 0 ? (
                     <Select
