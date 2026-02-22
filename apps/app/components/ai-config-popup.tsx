@@ -64,6 +64,7 @@ import {
 interface AIConfigPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onModelDownloaded?: () => void;
 }
 
 type TabType = "webllm" | "local" | "byok";
@@ -81,7 +82,11 @@ import SYSTEM_PROMPT from "../prompts/system-prompt.md?raw";
 const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";
 
-export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
+export function AIConfigPopup({
+  open,
+  onOpenChange,
+  onModelDownloaded,
+}: AIConfigPopupProps) {
   const [activeTab, setActiveTab] = useState<TabType>("webllm");
   const [webllmSubTab, setWebllmSubTab] = useState<WebLLMTabType>("available");
   const [config, setConfig] = useState<AIConfig>(loadConfig());
@@ -152,9 +157,9 @@ export function AIConfigPopup({ open, onOpenChange }: AIConfigPopupProps) {
     try {
       await loadEngine(modelId);
       addDownloadedModel(modelId);
-      // Force re-render by creating new array
       const updatedModels = [...getDownloadedModels()];
       setDownloadedModels(updatedModels);
+      onModelDownloaded?.();
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Download failed");
       setTestStatus("error");

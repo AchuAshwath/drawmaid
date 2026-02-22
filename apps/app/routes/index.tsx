@@ -178,10 +178,10 @@ function Home() {
           setCurrentModel(newConfig.model);
         }
         fetchModels(newConfig);
-      } else {
-        const downloaded = getDownloadedModels();
-        const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
-        setCurrentModel(defaultModel);
+      } else if (newConfig.type === "webllm") {
+        if (newConfig.modelId) {
+          setCurrentModel(newConfig.modelId);
+        }
       }
     });
 
@@ -459,8 +459,8 @@ function Home() {
       {/* Error alert at top-right */}
       {error && (
         <div className="pointer-events-none absolute top-4 right-4 z-50">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-destructive-foreground shadow-lg backdrop-blur-sm">
-            <span className="text-sm">{error}</span>
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg bg-destructive/90 px-4 py-2 text-destructive-foreground shadow-lg backdrop-blur-sm max-w-md">
+            <span className="text-sm break-words">{error}</span>
             <ErrorAlertActions
               errorContext={errorContext}
               onDismiss={() => {
@@ -472,7 +472,18 @@ function Home() {
         </div>
       )}
 
-      <AIConfigPopup open={aiConfigOpen} onOpenChange={setAiConfigOpen} />
+      <AIConfigPopup
+        open={aiConfigOpen}
+        onOpenChange={setAiConfigOpen}
+        onModelDownloaded={() => {
+          const models = getDownloadedModels();
+          setDownloadedModelIds(models);
+          // Auto-select the newly downloaded model if no model is selected
+          if (models.length > 0 && !currentModel) {
+            setCurrentModel(models[models.length - 1]);
+          }
+        }}
+      />
     </div>
   );
 }
