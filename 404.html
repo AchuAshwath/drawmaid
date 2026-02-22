@@ -1,40 +1,27 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <title>Drawmaid</title>
-    <meta
-      name="description"
-      content="The web's most popular Jamstack React template"
-    />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <meta property="og:title" content="" />
-    <meta property="og:type" content="" />
-    <meta property="og:url" content="" />
-    <meta property="og:image" content="" />
-    <meta name="theme-color" content="#fafafa" />
-
-    <link rel="icon" type="image/svg+xml" href="/drawmaid/favicon.svg" />
-    <link rel="apple-touch-icon" href="/drawmaid/logo192.png" />
-
-    <link rel="manifest" href="/drawmaid/site.manifest" />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-    />
-    <script type="module" crossorigin src="/drawmaid/_app/assets/index-CR0P747f.js"></script>
-    <link rel="modulepreload" crossorigin href="/drawmaid/_app/assets/react-qkC6yhPU.js">
-    <link rel="modulepreload" crossorigin href="/drawmaid/_app/assets/tanstack-Bzt4YlFG.js">
-    <link rel="modulepreload" crossorigin href="/drawmaid/_app/assets/ui-DjwJxj-8.js">
-    <link rel="modulepreload" crossorigin href="/drawmaid/_app/assets/excalidraw-BwtJFo-T.js">
-    <link rel="stylesheet" crossorigin href="/drawmaid/_app/assets/index-C74V_LIG.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      sessionStorage.redirect = location.href;
+    </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <script>
+      var repo = "/drawmaid";
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          "//" +
+          l.hostname +
+          (l.port ? ":" + l.port : "") +
+          repo +
+          "/",
+      );
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0;url=/drawmaid/" />
+    </noscript>
   </body>
 </html>
