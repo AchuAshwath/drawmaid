@@ -18,7 +18,6 @@ const router = createRouter({
   defaultPreload: "intent",
   defaultNotFoundComponent: NotFound,
   history: createHashHistory(),
-  basepath: "/drawmaid",
 });
 
 const container = document.getElementById("root");
