@@ -20,6 +20,7 @@ export interface PromptFooterProps {
   onRecognitionError?: (error: string) => void;
   loading?: boolean;
   loadProgress?: number;
+  generationProgress?: number;
   inputAriaDescribedBy?: string;
   inputAriaInvalid?: boolean;
   webLLMModels?: WebLLMModelInfo[];
@@ -41,6 +42,7 @@ export function PromptFooter({
   onRecognitionError,
   loading = false,
   loadProgress = 0,
+  generationProgress = 0,
   inputAriaDescribedBy,
   inputAriaInvalid = false,
   webLLMModels,
@@ -64,16 +66,24 @@ export function PromptFooter({
         <div
           className="h-1.5 w-full max-w-[550px] mx-auto rounded-full bg-muted overflow-hidden"
           role="progressbar"
-          aria-valuenow={loading ? Math.round(loadProgress * 100) : undefined}
+          aria-valuenow={
+            loading
+              ? Math.round(loadProgress * 100)
+              : Math.round(generationProgress)
+          }
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label={loading ? "Downloading model" : "Generating diagram"}
         >
           <div
-            className={`h-full bg-primary transition-all duration-150 ${
+            className={`h-full bg-primary transition-all duration-75 ${
               generating && !loading ? "animate-pulse" : ""
             }`}
-            style={{ width: loading ? `${loadProgress * 100}%` : "100%" }}
+            style={{
+              width: loading
+                ? `${loadProgress * 100}%`
+                : `${generationProgress}%`,
+            }}
           />
         </div>
       )}

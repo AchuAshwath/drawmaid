@@ -42,6 +42,7 @@ import {
   loadAutoModePreference,
   saveAutoModePreference,
 } from "@/lib/auto-mode/storage";
+import { useFakeGenerationProgress } from "@/lib/hooks/use-fake-generation-progress";
 import type {
   WebLLMModelInfo,
   LocalModel,
@@ -116,6 +117,20 @@ function Home() {
       setErrorContext(drawmaidError);
     },
   });
+
+  const generationProgress = useFakeGenerationProgress(
+    isGenerating || autoModeGenerating,
+  );
+
+  // Debug logging
+  console.log(
+    "[Drawmaid] generationProgress:",
+    generationProgress,
+    "isGenerating:",
+    isGenerating,
+    "autoModeGenerating:",
+    autoModeGenerating,
+  );
 
   // Helper to set error with full context
   const handleError = (
@@ -552,6 +567,7 @@ function Home() {
               status === "loading" || (isGenerating && mode === "normal")
             }
             loadProgress={loadProgress}
+            generationProgress={generationProgress}
             webLLMModels={availableWebLLMModels}
             localModels={localModels}
             currentModel={currentModel}
