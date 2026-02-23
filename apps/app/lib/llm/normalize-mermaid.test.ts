@@ -68,4 +68,45 @@ describe("normalizeMermaid", () => {
     const raw = "```mermaid\nsequenceDiagram\n  A->>B: message\n```";
     expect(normalizeMermaid(raw)).toBe("sequenceDiagram\n  A->>B: message");
   });
+
+  it("extracts fenced mermaid from mixed text", () => {
+    const input = `Here's my diagram:\n\`\`\`mermaid\nflowchart TD\nA --> B\n\`\`\`\nHope you like it!`;
+    expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nA --> B");
+  });
+
+  it("extracts mermaid using intent-based keyword fallback", () => {
+    const input = `The user wants me to create a flowchart.\nLet me create valid mermaid code:\nflowchart TD\nStart --> End\nThis should work.`;
+    expect(normalizeMermaid(input, "flowchart")).toBe(
+      "flowchart TD\nStart --> End\nThis should work.",
+    );
+  });
+
+  it("extracts mermaid using generic fence fallback", () => {
+    const input = `Here's the diagram:\n\`\`\`\nflowchart TD\nA --> B\n\`\`\``;
+    expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nA --> B");
+  });
+
+  it("returns null when no valid mermaid found", () => {
+    const input = `This is just some text about diagrams but no actual mermaid code here.`;
+    expect(normalizeMermaid(input, "flowchart")).toBeNull();
+  });
+
+  it("extracts sequenceDiagram using intent keyword", () => {
+    const input = `I'll create a sequence diagram for you.\nsequencediagram\nparticipant A\nparticipant B\nA ->> B: Hello`;
+    expect(normalizeMermaid(input, "sequenceDiagram")).toBe(
+      "sequencediagram\nparticipant A\nparticipant B\nA ->> B: Hello",
+    );
+  });
+
+  it("extracts classDiagram using intent keyword", () => {
+    const input = `Let me make a class diagram:\nclassdiagram\nclass Animal\nclass Dog\nDog --|> Animal`;
+    expect(normalizeMermaid(input, "classDiagram")).toBe(
+      "classdiagram\nclass Animal\nclass Dog\nDog --|> Animal",
+    );
+  });
+
+  it("prioritizes fenced content over keyword fallback", () => {
+    const input = `Some explanation\nflowchart TD\nA --> B\n\`\`\`mermaid\nflowchart TD\nX --> Y\n\`\`\``;
+    expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nX --> Y");
+  });
 });

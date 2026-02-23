@@ -14,24 +14,35 @@ PARSE ERROR: {{errorMessage}}
 
 STRICT RULES - MUST FOLLOW:
 
-1. NO indentation - every line starts at column 0 (no spaces/tabs at start)
-2. If using |label| on arrow, target MUST be on SAME line
-3. Every --> arrow must point to something on the same line
-4. Each statement is ONE line only
+1. ALWAYS wrap code in ```mermaid fences
+2. NO indentation - every line starts at column 0 (no spaces/tabs at start)
+3. If using |label| on arrow, target MUST be on SAME line
+4. Every --> arrow must point to something on the same line
+5. Each statement is ONE line only
+6. No explanations outside the fences
 
 CORRECT EXAMPLE:
+
+```mermaid
 flowchart TD
 A[Start] --> B{Decision}
 B -->|Yes| C[Process]
 B -->|No| D[End]
+```
 
 INCORRECT (will fail):
-flowchart TD
+
+```mermaid
+flowchart TD   <-- missing newline after declaration
 A[Start] <-- has spaces
 B -->|Label| <-- missing target
 C[End] <-- indented
+```
 
 SYNTAX: {{nodeSyntax}} | {{edgeSyntax}}
 
-Rewrite the FAILED CODE above with NO indentation and complete all arrows:
+Rewrite the FAILED CODE above with proper fences and complete all arrows:
+
+```mermaid
 {{firstLine}}
+```

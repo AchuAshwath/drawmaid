@@ -10,6 +10,7 @@ import {
   buildErrorRecoveryPrompt,
   buildUserPrompt,
   extractIntent,
+  type Intent,
 } from "@/lib/llm/intent-extraction";
 import {
   isAbortError,
@@ -17,6 +18,11 @@ import {
   SYSTEM_PROMPT,
 } from "@/lib/llm/mermaid-llm";
 import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
+import {
+  createDrawmaidError,
+  formatErrorForCopy,
+  type DrawmaidError,
+} from "@/lib/errors/drawmaid-error";
 import { useExcalidrawThemeBridge } from "@/lib/use-excalidraw-theme";
 import { useMermaidLlm } from "@/lib/llm/use-mermaid-llm";
 import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
@@ -36,6 +42,7 @@ import {
   loadAutoModePreference,
   saveAutoModePreference,
 } from "@/lib/auto-mode/storage";
+import { useFakeGenerationProgress } from "@/lib/hooks/use-fake-generation-progress";
 import type {
   WebLLMModelInfo,
   LocalModel,
@@ -57,16 +64,8 @@ function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
 
-  type ErrorContext = {
-    message: string;
-    timestamp: string;
-    mode: "auto" | "normal";
-    model: string;
-    transcript: string;
-    provider: "webllm" | "local";
-  };
   const [error, setError] = useState<string | null>(null);
-  const [errorContext, setErrorContext] = useState<ErrorContext | null>(null);
+  const [errorContext, setErrorContext] = useState<DrawmaidError | null>(null);
 
   // Auto-dismiss error after 8 seconds
   useEffect(() => {
@@ -113,34 +112,61 @@ function Home() {
     localModels,
     isAutoMode: mode === "auto",
     transcript: prompt,
-    onError: (message) => {
-      const isLocal = localModelIds.has(currentModel);
-      const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
-      setError(message);
-      setErrorContext({
-        message,
-        timestamp: new Date().toISOString(),
-        mode,
-        model: currentModel,
-        transcript: prompt,
-        provider,
-      });
+    onError: (drawmaidError) => {
+      setError(drawmaidError.message);
+      setErrorContext(drawmaidError);
     },
   });
 
+  const generationProgress = useFakeGenerationProgress(
+    isGenerating || autoModeGenerating,
+  );
+
+  // Debug logging
+  console.log(
+    "[Drawmaid] generationProgress:",
+    generationProgress,
+    "isGenerating:",
+    isGenerating,
+    "autoModeGenerating:",
+    autoModeGenerating,
+  );
+
   // Helper to set error with full context
-  const handleError = (message: string) => {
+  const handleError = (
+    stage: DrawmaidError["stage"],
+    errorType: DrawmaidError["errorType"],
+    message: string,
+    options?: {
+      intent?: Intent | null;
+      rawLLMOutput?: string;
+      normalizedCode?: string | null;
+      parseError?: string | null;
+      recoveryAttempted?: boolean;
+      recoverySucceeded?: boolean;
+    },
+  ) => {
     const isLocal = localModelIds.has(currentModel);
-    const provider = isLocal && localModels.length > 0 ? "local" : "webllm";
-    setError(message);
-    setErrorContext({
-      message,
-      timestamp: new Date().toISOString(),
-      mode,
-      model: currentModel,
+    const useLocalServer = isLocal && localModels.length > 0;
+
+    const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
-      provider,
+      intent: options?.intent ?? null,
+      generation: {
+        provider: useLocalServer ? "local" : "webllm",
+        model: currentModel,
+        mode,
+        useLocalServer,
+      },
+      rawLLMOutput: options?.rawLLMOutput,
+      normalizedCode: options?.normalizedCode,
+      parseError: options?.parseError,
+      recoveryAttempted: options?.recoveryAttempted,
+      recoverySucceeded: options?.recoverySucceeded,
     });
+
+    setError(message);
+    setErrorContext(drawmaidError);
   };
 
   // Fetch local server models
@@ -259,14 +285,26 @@ function Home() {
       if (isAbortError(err)) return;
       if (isTimeoutError(err)) {
         handleError(
+          "llm_generate",
+          "timeout",
           "Generation timed out. Try a simpler request or check your connection.",
+          {
+            intent,
+            rawLLMOutput: mermaidOutput ?? undefined,
+          },
         );
         return;
       }
       handleError(
+        "llm_generate",
+        "api_error",
         err instanceof Error
           ? err.message
           : "Generation failed. Please try again.",
+        {
+          intent,
+          rawLLMOutput: mermaidOutput ?? undefined,
+        },
       );
       return;
     }
@@ -274,6 +312,12 @@ function Home() {
     setIsGenerating(false);
 
     if (!mermaidOutput?.trim()) {
+      handleError(
+        "llm_empty",
+        "empty_response",
+        "LLM returned empty response",
+        { intent },
+      );
       return;
     }
 
@@ -282,8 +326,17 @@ function Home() {
 
     let mermaidCode: string | null = null;
     try {
-      mermaidCode = normalizeMermaid(mermaidOutput);
+      mermaidCode = normalizeMermaid(mermaidOutput, intent.diagramType);
       if (!mermaidCode) {
+        handleError(
+          "normalize",
+          "normalization_failed",
+          "Could not parse LLM output into valid mermaid code",
+          {
+            intent,
+            rawLLMOutput: mermaidOutput,
+          },
+        );
         setIsGenerating(false);
         return;
       }
@@ -291,6 +344,26 @@ function Home() {
     } catch (err) {
       setIsGenerating(false);
       const errorMessage = err instanceof Error ? err.message : String(err);
+
+      // Detect error stage based on error message content
+      const isParseError =
+        /parse|syntax|diagram|mermaid|expecting|reserved|keyword/i.test(
+          errorMessage,
+        );
+      const errorStage: DrawmaidError["stage"] = isParseError
+        ? "parse"
+        : "canvas_insert";
+      const errorType: DrawmaidError["errorType"] = isParseError
+        ? "syntax_error"
+        : "canvas_error";
+
+      handleError(errorStage, errorType, errorMessage, {
+        intent,
+        rawLLMOutput: mermaidOutput,
+        normalizedCode: mermaidCode,
+        parseError: isParseError ? errorMessage : null,
+      });
+
       const errorPrompt = buildErrorRecoveryPrompt({
         originalInput: prompt,
         failedMermaidCode: mermaidCode || mermaidOutput,
@@ -308,15 +381,38 @@ function Home() {
 
         if (!recoveredOutput?.trim()) {
           handleError(
+            "recovery",
+            "recovery_failed",
             "Could not fix diagram syntax. Please try a different description.",
+            {
+              intent,
+              rawLLMOutput: mermaidOutput,
+              normalizedCode: mermaidCode,
+              parseError: errorMessage,
+              recoveryAttempted: true,
+              recoverySucceeded: false,
+            },
           );
           return;
         }
 
-        const recoveredCode = normalizeMermaid(recoveredOutput);
+        const recoveredCode = normalizeMermaid(
+          recoveredOutput,
+          intent.diagramType,
+        );
         if (!recoveredCode) {
           handleError(
+            "recovery",
+            "recovery_failed",
             "Could not fix diagram syntax. Please try a different description.",
+            {
+              intent,
+              rawLLMOutput: mermaidOutput,
+              normalizedCode: mermaidCode,
+              parseError: errorMessage,
+              recoveryAttempted: true,
+              recoverySucceeded: false,
+            },
           );
           return;
         }
@@ -326,9 +422,19 @@ function Home() {
         setIsGenerating(false);
         if (isAbortError(recoveryErr)) return;
         handleError(
+          "recovery",
+          "recovery_failed",
           recoveryErr instanceof Error
             ? recoveryErr.message
             : "Could not add diagram to canvas. Check the diagram syntax.",
+          {
+            intent,
+            rawLLMOutput: mermaidOutput,
+            normalizedCode: mermaidCode,
+            parseError: errorMessage,
+            recoveryAttempted: true,
+            recoverySucceeded: false,
+          },
         );
       }
     }
@@ -452,11 +558,16 @@ function Home() {
             onTranscript={(text) => {
               setPrompt(text);
             }}
-            onRecognitionError={(message) => handleError(message)}
+            onRecognitionError={(message) =>
+              handleError("llm_generate", "api_error", message, {
+                intent: null,
+              })
+            }
             loading={
               status === "loading" || (isGenerating && mode === "normal")
             }
             loadProgress={loadProgress}
+            generationProgress={generationProgress}
             webLLMModels={availableWebLLMModels}
             localModels={localModels}
             currentModel={currentModel}
@@ -502,14 +613,7 @@ function ErrorAlertActions({
   errorContext,
   onDismiss,
 }: {
-  errorContext: {
-    message: string;
-    timestamp: string;
-    mode: "auto" | "normal";
-    model: string;
-    transcript: string;
-    provider: "webllm" | "local";
-  } | null;
+  errorContext: DrawmaidError | null;
   onDismiss: () => void;
 }) {
   const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
@@ -522,20 +626,7 @@ function ErrorAlertActions({
       return;
     }
 
-    const details = `[Drawmaid Error Report]
-Time: ${errorContext.timestamp}
-Mode: ${errorContext.mode}
-Provider: ${errorContext.provider}
-Model: ${errorContext.model}
-
-Transcript:
-${errorContext.transcript || "(empty)"}
-
-Error Message:
-${errorContext.message}
-
----
-Generated by Drawmaid`;
+    const details = formatErrorForCopy(errorContext);
 
     await navigator.clipboard.writeText(details);
     setCopyStatus("copied");
