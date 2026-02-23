@@ -122,16 +122,6 @@ function Home() {
     isGenerating || autoModeGenerating,
   );
 
-  // Debug logging
-  console.log(
-    "[Drawmaid] generationProgress:",
-    generationProgress,
-    "isGenerating:",
-    isGenerating,
-    "autoModeGenerating:",
-    autoModeGenerating,
-  );
-
   // Helper to set error with full context
   const handleError = (
     stage: DrawmaidError["stage"],
