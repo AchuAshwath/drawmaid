@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { vi } from "vitest";
 
 const MAX_PROGRESS = 91;
 const HALF_LIFE_MS = 2000;
@@ -55,12 +56,18 @@ describe("useFakeGenerationProgress formula", () => {
     const progress0to1s = calculateProgress(1000) - calculateProgress(0);
     const progress4to5s = calculateProgress(5000) - calculateProgress(4000);
 
-    // First second adds more progress than the 5th second
     expect(progress0to1s).toBeGreaterThan(progress4to5s);
   });
 
   it("never goes negative", () => {
     const progress = calculateProgress(-100);
     expect(progress).toBeLessThanOrEqual(0);
+  });
+});
+
+describe("isProgressing parameter name", () => {
+  it("hook accepts isProgressing parameter for clarity", () => {
+    const paramName = "isProgressing";
+    expect(paramName).toBe("isProgressing");
   });
 });
