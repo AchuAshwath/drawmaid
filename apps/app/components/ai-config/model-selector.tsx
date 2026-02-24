@@ -50,7 +50,9 @@ export function ModelSelector({
       >
         <Brain className="h-3.5 w-3.5" />
         <SelectValue placeholder="Model">
-          <span className="truncate max-w-[80px]">{displayName}</span>
+          <span className="truncate max-w-[80px]" title={currentModel}>
+            {displayName}
+          </span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="max-h-[300px]">
