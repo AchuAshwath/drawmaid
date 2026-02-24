@@ -269,6 +269,7 @@ function Home() {
         systemPrompt: SYSTEM_PROMPT,
         modelId: currentModel,
         useLocalServer,
+        timeoutMs: useLocalServer ? 30000 : 15000,
       });
     } catch (err) {
       setIsGenerating(false);
@@ -367,6 +368,7 @@ function Home() {
           maxTokens: 512,
           modelId: currentModel,
           useLocalServer,
+          timeoutMs: useLocalServer ? 30000 : 15000,
         });
 
         if (!recoveredOutput?.trim()) {
