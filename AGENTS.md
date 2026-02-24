@@ -36,49 +36,6 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 # Database: bun db:{push,generate,studio,seed} (append :staging or :prod)
 ```
 
-## Testing
-
-### Unit Tests (Vitest)
-
-```bash
-bun test                       # Run all unit tests
-bun test --watch               # Watch mode
-bun test apps/app/lib/         # Run specific test file
-```
-
-### Integration Tests (Playwright)
-
-```bash
-cd apps/app
-bun run test:e2e              # Run Playwright integration tests
-npx playwright install        # Install browsers (first time)
-```
-
-Note: E2E tests use `.playwright.ts` extension to avoid conflict with Vitest.
-
-## CI Checklist Before Push
-
-Always run these before pushing to PR:
-
-```bash
-bun run typecheck             # Must pass (0 errors)
-bun run lint                  # Must pass (0 errors)
-bun test                      # Must pass
-bun run build                 # Must pass
-cd apps/app && bun run test:e2e  # Integration tests (if changed)
-```
-
-## Pushing to PR
-
-1. Make changes on feature branch
-2. Run CI checklist above
-3. Commit with descriptive message
-4. Push to remote:
-   ```bash
-   git push origin <branch-name>
-   ```
-5. Create/update PR on GitHub
-
 ## Architecture
 
 - Three workers: web (edge router), app (SPA assets), api (Hono server).
@@ -86,38 +43,6 @@ cd apps/app && bun run test:e2e  # Integration tests (if changed)
 - Web worker routes: `/api/*` → API worker, app routes → App worker, static → assets.
 - Service bindings connect workers internally (no public cross-worker URLs).
 - Database, auth, routing, and tRPC conventions are in subdirectory `AGENTS.md` files.
-
-## LLM Diagram Generation (apps/app)
-
-### Structure
-
-```
-apps/app/
-  lib/
-    mermaid-llm.ts       # WebLLM integration, streaming, timeout
-    intent-extraction.ts # Backwards-scan keyword detection, entity extraction
-    normalize-mermaid.ts # Strip fences, validate output
-    diagram-config.ts    # Diagram-type configs (imported from JSON)
-  prompts/
-    system-prompt.md     # Base LLM role/rules
-    user-prompt-rules.md # User prompt template with {{placeholders}}
-    recovery-prompt-rules.md # Error recovery prompt template
-  config/
-    diagram-configs.json # Per-diagram-type: syntax, reserved words, tips, examples
-    error-patterns.json  # Mermaid parse error patterns and fixes
-```
-
-### Key Features
-
-- **Intent Extraction**: Scans backwards from transcript end (last keyword wins)
-- **Native Entity Extraction**: Uses `Intl.Segmenter` (no external NLP library)
-- **Error Recovery**: Targeted retries with error-specific fixes
-- **Timeout**: 10s default (configurable via `VITE_LLM_TIMEOUT_MS`)
-- **Caching**: 50-item LRU cache for repeated inputs
-
-### Configuration
-
-- `VITE_LLM_TIMEOUT_MS` - Generation timeout in milliseconds (default: 10000)
 
 ## Design Philosophy
 
