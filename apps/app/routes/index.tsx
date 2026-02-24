@@ -78,6 +78,7 @@ function Home() {
   }, [error]);
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
@@ -119,7 +120,7 @@ function Home() {
   });
 
   const generationProgress = useFakeGenerationProgress(
-    isGenerating || autoModeGenerating,
+    isGenerating || isProcessing || autoModeGenerating,
   );
 
   // Helper to set error with full context
@@ -300,9 +301,11 @@ function Home() {
       return;
     }
 
-    setIsGenerating(false);
+    setIsProcessing(true);
 
     if (!mermaidOutput?.trim()) {
+      setIsGenerating(false);
+      setIsProcessing(false);
       handleError(
         "llm_empty",
         "empty_response",
@@ -313,27 +316,71 @@ function Home() {
     }
 
     const api = excalidrawApiRef.current;
-    if (!api) return;
+    if (!api) {
+      setIsGenerating(false);
+      setIsProcessing(false);
+      return;
+    }
 
     let mermaidCode: string | null = null;
     try {
       mermaidCode = normalizeMermaid(mermaidOutput, intent.diagramType);
       if (!mermaidCode) {
-        handleError(
-          "normalize",
-          "normalization_failed",
-          "Could not parse LLM output into valid mermaid code",
-          {
-            intent,
-            rawLLMOutput: mermaidOutput,
-          },
-        );
         setIsGenerating(false);
-        return;
+        setIsProcessing(false);
+        const errorMessage =
+          "Could not parse LLM output into valid mermaid code";
+        handleError("normalize", "normalization_failed", errorMessage, {
+          intent,
+          rawLLMOutput: mermaidOutput,
+        });
+
+        const errorPrompt = buildErrorRecoveryPrompt({
+          originalInput: prompt,
+          failedMermaidCode: mermaidOutput,
+          errorMessage,
+          diagramType: intent.diagramType,
+        });
+
+        try {
+          setIsProcessing(true);
+          const recoveredOutput = await generate(errorPrompt, {
+            systemPrompt: SYSTEM_PROMPT,
+            maxTokens: 1024,
+            modelId: currentModel,
+            useLocalServer,
+            timeoutMs: useLocalServer ? 30000 : 15000,
+          });
+
+          if (!recoveredOutput?.trim()) {
+            setIsGenerating(false);
+            setIsProcessing(false);
+            return;
+          }
+
+          mermaidCode = normalizeMermaid(recoveredOutput, intent.diagramType);
+          if (!mermaidCode) {
+            setIsGenerating(false);
+            setIsProcessing(false);
+            return;
+          }
+
+          await insertMermaidIntoCanvas(api, mermaidCode);
+          setIsGenerating(false);
+          setIsProcessing(false);
+          return;
+        } catch {
+          setIsGenerating(false);
+          setIsProcessing(false);
+          return;
+        }
       }
       await insertMermaidIntoCanvas(api, mermaidCode);
+      setIsGenerating(false);
+      setIsProcessing(false);
     } catch (err) {
       setIsGenerating(false);
+      setIsProcessing(false);
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       // Detect error stage based on error message content
@@ -412,6 +459,7 @@ function Home() {
         await insertMermaidIntoCanvas(api, recoveredCode);
       } catch (recoveryErr) {
         setIsGenerating(false);
+        setIsProcessing(false);
         if (isAbortError(recoveryErr)) return;
         handleError(
           "recovery",
@@ -545,7 +593,10 @@ function Home() {
               !apiReady
             }
             generating={
-              status === "generating" || isGenerating || autoModeGenerating
+              status === "generating" ||
+              isGenerating ||
+              isProcessing ||
+              autoModeGenerating
             }
             onTranscript={(text) => {
               setPrompt(text);
@@ -555,9 +606,7 @@ function Home() {
                 intent: null,
               })
             }
-            loading={
-              status === "loading" || (isGenerating && mode === "normal")
-            }
+            loading={status === "loading"}
             loadProgress={loadProgress}
             generationProgress={generationProgress}
             webLLMModels={availableWebLLMModels}
