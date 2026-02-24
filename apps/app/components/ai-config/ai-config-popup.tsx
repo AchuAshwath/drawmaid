@@ -261,7 +261,7 @@ export function AIConfigPopup({
   const getServerHelpText = (serverType?: LocalServerType): string => {
     switch (serverType) {
       case "opencode":
-        return "Run 'opencode serve' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096";
+        return "Run 'opencode serve' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096. If connecting from a domain (not localhost), you may need a CORS-unblock browser extension.";
       case "ollama":
         return "Run `ollama serve` or start Ollama app. Default: http://localhost:11434/v1.";
       case "vllm":

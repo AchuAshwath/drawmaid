@@ -4,7 +4,7 @@ const MAX_PROGRESS = 91;
 const HALF_LIFE_MS = 2000;
 const UPDATE_INTERVAL_MS = 50;
 
-export function useFakeGenerationProgress(isGenerating: boolean): number {
+export function useFakeGenerationProgress(isProgressing: boolean): number {
   const progressRef = useRef(0);
   const startTimeRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -20,7 +20,7 @@ export function useFakeGenerationProgress(isGenerating: boolean): number {
   };
 
   useEffect(() => {
-    if (isGenerating) {
+    if (isProgressing) {
       startTimeRef.current = Date.now();
       progressRef.current = 0;
 
@@ -44,7 +44,7 @@ export function useFakeGenerationProgress(isGenerating: boolean): number {
         intervalRef.current = null;
       }
     };
-  }, [isGenerating]);
+  }, [isProgressing]);
 
   return useSyncExternalStore(
     store.subscribe,

@@ -56,6 +56,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
           { ...config, model },
           opts?.systemPrompt ?? SYSTEM_PROMPT,
           prompt,
+          opts?.timeoutMs,
         );
       }
 

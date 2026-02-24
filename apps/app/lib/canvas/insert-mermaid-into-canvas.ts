@@ -174,8 +174,10 @@ export async function insertMermaidIntoCanvas(
     elementsToInsert = [...current, ...positionedElements];
   }
 
-  // Update tracked element IDs for next replacement
-  lastAutoModeElementIds = positionedElements.map((el) => el.id);
+  // Update tracked element IDs only when replacing (for next replacement)
+  if (options?.replace) {
+    lastAutoModeElementIds = positionedElements.map((el) => el.id);
+  }
 
   api.updateScene({
     elements: elementsToInsert,

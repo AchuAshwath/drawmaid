@@ -198,6 +198,7 @@ export async function generateWithOpenCode(
   config: LocalServerConfig,
   systemPrompt: string,
   userPrompt: string,
+  timeoutMs: number = 30000,
 ): Promise<string> {
   const baseUrl = config.url.replace(/\/$/, "");
 
@@ -216,6 +217,7 @@ export async function generateWithOpenCode(
       systemPrompt,
       prompt,
       config.apiKey,
+      timeoutMs,
     );
 
     const usagePercent = findUsagePercent(response);
@@ -259,7 +261,7 @@ export async function generateWithOpenCode(
         systemPrompt,
         userPrompt,
         config.apiKey,
-        15000, // shorter timeout for retry
+        timeoutMs,
       );
 
       // Reset session after retry to avoid context accumulation

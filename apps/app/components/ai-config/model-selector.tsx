@@ -31,9 +31,6 @@ export function ModelSelector({
 
   if (!hasModels && !localServerConfigured) return null;
 
-  const displayName =
-    currentModel.length > 18 ? currentModel.slice(0, 18) + "..." : currentModel;
-
   return (
     <Select
       open={open}
@@ -45,23 +42,28 @@ export function ModelSelector({
       }}
     >
       <SelectTrigger
-        className="h-9 w-auto min-w-[100px] gap-1 px-2"
+        className="h-9 w-[180px] gap-1 px-2"
         aria-label="Select model"
+        title={currentModel}
       >
         <Brain className="h-3.5 w-3.5" />
-        <SelectValue placeholder="Model">
-          <span className="truncate max-w-[80px]">{displayName}</span>
-        </SelectValue>
+        <SelectValue placeholder="Model" />
       </SelectTrigger>
-      <SelectContent align="start" className="max-h-[300px]">
+      <SelectContent align="start" className="max-h-[300px] w-[280px]">
         {webLLMModels.length > 0 && (
           <>
             <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
               WebLLM
             </div>
             {webLLMModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="text-xs">
-                <span className="truncate block max-w-[180px]">{model.id}</span>
+              <SelectItem
+                key={model.id}
+                value={model.id}
+                className="text-xs w-full"
+              >
+                <span className="truncate block w-full" title={model.id}>
+                  {model.id}
+                </span>
               </SelectItem>
             ))}
           </>
@@ -73,13 +75,20 @@ export function ModelSelector({
               Local Server
             </div>
             {localModels.length > 0 ? (
-              localModels.map((model) => (
-                <SelectItem key={model.id} value={model.id} className="text-xs">
-                  <span className="truncate block max-w-[180px]">
-                    {model.name || model.id}
-                  </span>
-                </SelectItem>
-              ))
+              localModels.map((model) => {
+                const displayName = model.name || model.id;
+                return (
+                  <SelectItem
+                    key={model.id}
+                    value={model.id}
+                    className="text-xs w-full"
+                  >
+                    <span className="truncate block w-full" title={displayName}>
+                      {displayName}
+                    </span>
+                  </SelectItem>
+                );
+              })
             ) : (
               <div className="px-3 py-2 text-xs text-muted-foreground flex items-center gap-1">
                 <WifiOff className="h-3 w-3" />
