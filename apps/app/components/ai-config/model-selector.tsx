@@ -50,9 +50,7 @@ export function ModelSelector({
       >
         <Brain className="h-3.5 w-3.5" />
         <SelectValue placeholder="Model">
-          <span className="truncate max-w-[80px]" title={currentModel}>
-            {displayName}
-          </span>
+          <span className="truncate max-w-[80px]">{displayName}</span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="start" className="max-h-[300px]">
@@ -62,8 +60,15 @@ export function ModelSelector({
               WebLLM
             </div>
             {webLLMModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="text-xs">
+              <SelectItem
+                key={model.id}
+                value={model.id}
+                className="text-xs group relative"
+              >
                 <span className="truncate block max-w-[180px]">{model.id}</span>
+                <span className="hidden group-hover:block absolute left-0 top-0 right-0 bottom-0 bg-popover px-2 py-1 text-xs text-popover-foreground whitespace-nowrap z-50">
+                  {model.id}
+                </span>
               </SelectItem>
             ))}
           </>
@@ -76,8 +81,15 @@ export function ModelSelector({
             </div>
             {localModels.length > 0 ? (
               localModels.map((model) => (
-                <SelectItem key={model.id} value={model.id} className="text-xs">
+                <SelectItem
+                  key={model.id}
+                  value={model.id}
+                  className="text-xs group relative"
+                >
                   <span className="truncate block max-w-[180px]">
+                    {model.name || model.id}
+                  </span>
+                  <span className="hidden group-hover:block absolute left-0 top-0 right-0 bottom-0 bg-popover px-2 py-1 text-xs text-popover-foreground whitespace-nowrap z-50">
                     {model.name || model.id}
                   </span>
                 </SelectItem>
