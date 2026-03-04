@@ -22,10 +22,9 @@ Voice and text to Excalidraw diagrams using local AI. Generate beautiful diagram
 ### Option 2: Local Server (More Powerful)
 
 1. Install [OpenCode](https://opencode.ai)
-2. Run `opencode serve` in your terminal
-3. In Drawmaid, go to AI Configuration → Local Server → Connect
-
-> **Note:** If accessing Drawmaid from `drawmaid.ashwath.space` (or any non-localhost domain), you'll need a CORS-unblock browser extension like [Allow CORS](https://chromewebstore.google.com/detail/lfhmikememgdcahcdlaciloancbhjino) since local servers don't include CORS headers for cross-origin requests.
+2. Run `opencode serve --cors https://drawmaid.ashwath.space` in your terminal, if you're trying to connect to https://drawmaid.ashwath.space
+3. Run `opencode serve` if you're developing from localhost
+4. In Drawmaid, go to AI Configuration → Local Server → Connect
 
 ## Installation (Development)
 

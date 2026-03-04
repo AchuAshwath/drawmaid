@@ -1,16 +1,44 @@
-import { useEffect, useState, useCallback } from "react";
+import { WebGPUBanner } from "@/components/webgpu-banner";
+import { localServerGenerate } from "@/lib/ai-config/providers/local";
+import {
+  generateWithOpenCode,
+  resetOpenCodeSession,
+} from "@/lib/ai-config/providers/opencode";
+import {
+  addDownloadedModel,
+  getDownloadedModels,
+  loadConfig,
+  removeDownloadedModel,
+  resetConfig,
+  saveConfig,
+  subscribeToConfigChanges,
+} from "@/lib/ai-config/storage";
+import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import type {
+  AIConfig,
+  LocalModel,
+  LocalServerConfig,
+  LocalServerType,
+  TestConnectionStatus,
+  WebLLMConfig,
+} from "@/lib/ai-config/types";
+import { DEFAULT_CONFIG, SERVER_PRESETS } from "@/lib/ai-config/types";
 import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
+  generate as generateFromEngine,
+  getSnapshot,
+  load as loadEngine,
+  subscribe,
+} from "@/lib/llm/mermaid-llm";
+import {
+  Button,
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@repo/ui";
-import { Button } from "@repo/ui";
-import { Input } from "@repo/ui";
-import {
+  DialogHeader,
+  DialogTitle,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -20,47 +48,17 @@ import {
 import {
   AlertCircle,
   Check,
+  ChevronDown,
   Download,
+  Info,
   Loader2,
+  Play,
   RotateCcw,
+  Search,
   Settings,
   Trash2,
-  Play,
-  Search,
-  ChevronDown,
-  Info,
 } from "lucide-react";
-import type {
-  AIConfig,
-  LocalServerConfig,
-  WebLLMConfig,
-  TestConnectionStatus,
-  LocalServerType,
-  LocalModel,
-} from "@/lib/ai-config/types";
-import { DEFAULT_CONFIG, SERVER_PRESETS } from "@/lib/ai-config/types";
-import {
-  saveConfig,
-  resetConfig,
-  loadConfig,
-  getDownloadedModels,
-  addDownloadedModel,
-  removeDownloadedModel,
-  subscribeToConfigChanges,
-} from "@/lib/ai-config/storage";
-import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
-import { WebGPUBanner } from "@/components/webgpu-banner";
-import {
-  subscribe,
-  getSnapshot,
-  load as loadEngine,
-  generate as generateFromEngine,
-} from "@/lib/llm/mermaid-llm";
-import { localServerGenerate } from "@/lib/ai-config/providers/local";
-import {
-  generateWithOpenCode,
-  resetOpenCodeSession,
-} from "@/lib/ai-config/providers/opencode";
+import { useCallback, useEffect, useState } from "react";
 
 interface AIConfigPopupProps {
   open: boolean;
@@ -261,7 +259,7 @@ export function AIConfigPopup({
   const getServerHelpText = (serverType?: LocalServerType): string => {
     switch (serverType) {
       case "opencode":
-        return "Run 'opencode serve' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096. If connecting from a domain (not localhost), you may need a CORS-unblock browser extension.";
+        return "Run 'opencode serve --cors https://drawmaid.ashwath.space' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096.";
       case "ollama":
         return "Run `ollama serve` or start Ollama app. Default: http://localhost:11434/v1.";
       case "vllm":
