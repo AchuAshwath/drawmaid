@@ -24,7 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@paralleldrive/cuid2": "^2.2.2"
+    "@paralleldrive/cuid2": "^3.3.0"
   },
   "peerDependencies": {
     "drizzle-orm": "^0.45.1"
