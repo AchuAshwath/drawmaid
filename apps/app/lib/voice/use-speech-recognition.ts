@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { logInfo, logWarn } from "@/lib/debug-logger";
 
 // Web Speech API types — not in default lib
 declare global {
@@ -194,7 +195,7 @@ export function useSpeechRecognition(
           statusRef.current = "listening";
           setIsListening(true);
           consecutiveErrorsRef.current = 0;
-          console.log(`[VoiceSTT] 🎙️ Microphone active (${triggerReason})`);
+          logInfo("STT", `🎙️ Microphone active (${triggerReason})`);
         };
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -227,15 +228,18 @@ export function useSpeechRecognition(
             interimTranscript.length === 0 &&
             accumulatedTranscriptRef.current.length > 0;
 
+          logInfo("STT", `Result: "${text.slice(-50)}"`, {
+            isFinal,
+            totalLength: text.length,
+          });
           setTranscript(text);
           onTranscriptRef.current?.(text, isFinal);
         };
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-          // Silent programmatic aborts
           if (event.error === "aborted") return;
 
-          console.warn("[VoiceSTT] Recognition event error:", event.error);
+          logWarn("STT", `Recognition event error: ${event.error}`);
 
           if (TERMINAL_ERRORS.has(event.error)) {
             shouldRestartRef.current = false;
@@ -257,8 +261,9 @@ export function useSpeechRecognition(
           lastProcessedIndexRef.current = -1;
 
           if (shouldRestartRef.current && continuousRef.current) {
-            console.log(
-              "[VoiceSTT] Audio stream cycled by browser, reconnecting fresh stream...",
+            logInfo(
+              "STT",
+              "Stream cycled by browser, reconnecting in 150ms...",
             );
             scheduleRestart(150, "stream-cycled");
           }

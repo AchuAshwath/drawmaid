@@ -11,6 +11,7 @@ import {
   createDrawmaidError,
   type DrawmaidError,
 } from "@/lib/errors/drawmaid-error";
+import { logInfo, logWarn, logError } from "@/lib/debug-logger";
 
 interface UseAutoModeOptions {
   excalidrawApiRef: React.MutableRefObject<ExcalidrawCanvasApi | null>;
@@ -47,63 +48,86 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   optionsRef.current = options;
   transcriptRef.current = transcript;
 
-  const handleGenerate = useCallback(async (task: { transcript: string }) => {
-    const {
-      onError,
-      onGeneratingChange,
-      currentModel: model,
-      localModels: models,
-    } = optionsRef.current;
+  const handleGenerate = useCallback(
+    async (task: { transcript: string; id?: number }) => {
+      const {
+        onError,
+        onGeneratingChange,
+        currentModel: model,
+        localModels: models,
+        generate: gen,
+        isLocalServerConfigured,
+      } = optionsRef.current;
 
-    setIsGenerating(true);
-    onGeneratingChange?.(true);
+      setIsGenerating(true);
+      onGeneratingChange?.(true);
 
-    const { generate: gen, isLocalServerConfigured } = optionsRef.current;
-    const isLocal =
-      isLocalServerConfigured || models.some((m) => m.id === model);
-    const useLocal = isLocal;
-    const intent = extractIntent(task.transcript);
+      const isLocal =
+        isLocalServerConfigured || models.some((m) => m.id === model);
+      const useLocal = isLocal;
+      const intent = extractIntent(task.transcript);
 
-    try {
-      const userPrompt = buildUserPrompt(task.transcript, intent);
+      logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} started`, {
+        length: task.transcript.length,
+        provider: useLocal ? "local" : "webllm",
+        model,
+        intent,
+      });
 
-      const result = await gen(userPrompt, {
-        systemPrompt: SYSTEM_PROMPT,
-        modelId: model,
-        useLocalServer: useLocal,
-        disableAbort: true,
-        timeoutMs: useLocal ? 30000 : 15000,
-      } as Parameters<typeof gen>[1]);
+      try {
+        const userPrompt = buildUserPrompt(task.transcript, intent);
 
-      return result;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Generation failed";
-      const drawmaidError = createDrawmaidError(
-        "llm_generate",
-        "api_error",
-        message,
-        {
-          transcript: task.transcript,
-          intent,
-          generation: {
-            provider: useLocal ? "local" : "webllm",
-            model,
-            mode: "auto",
-            useLocalServer: useLocal,
+        const result = await gen(userPrompt, {
+          systemPrompt: SYSTEM_PROMPT,
+          modelId: model,
+          useLocalServer: useLocal,
+          disableAbort: true,
+          timeoutMs: useLocal ? 30000 : 15000,
+        } as Parameters<typeof gen>[1]);
+
+        logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} completed`, {
+          outputLength: result?.length ?? 0,
+        });
+
+        return result;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Generation failed";
+        logError(
+          "AUTO_MODE",
+          `Generation task #${task.id ?? "?"} failed: ${message}`,
+        );
+
+        const drawmaidError = createDrawmaidError(
+          "llm_generate",
+          "api_error",
+          message,
+          {
+            transcript: task.transcript,
+            intent,
+            generation: {
+              provider: useLocal ? "local" : "webllm",
+              model,
+              mode: "auto",
+              useLocalServer: useLocal,
+            },
           },
-        },
-      );
-      onError?.(drawmaidError);
-      return null;
-    } finally {
-      setIsGenerating(false);
-      onGeneratingChange?.(false);
-    }
-  }, []);
+        );
+        onError?.(drawmaidError);
+        return null;
+      } finally {
+        setIsGenerating(false);
+        onGeneratingChange?.(false);
+      }
+    },
+    [],
+  );
 
   const handleResult = useCallback(
-    async (result: string | null, task: { transcript: string }) => {
+    async (
+      result: string | null,
+      task: { transcript: string; id?: number },
+    ) => {
       const {
         onError,
         currentModel: model,
@@ -120,6 +144,14 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const mermaidCode = normalizeMermaid(result, intent?.diagramType ?? null);
 
       if (!mermaidCode) {
+        logWarn(
+          "AUTO_MODE",
+          `Could not normalize Mermaid from task #${task.id ?? "?"}`,
+          {
+            rawOutput: result.slice(0, 100),
+          },
+        );
+
         const drawmaidError = createDrawmaidError(
           "normalize",
           "normalization_failed",
@@ -137,16 +169,19 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           },
         );
         onError?.(drawmaidError);
-        engineRef.current?.retryWithCurrentTranscript();
         return;
       }
 
       try {
+        logInfo("CANVAS", `Inserting diagram for task #${task.id ?? "?"}`);
         await insertMermaidIntoCanvas(api, mermaidCode, { replace: true });
         lastProcessedRef.current = task.transcript;
+        logInfo("CANVAS", `Diagram rendered successfully on canvas`);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
+        logError("CANVAS", `Canvas insertion error: ${errorMessage}`);
+
         const drawmaidError = createDrawmaidError(
           "canvas_insert",
           "canvas_error",
@@ -165,7 +200,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           },
         );
         onError?.(drawmaidError);
-        engineRef.current?.retryWithCurrentTranscript();
       }
     },
     [excalidrawApiRef],
@@ -178,10 +212,12 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       return;
     }
 
+    logInfo("AUTO_MODE", "Auto Mode engine started");
     engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
     engineRef.current.start(() => transcriptRef.current);
 
     return () => {
+      logInfo("AUTO_MODE", "Auto Mode engine stopped");
       engineRef.current?.stop();
       engineRef.current = null;
     };

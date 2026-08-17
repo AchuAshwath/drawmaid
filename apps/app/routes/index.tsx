@@ -38,6 +38,7 @@ import {
   subscribeToConfigChanges,
   subscribeToDownloadedModelsChanges,
 } from "@/lib/ai-config/storage";
+import { copyDebugLogsToClipboard, logInfo } from "@/lib/debug-logger";
 import {
   loadAutoModePreference,
   saveAutoModePreference,
@@ -518,6 +519,25 @@ function Home() {
             <div className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               <span>AI Configuration</span>
+            </div>
+          </MainMenu.Item>
+          <MainMenu.Item
+            onSelect={async () => {
+              const success = await copyDebugLogsToClipboard();
+              if (success) {
+                logInfo(
+                  "SYSTEM",
+                  "User copied diagnostic session logs to clipboard",
+                );
+                alert(
+                  "Diagnostic session logs copied to clipboard! Paste them in the chat.",
+                );
+              }
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <Copy className="h-4 w-4" />
+              <span>Copy Diagnostic Logs</span>
             </div>
           </MainMenu.Item>
           <MainMenu.Separator />
