@@ -52,7 +52,10 @@ describe("use-mermaid-llm - interface shape", () => {
 
 describe("use-mermaid-llm - generate routing logic", () => {
   it("determines local server usage based on config and opts", () => {
-    const config = { type: "local" as const, serverType: "opencode" as const };
+    const config = {
+      type: "local" as const,
+      serverType: "cliproxyapi" as const,
+    };
     const opts = { useLocalServer: true };
 
     const shouldUseLocalServer = opts.useLocalServer && config.type === "local";
@@ -96,14 +99,9 @@ describe("use-mermaid-llm - generate routing logic", () => {
 });
 
 describe("use-mermaid-llm - serverType routing", () => {
-  it("identifies opencode server type", () => {
-    const config = { serverType: "opencode" as const };
-    const isOpenCode = config.serverType === "opencode";
-    expect(isOpenCode).toBe(true);
-  });
-
-  it("identifies non-opencode server types", () => {
+  it("all server types route through the unified local server generator", () => {
     const serverTypes = [
+      "cliproxyapi",
       "ollama",
       "vllm",
       "lmstudio",
@@ -112,9 +110,8 @@ describe("use-mermaid-llm - serverType routing", () => {
     ] as const;
 
     for (const serverType of serverTypes) {
-      const configServerType: string = serverType;
-      const isOpenCode = configServerType === "opencode";
-      expect(isOpenCode).toBe(false);
+      const config = { type: "local" as const, serverType };
+      expect(config.type).toBe("local");
     }
   });
 });

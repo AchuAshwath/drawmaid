@@ -14,7 +14,6 @@ import {
 import { getCachedConfigAsync } from "../ai-config/storage";
 import type { LocalServerConfig } from "../ai-config/types";
 import { generateWithLocalServer } from "../ai-config/providers/local";
-import { generateWithOpenCode } from "../ai-config/providers/opencode";
 
 const UNSUPPORTED_ERROR = "WebGPU is not supported in this browser";
 
@@ -50,15 +49,6 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
     if (opts?.useLocalServer && config.type === "local") {
       const localConfig = config as LocalServerConfig;
       const model = opts?.modelId || localConfig.model;
-
-      if (localConfig.serverType === "opencode") {
-        return generateWithOpenCode(
-          { ...config, model },
-          opts?.systemPrompt ?? SYSTEM_PROMPT,
-          prompt,
-          opts?.timeoutMs,
-        );
-      }
 
       return generateWithLocalServer(
         { ...config, model },

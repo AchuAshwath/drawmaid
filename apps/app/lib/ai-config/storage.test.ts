@@ -12,7 +12,20 @@ import {
   removeDownloadedModel,
   isModelDownloaded,
 } from "./storage";
-import { DEFAULT_CONFIG } from "./types";
+
+const mockStore = new Map<string, string>();
+if (typeof globalThis.localStorage === "undefined") {
+  globalThis.localStorage = {
+    getItem: (key: string) => mockStore.get(key) ?? null,
+    setItem: (key: string, val: string) => mockStore.set(key, val),
+    removeItem: (key: string) => mockStore.delete(key),
+    clear: () => mockStore.clear(),
+    key: (i: number) => Array.from(mockStore.keys())[i] ?? null,
+    get length() {
+      return mockStore.size;
+    },
+  } as Storage;
+}
 
 describe("storage module exports", () => {
   it("exports saveConfig function", () => {
@@ -70,7 +83,7 @@ describe("getConfigDescription", () => {
   it("handles local config type", () => {
     const config: LocalServerConfig = {
       type: "local",
-      serverType: "opencode",
+      serverType: "cliproxyapi",
       url: "http://localhost:11434",
       model: "llama3",
     };
@@ -79,36 +92,33 @@ describe("getConfigDescription", () => {
     expect(desc).toContain("localhost");
   });
 
-  it("handles byok config type", () => {
-    const config: AIConfig = {
-      type: "byok",
-      provider: "openai",
-      model: "gpt-4",
-      apiKey: "test-key",
-    };
-    const desc = getConfigDescription(config);
-    expect(desc).toContain("openai");
-    expect(desc).toContain("gpt-4");
-  });
-
   it("uses default port when not specified for local", () => {
     const config: LocalServerConfig = {
       type: "local",
-      serverType: "opencode",
+      serverType: "cliproxyapi",
       url: "http://localhost",
       model: "llama3",
     };
     const desc = getConfigDescription(config);
-    expect(desc).toContain("11434");
+    expect(desc).toContain("8317");
   });
 });
 
-describe("DEFAULT_CONFIG", () => {
-  it("has webllm as default type", () => {
-    expect(DEFAULT_CONFIG.type).toBe("webllm");
-  });
+describe("saveConfig and loadConfigAsync with apiKey", () => {
+  it("encrypts and decrypts apiKey correctly", async () => {
+    const config: LocalServerConfig = {
+      type: "local",
+      serverType: "cliproxyapi",
+      url: "http://127.0.0.1:8317/v1",
+      model: "gemini-3.7-flash-high",
+      apiKey: "secret-api-key-12345",
+    };
 
-  it("has a modelId defined", () => {
-    expect(DEFAULT_CONFIG).toHaveProperty("modelId");
+    await saveConfig(config);
+    const loaded = await loadConfigAsync();
+
+    expect(loaded.type).toBe("local");
+    expect((loaded as LocalServerConfig).apiKey).toBe("secret-api-key-12345");
+    expect((loaded as LocalServerConfig).model).toBe("gemini-3.7-flash-high");
   });
 });

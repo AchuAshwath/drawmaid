@@ -2,8 +2,8 @@ const ENCRYPTION_ALGORITHM = "AES-GCM";
 const KEY_LENGTH = 256;
 const IV_LENGTH = 12;
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]!);
@@ -20,18 +20,31 @@ function base64ToArrayBuffer(base64: string): Uint8Array {
   return bytes;
 }
 
+let inMemoryKey: CryptoKey | null = null;
+
 async function getOrCreateKey(): Promise<CryptoKey> {
-  const storedKeyData = localStorage.getItem("drawmaid-encryption-key");
+  if (inMemoryKey) return inMemoryKey;
+
+  const storage = typeof localStorage !== "undefined" ? localStorage : null;
+  const storedKeyData = storage
+    ? storage.getItem("drawmaid-encryption-key")
+    : null;
 
   if (storedKeyData) {
-    const keyData = JSON.parse(storedKeyData);
-    return crypto.subtle.importKey(
-      "jwk",
-      keyData,
-      { name: ENCRYPTION_ALGORITHM, length: KEY_LENGTH },
-      true,
-      ["encrypt", "decrypt"],
-    );
+    try {
+      const keyData = JSON.parse(storedKeyData);
+      const imported = await crypto.subtle.importKey(
+        "jwk",
+        keyData,
+        { name: ENCRYPTION_ALGORITHM, length: KEY_LENGTH },
+        true,
+        ["encrypt", "decrypt"],
+      );
+      inMemoryKey = imported;
+      return imported;
+    } catch {
+      // Fall through to generate new key
+    }
   }
 
   const key = await crypto.subtle.generateKey(
@@ -40,8 +53,16 @@ async function getOrCreateKey(): Promise<CryptoKey> {
     ["encrypt", "decrypt"],
   );
 
-  const exportedKey = await crypto.subtle.exportKey("jwk", key);
-  localStorage.setItem("drawmaid-encryption-key", JSON.stringify(exportedKey));
+  inMemoryKey = key;
+
+  if (storage) {
+    try {
+      const exportedKey = await crypto.subtle.exportKey("jwk", key);
+      storage.setItem("drawmaid-encryption-key", JSON.stringify(exportedKey));
+    } catch {
+      // Ignore storage errors
+    }
+  }
 
   return key;
 }
@@ -62,21 +83,21 @@ export async function encrypt(
   );
 
   return {
-    ciphertext: arrayBufferToBase64(encryptedBuffer),
-    iv: arrayBufferToBase64(iv.buffer as ArrayBuffer),
+    ciphertext: arrayBufferToBase64(new Uint8Array(encryptedBuffer)),
+    iv: arrayBufferToBase64(iv),
   };
 }
 
 export async function decrypt(ciphertext: string, iv: string): Promise<string> {
   const key = await getOrCreateKey();
 
-  const encryptedBuffer = base64ToArrayBuffer(ciphertext).buffer as ArrayBuffer;
-  const ivBuffer = base64ToArrayBuffer(iv).buffer as ArrayBuffer;
+  const encryptedBytes = base64ToArrayBuffer(ciphertext);
+  const ivBytes = base64ToArrayBuffer(iv);
 
   const decryptedBuffer = await crypto.subtle.decrypt(
-    { name: ENCRYPTION_ALGORITHM, iv: new Uint8Array(ivBuffer) },
+    { name: ENCRYPTION_ALGORITHM, iv: ivBytes as BufferSource },
     key,
-    encryptedBuffer,
+    encryptedBytes as BufferSource,
   );
 
   const decoder = new TextDecoder();
@@ -84,5 +105,8 @@ export async function decrypt(ciphertext: string, iv: string): Promise<string> {
 }
 
 export function clearEncryptionKey(): void {
-  localStorage.removeItem("drawmaid-encryption-key");
+  inMemoryKey = null;
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem("drawmaid-encryption-key");
+  }
 }

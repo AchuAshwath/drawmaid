@@ -1,13 +1,10 @@
 import { WebGPUBanner } from "@/components/webgpu-banner";
 import { localServerGenerate } from "@/lib/ai-config/providers/local";
 import {
-  generateWithOpenCode,
-  resetOpenCodeSession,
-} from "@/lib/ai-config/providers/opencode";
-import {
   addDownloadedModel,
   getDownloadedModels,
   loadConfig,
+  loadConfigAsync,
   removeDownloadedModel,
   resetConfig,
   saveConfig,
@@ -59,6 +56,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 interface AIConfigPopupProps {
   open: boolean;
@@ -66,10 +64,8 @@ interface AIConfigPopupProps {
   onModelDownloaded?: () => void;
 }
 
-type TabType = "webllm" | "local" | "byok";
+type TabType = "webllm" | "local";
 type WebLLMTabType = "available" | "downloaded";
-
-import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";
@@ -100,6 +96,14 @@ export function AIConfigPopup({
     Awaited<ReturnType<typeof getWebLLMModelInfos>>
   >([]);
 
+  // Local Server state
+  const [localModels, setLocalModels] = useState<LocalModel[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "idle" | "connecting" | "connected" | "error"
+  >("idle");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState(false);
+
   // Load WebLLM models on mount
   useEffect(() => {
     getWebLLMModelInfos()
@@ -110,12 +114,20 @@ export function AIConfigPopup({
       });
   }, []);
 
-  // Local Server state
-  const [localModels, setLocalModels] = useState<LocalModel[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<
-    "idle" | "connecting" | "connected" | "error"
-  >("idle");
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  // Load decrypted config on modal open
+  useEffect(() => {
+    if (open) {
+      loadConfigAsync().then((loadedConfig) => {
+        setConfig(loadedConfig);
+        if (loadedConfig.type === "local") {
+          setActiveTab("local");
+          handleFetchModels(loadedConfig.url, loadedConfig.apiKey);
+        } else {
+          setActiveTab("webllm");
+        }
+      });
+    }
+  }, [open]);
 
   // Subscribe to config changes from other tabs/components
   useEffect(() => {
@@ -135,73 +147,72 @@ export function AIConfigPopup({
   }, []);
 
   const handleDownloadClick = useCallback((modelId: string) => {
-    console.log("Opening download confirm for:", modelId);
     setShowDownloadConfirm(modelId);
   }, []);
 
   const handleCancelDownload = useCallback(() => {
-    console.log("Cancelling download");
     setShowDownloadConfirm(null);
   }, []);
 
-  const confirmDownload = useCallback(async (modelId: string) => {
-    console.log("Confirming download for:", modelId);
-    setShowDownloadConfirm(null);
-    setDownloadingModel(modelId);
+  const confirmDownload = useCallback(
+    async (modelId: string) => {
+      setShowDownloadConfirm(null);
+      setDownloadingModel(modelId);
 
-    try {
-      await loadEngine(modelId);
-      addDownloadedModel(modelId);
-      const updatedModels = [...getDownloadedModels()];
-      setDownloadedModels(updatedModels);
-      onModelDownloaded?.();
-    } catch (err) {
-      setTestError(err instanceof Error ? err.message : "Download failed");
-      setTestStatus("error");
-    } finally {
-      setDownloadingModel(null);
-    }
-  }, []);
+      try {
+        await loadEngine(modelId);
+        addDownloadedModel(modelId);
+        const updatedModels = [...getDownloadedModels()];
+        setDownloadedModels(updatedModels);
+        onModelDownloaded?.();
+      } catch (err) {
+        setTestError(err instanceof Error ? err.message : "Download failed");
+        setTestStatus("error");
+      } finally {
+        setDownloadingModel(null);
+      }
+    },
+    [onModelDownloaded],
+  );
 
   const handleDeleteClick = useCallback((modelId: string) => {
-    console.log("Opening delete confirm for:", modelId);
     setShowDeleteConfirm(modelId);
   }, []);
 
   const handleCancelDelete = useCallback(() => {
-    console.log("Cancelling delete");
     setShowDeleteConfirm(null);
   }, []);
 
   const confirmDelete = useCallback((modelId: string) => {
-    console.log("Confirming delete for:", modelId);
     setShowDeleteConfirm(null);
     removeDownloadedModel(modelId);
-    // Force re-render by creating new array
     const updatedModels = [...getDownloadedModels()];
     setDownloadedModels(updatedModels);
   }, []);
 
   const handleFetchModels = useCallback(
-    async (url: string, apiKey?: string, serverType?: LocalServerType) => {
+    async (url: string, apiKey?: string) => {
+      if (!url) return;
       setConnectionStatus("connecting");
 
       try {
-        const result = await fetchLocalServerModels(url, apiKey, serverType);
+        const result = await fetchLocalServerModels(url, apiKey);
 
         if (result.success && result.models) {
           setLocalModels(result.models);
           setConnectionStatus("connected");
 
           // Auto-select first model if none selected
-          if (
-            result.models.length > 0 &&
-            !(config as LocalServerConfig).model
-          ) {
-            setConfig({
-              ...config,
-              model: result.models[0].id,
-            } as LocalServerConfig);
+          if (result.models.length > 0) {
+            setConfig((prev) => {
+              if (prev.type === "local" && !prev.model) {
+                return {
+                  ...prev,
+                  model: result.models![0]!.id,
+                };
+              }
+              return prev;
+            });
           }
         } else {
           setLocalModels([]);
@@ -212,54 +223,38 @@ export function AIConfigPopup({
         setConnectionStatus("error");
       }
     },
-    [config],
+    [],
   );
 
-  useEffect(() => {
-    if (!open || activeTab !== "local") return;
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setTestError(null);
+    setTestStatus("idle");
 
-    if (config.type !== "local") {
-      const opencodePreset = SERVER_PRESETS.find(
-        (preset) => preset.type === "opencode",
-      );
+    if (tab === "local" && config.type !== "local") {
+      const defaultPreset = SERVER_PRESETS.find((preset) => preset.recommended);
       const nextConfig: LocalServerConfig = {
         type: "local",
-        serverType: "opencode",
-        url: opencodePreset?.defaultUrl || "http://127.0.0.1:4096",
+        serverType: defaultPreset?.type || "cliproxyapi",
+        url: defaultPreset?.defaultUrl || "http://127.0.0.1:8317/v1",
         model: "",
       };
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setConfig(nextConfig);
-      handleFetchModels(
-        nextConfig.url,
-        nextConfig.apiKey,
-        nextConfig.serverType,
-      );
-      return;
-    }
-
-    const localConfig = config as LocalServerConfig;
-    const serverType = localConfig.serverType || "opencode";
-    const preset = SERVER_PRESETS.find((item) => item.type === serverType);
-    const nextUrl =
-      localConfig.url || preset?.defaultUrl || "http://127.0.0.1:4096";
-
-    if (nextUrl !== localConfig.url || localConfig.serverType !== serverType) {
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      handleFetchModels(nextConfig.url, nextConfig.apiKey);
+    } else if (tab === "webllm" && config.type !== "webllm") {
+      const downloaded = getDownloadedModels();
+      const nextModel = downloaded[0] || DEFAULT_CONFIG.modelId;
       setConfig({
-        ...localConfig,
-        serverType,
-        url: nextUrl,
+        type: "webllm",
+        modelId: nextModel,
       });
     }
-
-    handleFetchModels(nextUrl, localConfig.apiKey, serverType);
-  }, [activeTab, config, open, handleFetchModels]);
+  };
 
   const getServerHelpText = (serverType?: LocalServerType): string => {
     switch (serverType) {
-      case "opencode":
-        return "Run 'opencode serve --cors https://drawmaid.ashwath.space' in terminal to start the local server, then connect here. Default: http://127.0.0.1:4096.";
+      case "cliproxyapi":
+        return "Run CLIProxyAPI locally to proxy Claude, Gemini, GPT, and other models. Default: http://127.0.0.1:8317/v1.";
       case "ollama":
         return "Run `ollama serve` or start Ollama app. Default: http://localhost:11434/v1.";
       case "vllm":
@@ -282,7 +277,6 @@ export function AIConfigPopup({
     try {
       await loadEngine(modelId);
 
-      // Subscribe to streaming updates
       const unsubscribe = subscribe(() => {
         const snapshot = getSnapshot();
         setTestResponse(snapshot.output);
@@ -331,17 +325,6 @@ export function AIConfigPopup({
       if (config.type === "local") {
         const localConfig = config as LocalServerConfig;
 
-        if (localConfig.serverType === "opencode") {
-          const response = await generateWithOpenCode(
-            localConfig,
-            SYSTEM_PROMPT,
-            TEST_PROMPT,
-          );
-          setTestResponse(response);
-          setTestStatus("success");
-          return;
-        }
-
         const messages = [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: TEST_PROMPT },
@@ -372,21 +355,6 @@ export function AIConfigPopup({
       return;
     }
 
-    // If coming soon server type is selected, switch to opencode
-    if (isComingSoon) {
-      const opencodePreset = SERVER_PRESETS.find((p) => p.type === "opencode");
-      setConfig({
-        ...config,
-        type: "local",
-        serverType: "opencode",
-        url: opencodePreset?.defaultUrl || "http://127.0.0.1:4096",
-        model: "",
-      });
-      setTestError("Coming soon! Switched to OpenCode Serve.");
-      setTestStatus("error");
-      return;
-    }
-
     setSaving(true);
     try {
       await saveConfig(config);
@@ -408,7 +376,6 @@ export function AIConfigPopup({
   };
 
   const isWebLLMDisabled = false;
-  const isBYOKDisabled = true;
 
   const filteredAvailableModels = webLLMModels
     .filter((m) => !downloadedModels.includes(m.id))
@@ -420,28 +387,21 @@ export function AIConfigPopup({
 
   const isDownloadingThis = downloadingModel !== null;
 
-  const localConfig = config as LocalServerConfig;
-  const currentServerType = localConfig.serverType || "opencode";
-  const currentPreset = SERVER_PRESETS.find(
-    (p) => p.type === currentServerType,
-  );
-  const isComingSoon = currentPreset?.comingSoon ?? false;
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          key={open ? "open" : "closed"}
-          className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col p-0"
+          className="flex max-h-[85vh] flex-col p-0 sm:max-w-[560px]"
+          aria-describedby="ai-config-description"
         >
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
               AI Configuration
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="ai-config-description">
               Choose how Drawmaid generates diagrams. WebLLM runs in your
-              browser, or connect to a local or cloud AI server.
+              browser, or connect to a local or proxy AI server.
             </DialogDescription>
           </DialogHeader>
 
@@ -450,7 +410,7 @@ export function AIConfigPopup({
               <Button
                 variant={activeTab === "webllm" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setActiveTab("webllm")}
+                onClick={() => handleTabChange("webllm")}
                 disabled={isWebLLMDisabled}
                 className="flex-1"
               >
@@ -459,20 +419,10 @@ export function AIConfigPopup({
               <Button
                 variant={activeTab === "local" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setActiveTab("local")}
+                onClick={() => handleTabChange("local")}
                 className="flex-1"
               >
                 Local Server
-              </Button>
-              <Button
-                variant={activeTab === "byok" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveTab("byok")}
-                disabled={isBYOKDisabled}
-                className="flex-1"
-              >
-                BYOK
-                {isBYOKDisabled && " 🔒"}
               </Button>
             </div>
 
@@ -684,7 +634,7 @@ export function AIConfigPopup({
                   <label className="text-sm font-medium">Provider</label>
                   <select
                     value={
-                      (config as LocalServerConfig).serverType || "opencode"
+                      (config as LocalServerConfig).serverType || "cliproxyapi"
                     }
                     onChange={(e) => {
                       const serverType = e.target.value as LocalServerType;
@@ -692,38 +642,30 @@ export function AIConfigPopup({
                         (p) => p.type === serverType,
                       );
                       const newUrl =
-                        preset?.defaultUrl || "http://127.0.0.1:4096";
+                        preset?.defaultUrl || "http://127.0.0.1:8317/v1";
 
-                      setConfig({
-                        ...config,
+                      setConfig((prev) => ({
+                        ...(prev as LocalServerConfig),
                         serverType,
                         url: newUrl,
                         model: "",
-                      } as LocalServerConfig);
+                      }));
                       setLocalModels([]);
-                      setConnectionStatus("idle");
+                      setCustomModelMode(false);
 
                       if (preset?.defaultUrl) {
                         handleFetchModels(
                           preset.defaultUrl,
                           (config as LocalServerConfig).apiKey,
-                          preset.type,
                         );
                       }
                     }}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                   >
                     {SERVER_PRESETS.map((preset) => (
-                      <option
-                        key={preset.type}
-                        value={preset.type}
-                        disabled={preset.comingSoon}
-                      >
+                      <option key={preset.type} value={preset.type}>
                         {preset.name}
-                        {preset.comingSoon ? " (Coming Soon)" : ""}
-                        {!preset.comingSoon && preset.type === "opencode"
-                          ? " (Recommended)"
-                          : ""}
+                        {preset.recommended ? " (Recommended)" : ""}
                       </option>
                     ))}
                   </select>
@@ -751,23 +693,22 @@ export function AIConfigPopup({
                     </div>
                   </div>
                   <Input
-                    placeholder="http://127.0.0.1:4096"
+                    placeholder="http://127.0.0.1:8317/v1"
                     value={(config as LocalServerConfig).url || ""}
                     onChange={(e) => {
                       const newUrl = e.target.value;
-                      setConfig({
-                        ...config,
+                      setConfig((prev) => ({
+                        ...(prev as LocalServerConfig),
                         url: newUrl,
-                      } as LocalServerConfig);
-                      setLocalModels([]);
+                      }));
                     }}
-                    disabled={isComingSoon}
+                    onBlur={(e) => {
+                      handleFetchModels(
+                        e.target.value,
+                        (config as LocalServerConfig).apiKey,
+                      );
+                    }}
                   />
-                  {isComingSoon && (
-                    <p className="text-xs text-amber-500 font-medium">
-                      Coming soon! Only OpenCode Serve is available now.
-                    </p>
-                  )}
                   <p className="text-xs text-muted-foreground">
                     Default:{" "}
                     {SERVER_PRESETS.find(
@@ -799,15 +740,28 @@ export function AIConfigPopup({
                         type="password"
                         placeholder="sk-..."
                         value={(config as LocalServerConfig).apiKey || ""}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            apiKey: e.target.value,
-                          } as LocalServerConfig)
-                        }
+                        onChange={(e) => {
+                          const newApiKey = e.target.value;
+                          setConfig(
+                            (prev) =>
+                              ({
+                                ...prev,
+                                apiKey: newApiKey,
+                              }) as LocalServerConfig,
+                          );
+                        }}
+                        onBlur={(e) => {
+                          if (config.type === "local") {
+                            const url =
+                              (config as LocalServerConfig).url ||
+                              "http://127.0.0.1:8317/v1";
+                            handleFetchModels(url, e.target.value);
+                          }
+                        }}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Most local servers don&apos;t require an API key
+                        Required if your proxy or server has authentication
+                        enabled
                       </p>
                     </div>
                   )}
@@ -815,54 +769,98 @@ export function AIConfigPopup({
 
                 {/* Model Selection */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">Model</label>
-                    <div className="group relative">
-                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                      <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                        For best results, use fast models with good instruction
-                        following:
-                        <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                          <li>
-                            <strong>GPT-4o</strong>,{" "}
-                            <strong>GPT-4o-mini</strong> - Fast & capable
-                          </li>
-                          <li>
-                            <strong>Haiku</strong>, <strong>Flash</strong> -
-                            Very fast
-                          </li>
-                          <li>
-                            <strong>Instruct models</strong> (e.g.,
-                            Qwen2.5-Coder-Instruct) - Great for diagrams
-                          </li>
-                          <li>Avoid: reasoning-heavy models (o1, o3-mini)</li>
-                        </ul>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium">Model</label>
+                      <div className="group relative">
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          For best results, use fast models with good
+                          instruction following:
+                          <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                            <li>
+                              <strong>GPT-4o</strong>,{" "}
+                              <strong>GPT-4o-mini</strong> - Fast & capable
+                            </li>
+                            <li>
+                              <strong>Haiku</strong>, <strong>Flash</strong> -
+                              Very fast
+                            </li>
+                            <li>
+                              <strong>Instruct models</strong> (e.g.,
+                              Qwen2.5-Coder-Instruct) - Great for diagrams
+                            </li>
+                            <li>Avoid: reasoning-heavy models (o1, o3-mini)</li>
+                          </ul>
+                        </div>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {localModels.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomModelMode(!customModelMode)}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {customModelMode
+                            ? "Select from list"
+                            : "Type custom name"}
+                        </button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          if (config.type === "local") {
+                            const local = config as LocalServerConfig;
+                            handleFetchModels(
+                              local.url || "http://127.0.0.1:8317/v1",
+                              local.apiKey,
+                            );
+                          }
+                        }}
+                        disabled={connectionStatus === "connecting"}
+                      >
+                        {connectionStatus === "connecting" ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-3 w-3" />
+                        )}
+                        Refresh Models
+                      </Button>
                     </div>
                   </div>
 
-                  {localModels.length > 0 ? (
+                  {!customModelMode && localModels.length > 0 ? (
                     <Select
                       value={(config as LocalServerConfig).model || ""}
                       onValueChange={(value) => {
-                        if (
-                          (config as LocalServerConfig).serverType ===
-                          "opencode"
-                        ) {
-                          resetOpenCodeSession(
-                            (config as LocalServerConfig).url,
-                          );
-                        }
-                        setConfig({
-                          ...config,
-                          model: value,
-                        } as LocalServerConfig);
+                        setConfig(
+                          (prev) =>
+                            ({
+                              ...prev,
+                              model: value,
+                            }) as LocalServerConfig,
+                        );
                       }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[240px]">
+                        {(config as LocalServerConfig).model &&
+                          !localModels.some(
+                            (m) => m.id === (config as LocalServerConfig).model,
+                          ) && (
+                            <SelectItem
+                              key={(config as LocalServerConfig).model}
+                              value={(config as LocalServerConfig).model}
+                            >
+                              {(config as LocalServerConfig).model} (Current)
+                            </SelectItem>
+                          )}
                         {localModels.map((model) => (
                           <SelectItem key={model.id} value={model.id}>
                             {model.name}
@@ -872,42 +870,26 @@ export function AIConfigPopup({
                     </Select>
                   ) : (
                     <Input
-                      placeholder="Enter model name (e.g., qwen2.5-coder-1.5b)"
+                      placeholder="Enter model name (e.g., gemini-3.7-flash-high, qwen2.5-coder-1.5b)"
                       value={(config as LocalServerConfig).model || ""}
                       onChange={(e) => {
                         const nextModel = e.target.value;
-                        if (
-                          (config as LocalServerConfig).serverType ===
-                          "opencode"
-                        ) {
-                          resetOpenCodeSession(
-                            (config as LocalServerConfig).url,
-                          );
-                        }
-                        setConfig({
-                          ...config,
-                          model: nextModel,
-                        } as LocalServerConfig);
+                        setConfig(
+                          (prev) =>
+                            ({
+                              ...prev,
+                              model: nextModel,
+                            }) as LocalServerConfig,
+                        );
                       }}
                     />
                   )}
                   <p className="text-xs text-muted-foreground">
                     {localModels.length > 0
-                      ? "Select from available models or type a custom name"
-                      : "Type the exact model name as shown in your server"}
+                      ? `Found ${localModels.length} models from server.`
+                      : "Type the exact model name as configured in your server, or click Refresh Models with your API key"}
                   </p>
                 </div>
-              </div>
-            )}
-
-            {activeTab === "byok" && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-400">
-                <p className="font-medium">Coming Soon</p>
-                <p className="mt-1">
-                  Cloud AI providers (OpenAI, Anthropic, Google) will be
-                  available in a future update. These require a backend proxy
-                  for secure API key handling.
-                </p>
               </div>
             )}
 
@@ -921,15 +903,15 @@ export function AIConfigPopup({
             {activeTab === "local" &&
               connectionStatus === "connected" &&
               (config as LocalServerConfig).model && (
-                <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
-                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mb-2">
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="flex items-center gap-2 text-sm text-primary mb-1 font-medium">
                     <Check className="h-4 w-4 shrink-0" />
-                    <span>
-                      Connected — {(config as LocalServerConfig).model}
-                    </span>
+                    <span>Ready — {(config as LocalServerConfig).model}</span>
                   </div>
                   {testStatus === "success" && testResponse && (
-                    <p className="text-sm text-foreground">{testResponse}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {testResponse}
+                    </p>
                   )}
                 </div>
               )}
@@ -967,7 +949,7 @@ export function AIConfigPopup({
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saving || (isBYOKDisabled && activeTab === "byok")}
+                disabled={saving}
                 className="gap-2"
               >
                 {saving ? (

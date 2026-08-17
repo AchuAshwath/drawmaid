@@ -99,13 +99,13 @@ const MIN_TRANSCRIPT_LENGTH = 3;
 A. Provider Architecture:
 
 - Create provider interface/types
-- Support: WebLLM (default), Ollama, OpenCode Serve, Claude Code MCP, OpenAI, Anthropic
+- Support: WebLLM (default), CLIProxyAPI, Ollama, OpenAI, Anthropic
 
 B. Local Providers:
 
+- CLIProxyAPI (OpenAI-compatible proxy)
 - Ollama (local server)
-- OpenCode Serve (self-hosted API)
-- Claude Code MCP
+- LM Studio / vLLM / llama.cpp
 
 C. Cloud Providers:
 
@@ -128,9 +128,7 @@ lib/
 ├── llm-generate.ts        # Unified generation interface
 └── providers/
     ├── index.ts
-    ├── ollama.ts
-    ├── opencode-serve.ts
-    ├── claude-code-mcp.ts
+    ├── local.ts
     ├── openai.ts
     └── anthropic.ts
 ```

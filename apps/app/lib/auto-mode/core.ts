@@ -101,14 +101,12 @@ export class AutoModeEngine {
   }
 
   private triggerGeneration(transcript: string): void {
-    // Kill oldest if at max concurrent
+    // Prevent piling up concurrent requests if already busy
     if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
-      if (this._oldestGenerationId !== null) {
-        this._activeGenerations.delete(this._oldestGenerationId);
-        this._oldestGenerationId = null;
-      }
+      return;
     }
 
+    this.lastTriggeredText = transcript;
     const genId = ++this.state.generationCounter;
 
     const task: GenerationTask = {
@@ -131,7 +129,7 @@ export class AutoModeEngine {
       this.state.generationCounter,
     );
 
-    // Fire-and-forget
+    // Execute generation
     this.executeGeneration(task);
   }
 

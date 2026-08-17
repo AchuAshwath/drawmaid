@@ -7,7 +7,7 @@ Voice and text to Excalidraw diagrams using local AI. Generate beautiful diagram
 - **Voice-to-Diagram** — Speak your diagram ideas and watch them appear
 - **Text-to-Diagram** — Type natural language and get instant Mermaid diagrams
 - **On-Device AI** — WebLLM runs entirely in your browser, no server needed
-- **Local Server Support** — Connect to OpenCode, Ollama, LM Studio, or any OpenAI-compatible API
+- **Local Server Support** — Connect to CLIProxyAPI, Ollama, LM Studio, vLLM, or any OpenAI-compatible API
 - **Works Offline** — Once downloaded, WebLLM works without internet
 - **Excalidraw Integration** — Full Excalidraw editing capabilities after generation
 
@@ -21,10 +21,10 @@ Voice and text to Excalidraw diagrams using local AI. Generate beautiful diagram
 
 ### Option 2: Local Server (More Powerful)
 
-1. Install [OpenCode](https://opencode.ai)
-2. Run `opencode serve --cors https://drawmaid.ashwath.space` in your terminal, if you're trying to connect to https://drawmaid.ashwath.space
-3. Run `opencode serve` if you're developing from localhost
-4. In Drawmaid, go to AI Configuration → Local Server → Connect
+1. Run any OpenAI-compatible server (CLIProxyAPI, Ollama, LM Studio, vLLM, etc.)
+2. In Drawmaid, go to AI Configuration → Local Server
+3. Select your provider preset or enter a custom URL
+4. Pick a model and connect
 
 ## Installation (Development)
 
@@ -57,12 +57,14 @@ Recommended models:
 
 ### Local Server Options
 
-| Provider  | Description                                  | Default URL                 | Status       |
-| --------- | -------------------------------------------- | --------------------------- | ------------ |
-| OpenCode  | Full-featured local AI server                | `http://127.0.0.1:4096`     | ✅ Available |
-| Ollama    | Run Llama, Mistral, and other models locally | `http://localhost:11434/v1` | Coming Soon  |
-| LM Studio | Desktop app for running LLMs                 | `http://localhost:1234/v1`  | Coming Soon  |
-| vLLM      | High-performance LLM serving                 | `http://localhost:8000/v1`  | Coming Soon  |
+| Provider    | Description                                   | Default URL                 |
+| ----------- | --------------------------------------------- | --------------------------- |
+| CLIProxyAPI | Proxy for Claude, Gemini, GPT, Qwen, and more | `http://127.0.0.1:8317/v1`  |
+| Ollama      | Run Llama, Mistral, and other models locally  | `http://localhost:11434/v1` |
+| LM Studio   | Desktop app for running LLMs                  | `http://localhost:1234/v1`  |
+| vLLM        | High-performance LLM serving                  | `http://localhost:8000/v1`  |
+| llama.cpp   | Lightweight C++ inference                     | `http://localhost:8080/v1`  |
+| Custom      | Any OpenAI-compatible endpoint                | User-defined                |
 
 ## Tech Stack
 

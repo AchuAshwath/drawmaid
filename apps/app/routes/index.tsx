@@ -33,11 +33,12 @@ import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
 import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
-  loadConfig,
+  loadConfigAsync,
   getDownloadedModels,
   subscribeToConfigChanges,
   subscribeToDownloadedModelsChanges,
 } from "@/lib/ai-config/storage";
+import { copyDebugLogsToClipboard, logInfo } from "@/lib/debug-logger";
 import {
   loadAutoModePreference,
   saveAutoModePreference,
@@ -111,6 +112,7 @@ function Home() {
     generate,
     currentModel,
     localModels,
+    isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
     onError: (drawmaidError) => {
@@ -137,8 +139,8 @@ function Home() {
       recoverySucceeded?: boolean;
     },
   ) => {
-    const isLocal = localModelIds.has(currentModel);
-    const useLocalServer = isLocal && localModels.length > 0;
+    const useLocalServer =
+      localServerConfigured || localModelIds.has(currentModel);
 
     const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
@@ -163,36 +165,31 @@ function Home() {
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
     if (config.type === "local" && "url" in config && config.url) {
-      fetchLocalServerModels(config.url, config.apiKey, config.serverType).then(
-        (result) => {
-          if (result.success && result.models) {
-            setLocalModels(result.models);
-          }
-        },
-      );
+      fetchLocalServerModels(config.url, config.apiKey).then((result) => {
+        if (result.success && result.models) {
+          setLocalModels(result.models);
+        }
+      });
     }
   }, []);
 
   // Initial load and subscribe to config changes
   useEffect(() => {
-    const config = loadConfig();
+    loadConfigAsync().then((config) => {
+      const isLocal = config.type === "local";
+      setLocalServerConfigured(isLocal);
 
-    const isLocal = config.type === "local";
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-    setLocalServerConfigured(isLocal);
-
-    if (isLocal) {
-      if (config.model) {
-        // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-        setCurrentModel(config.model);
+      if (isLocal) {
+        if (config.model) {
+          setCurrentModel(config.model);
+        }
+        fetchModels(config);
+      } else {
+        const downloaded = getDownloadedModels();
+        const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
+        setCurrentModel(defaultModel);
       }
-      fetchModels(config);
-    } else {
-      const downloaded = getDownloadedModels();
-      const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setCurrentModel(defaultModel);
-    }
+    });
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
@@ -261,9 +258,9 @@ function Home() {
     const intent = extractIntent(prompt);
     const userPrompt = buildUserPrompt(prompt, intent);
 
-    // Determine which provider to use based on selected model
-    const isLocalModel = localModelIds.has(currentModel);
-    const useLocalServer = isLocalModel && localModels.length > 0;
+    // Determine which provider to use based on selected model/config
+    const useLocalServer =
+      localServerConfigured || localModelIds.has(currentModel);
 
     try {
       mermaidOutput = await generate(userPrompt, {
@@ -524,6 +521,25 @@ function Home() {
               <span>AI Configuration</span>
             </div>
           </MainMenu.Item>
+          <MainMenu.Item
+            onSelect={async () => {
+              const success = await copyDebugLogsToClipboard();
+              if (success) {
+                logInfo(
+                  "SYSTEM",
+                  "User copied diagnostic session logs to clipboard",
+                );
+                alert(
+                  "Diagnostic session logs copied to clipboard! Paste them in the chat.",
+                );
+              }
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <Copy className="h-4 w-4" />
+              <span>Copy Diagnostic Logs</span>
+            </div>
+          </MainMenu.Item>
           <MainMenu.Separator />
           <MainMenu.DefaultItems.ChangeCanvasBackground />
         </MainMenu>
@@ -601,11 +617,19 @@ function Home() {
             onTranscript={(text) => {
               setPrompt(text);
             }}
-            onRecognitionError={(message) =>
-              handleError("llm_generate", "api_error", message, {
-                intent: null,
-              })
-            }
+            onRecognitionError={(message) => {
+              console.warn("[VoiceSTT] Notice:", message);
+              // Only show user-facing error toast for terminal/permission errors
+              if (
+                message.includes("permission") ||
+                message.includes("not allowed") ||
+                message.includes("No microphone")
+              ) {
+                handleError("llm_generate", "api_error", message, {
+                  intent: null,
+                });
+              }
+            }}
             loading={status === "loading"}
             loadProgress={loadProgress}
             generationProgress={generationProgress}
