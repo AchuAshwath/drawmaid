@@ -77,12 +77,16 @@ export function usePromptFooterState(
     if (!textarea) return;
 
     textarea.style.height = "auto";
-    textarea.style.height =
-      Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
+    const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
 
-    if (textarea.value) {
-      textarea.scrollTop = textarea.scrollHeight;
-    }
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+      }
+    });
   }, []);
 
   // Auto-grow textarea based on content and auto-scroll to end
@@ -92,14 +96,16 @@ export function usePromptFooterState(
 
     textarea.style.height = "auto";
     const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT);
-    textarea.style.height = nextHeight + "px";
+    textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY =
       textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
 
     // Smoothly scroll to the bottom as speech is recognized
-    if (textarea.scrollHeight > nextHeight) {
-      textarea.scrollTop = textarea.scrollHeight;
-    }
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+      }
+    });
   }, [isCollapsed, transcript]);
 
   useEffect(() => {
