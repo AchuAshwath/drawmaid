@@ -186,3 +186,121 @@ auto mode where generation is continuous.
   "unset". A near-black like `#1e1e1e` is accepted.
 - **Sequence diagrams** get essentially nothing: the only colour input is `group.fill` for
   `rect` blocks (`mte:dist/converter/types/sequence.js:108`). There is no `classDef` path.
+
+---
+
+## 2. A semantic `classDef` palette for Rich and Deep
+
+### 2.1 The governing constraint: Excalidraw dark mode is a canvas-wide CSS filter
+
+Excalidraw does **not** store a second set of colours for dark theme. It applies one filter to
+the whole rendered canvas:
+
+```ts
+// @excalidraw/excalidraw dist/types/excalidraw/constants.d.ts:209
+export declare const THEME_FILTER = "invert(93%) hue-rotate(180deg)";
+```
+
+This is why a palette can be chosen once and be correct in both themes: `invert` flips
+lightness, `hue-rotate(180deg)` puts the hue back where it started. Sanity check with the
+standard CSS filter matrices — `#ffffff` maps to `#121212`, which is exactly Excalidraw's dark
+canvas background, and `#1e1e1e` (the default text/stroke ink) maps to `#d3d3d3`.
+
+The design rule that falls out: **pick light pastel fills and dark saturated strokes for the
+light theme, and dark mode inverts them into dark fills with light strokes automatically.**
+That is precisely the structure of Excalidraw's own element palette.
+
+### 2.2 Anchor to `open-color`, at the exact two shades Excalidraw itself uses
+
+Excalidraw's palette is `open-color` (`@excalidraw/excalidraw/dist/types/excalidraw/colors.d.ts:1`,
+`import oc from "open-color"`), sampled at `ELEMENTS_PALETTE_SHADE_INDEXES = [0, 2, 4, 6, 8]`
+(`colors.d.ts:18`). Its two defaults are:
+
+- `DEFAULT_ELEMENT_BACKGROUND_COLOR_INDEX = 1` -> shade **2** (`colors.d.ts:17`)
+- `DEFAULT_ELEMENT_STROKE_COLOR_INDEX = 4` -> shade **8** (`colors.d.ts:16`)
+
+Shade 8 / shade 2 is literally the pair behind Excalidraw's five toolbar swatches
+(`#1971c2` on `#a5d8ff` and friends). Using those two shades makes generated diagrams
+indistinguishable from hand-drawn ones and means the user's own colour picker lands on the same
+swatch when they select a generated node.
+
+### 2.3 Proposed palette
+
+All values are `open-color@1.9.1` shade 2 (fill) and shade 8 (stroke), verified against
+`node_modules/.bun/open-color@1.9.1/node_modules/open-color/open-color.json`. The dark column is
+the computed result of `invert(93%) hue-rotate(180deg)`.
+
+| Semantic class       | Hue    | `fill` (light) | fill in dark | `stroke` (light) | stroke in dark |
+| -------------------- | ------ | -------------- | ------------ | ---------------- | -------------- |
+| Client / UI          | blue   | `#a5d8ff`      | `#154163`    | `#1971c2`        | `#56a2e8`      |
+| Gateway              | violet | `#d0bfff`      | `#493b72`    | `#6741d9`        | `#b595ff`      |
+| Service              | green  | `#b2f2bb`      | `#043b0c`    | `#2f9e44`        | `#3a994c`      |
+| Database             | yellow | `#ffec99`      | `#362600`    | `#f08c00`        | `#b76100`      |
+| Cache / Queue        | pink   | `#fcc2d7`      | `#602e41`    | `#c2255c`        | `#ff8dbc`      |
+| External / 3rd party | gray   | `#e9ecef`      | `#202325`    | `#343a40`        | `#b8bdc2`      |
+
+**Why these six and not the obvious ones.** The intuitive assignment puts Database on yellow and
+Cache/Queue on orange. Measured in sRGB distance, `#ffec99` and `#ffd8a8` are only **25 apart in
+light and 24 in dark** — indistinguishable on a hand-drawn fill at normal zoom. Swapping
+Cache/Queue to pink raises the worst pair in the set to **50 (light) / 43 (dark)**. Candidate
+sets and their scores are in the working note below; blue+cyan (25), indigo+violet (24) and
+green+teal (32/40) fail for the same reason.
+
+Red (`#ffc9c9` / `#e03131`) is deliberately **left out and reserved** as a later accent for
+failure/alert paths, so the six semantic classes never compete with it.
+
+**Legibility.** Default Excalidraw label ink `#1e1e1e` contrasts every fill above at
+**≥ 9.99:1 in light theme and ≥ 6.5:1 in dark** (WCAG AA large text needs 3:1, AAA body needs
+7:1). Stroke-on-fill contrast is ≥ 3.3:1 for every pair except green (2.68) and yellow (2.09),
+which is fine for a 2px hand-drawn outline but is the reason `stroke-width` should stay at 2.
+
+### 2.4 The exact `classDef` block to emit
+
+```mermaid
+classDef ui fill:#a5d8ff,stroke:#1971c2,stroke-width:2px
+classDef gw fill:#d0bfff,stroke:#6741d9,stroke-width:2px
+classDef svc fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px
+classDef db fill:#ffec99,stroke:#f08c00,stroke-width:2px
+classDef cache fill:#fcc2d7,stroke:#c2255c,stroke-width:2px
+classDef ext fill:#e9ecef,stroke:#343a40,stroke-width:2px,stroke-dasharray:4 4
+```
+
+Notes, each grounded in §1:
+
+- **No `color:` declaration.** Excalidraw's default text ink is already `#1e1e1e`
+  (`dist/prod/*.js`: `fillStyle:"hachure",...,strokeColor:Z.black,...,strokeWidth:1`), which is
+  the highest-contrast choice on all six fills in both themes. Setting `color:` adds tokens, adds
+  a failure mode, and can only make contrast worse.
+- **`stroke-width:2px` everywhere.** The converter already hard-codes `strokeWidth: 2` on every
+  vertex (`mte:dist/converter/types/flowchart.js:93`) before spreading the class style, so this is
+  a no-op that documents intent. If a tier wants emphasis, `4px` is the only other legal value
+  (`STROKE_WIDTH.extraBold`); `3px` renders but matches no toolbar state.
+- **`stroke-dasharray` on `ext` only.** It is a one-bit channel — any value produces
+  `strokeStyle: "dashed"` — so it can encode exactly one binary distinction. "Outside our system"
+  is the highest-value use of that bit.
+- **Hex only, never `rgb(...)`.** Commas separate declarations inside `classDef` (§1.3).
+- **One class per node.** `A:::svc` only; the converter reads `vertex.classes[0]` (§1.3).
+
+Applying it:
+
+```mermaid
+flowchart LR
+  Browser["Web app"]:::ui
+  API["API gateway"]:::gw
+  Auth["Auth service"]:::svc
+  PG[("Postgres")]:::db
+  Redis[("Redis")]:::cache
+  Stripe["Stripe"]:::ext
+```
+
+### 2.5 Tier assignment
+
+- **Fast** — no `classDef` at all. Six extra lines is a meaningful fraction of a Fast token
+  budget, and the plain Excalidraw look is not a defect.
+- **Rich** — the six-class block above, emitted as a static suffix. Because the block is byte-identical
+  every time, it belongs in the stable `L1`/`L2` prompt layers, not in anything the user's transcript
+  can move (map #38's prefix-caching decision).
+- **Deep** — the same six classes. Deep's plan pass already produces entities and layers, so the
+  render pass should map each planned entity to exactly one of the six. Do **not** invent a
+  seventh colour per diagram: a stable palette across diagrams is worth more than a bespoke one
+  within a diagram.
