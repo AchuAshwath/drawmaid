@@ -138,3 +138,73 @@ Two mechanisms, and the distinction decides where the fix belongs.
 **Mechanism B — format sensitivity of small models.** Sclar et al., _Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design_ (ICLR 2024), show that varying only meaning-preserving formatting choices moves few-shot accuracy by **up to 76 accuracy points on LLaMA-2-13B**, that the sensitivity "remains even when increasing model size, the number of few-shot examples, or performing instruction tuning", and that "format performance only weakly correlates between models" ([arXiv:2310.11324](https://arxiv.org/abs/2310.11324)). He et al., _Does Prompt Formatting Have Any Impact on LLM Performance?_, compare plain text / Markdown / JSON / YAML and report GPT-3.5-turbo varying "by up to 40% in a code translation task depending on the prompt template, while larger models like GPT-4 are more robust" ([arXiv:2411.10541](https://arxiv.org/abs/2411.10541)). At 1.5B we are on the sensitive end. This is the class section 3 is about, and the honest consequence is that our format choice has to be validated on our own fixtures rather than argued from first principles.
 
 Nothing published measures Qwen2.5-Coder-1.5B-Instruct's mermaid-specific error distribution. #35 already recorded the same gap for the context-degradation curve. The grammar table above is the part that is certain; the frequency with which our model hits each row is not, and is a fixture-corpus question (#47).
+
+---
+
+## 2. Q2 — Input pre-processing, and whether `sanitizeUserTranscript()` should exist
+
+Short answer: **not in the form the ticket implies.** A punctuation-neutralising sanitizer is the wrong tool in the wrong place. Three independent arguments, each sufficient on its own.
+
+### 2.1 The dangerous character set barely intersects the input distribution
+
+The transcript comes from the Web Speech API (`apps/app/lib/voice/use-speech-recognition.ts:202-261`). The spec defines the transcript as "the raw words that the user spoke", and puts automatic punctuation behind an opt-in attribute:
+
+> `unspokenPunctuation` — "controls whether the speech recognition engine automatically infers and inserts punctuation marks (such as periods, commas, and question marks) based on natural pauses, grammatical structure, and prosody, without requiring the user to explicitly speak the punctuation commands."
+
+— [W3C Web Speech API](https://webaudio.github.io/web-speech-api/), default `false`.
+
+The repo sets only `lang`, `continuous`, and `interimResults` (`use-speech-recognition.ts:202-205`); it never sets `unspokenPunctuation`. So for the dictation path, the characters that actually break mermaid — `" ( ) [ ] { } | @` — appear only if the user deliberately speaks "open bracket", "at sign", "quote". Everything the engine does emit unprompted (words, digits, at most `.` `,` `?` `'` `-`) is in the **safe** column of the section 1.2 table.
+
+There is one real vector: the same state also accepts typed text. `prompt` is a single string written by both the microphone and the textarea (`apps/app/routes/index.tsx:596-598`, passed straight into `extractIntent`/`buildUserPrompt` at `:258-259`). Pasted code, a markdown fence, an email address — all reachable. But that is a minority path, and it is the path where the user most plausibly _means_ the punctuation.
+
+### 2.2 Sanitizing the transcript cannot fix a syntax error — only bias a probability
+
+Mermaid never sees the transcript. It sees whatever the model emits. Rewriting the transcript is an attempt to make the model _less likely_ to copy a dangerous character into a label. That is:
+
+- **indirect** — no guarantee; the model can still invent a `(` for a parenthetical it composed itself,
+- **unmeasurable without a corpus** — no published work measures input-punctuation-scrubbing as an intervention on mermaid generation, and we do not have our own numbers yet (#47),
+- **paid for with a certain loss** — the model is now working from a sentence the user did not say.
+
+The output-side repair in section 4 has the opposite profile: it operates on the actual mermaid string, with the actual grammar in hand, and section 1.4 shows the canonical repair (`"` wrap + `#quot;` escape) is provably lossless because the converter decodes the entity back (`.../mermaid-to-excalidraw/dist/utils.js:2-14`). Given a choice between a probabilistic lossy transform upstream and a deterministic lossless one downstream, there is no argument for the upstream one.
+
+### 2.3 L3 is append-only, and most useful sanitizers are not prefix-stable
+
+This is the constraint that actually kills the general design.
+
+#35 established that on WebLLM, sliding windows and KV reuse are mutually exclusive: `getInputData()` in `llm_chat.ts` can only append, and any edit to earlier context forces a full reset. The map (#38) locks L3 as the append-only `<USER_INPUT>` tail for exactly this reason.
+
+For a sanitizer `S` to be compatible with an append-only tail, it has to distribute over concatenation:
+
+```
+S(prefix + newChunk) === S(prefix) + S(newChunk)
+```
+
+Anything else rewrites already-committed tokens and invalidates the prefix — the same bug as the existing 800/700-char sliding window at `apps/app/lib/llm/intent-extraction.ts:184-189`, just wearing a different hat.
+
+Classified against that test:
+
+| candidate transform                              | prefix-stable? | why                                                      |
+| ------------------------------------------------ | -------------- | -------------------------------------------------------- |
+| drop/replace characters from a fixed set         | **yes**        | pure per-character map                                   |
+| strip C0 control chars and zero-width codepoints | **yes**        | pure per-character map                                   |
+| escape a literal delimiter string                | **yes\***      | \*only if the literal cannot straddle an append boundary |
+| collapse runs of whitespace                      | no             | a trailing space plus a leading space merge at the seam  |
+| Unicode NFC normalisation                        | no             | a combining mark can compose across the seam             |
+| balance quotes / brackets                        | no             | requires whole-string state                              |
+| strip markdown code fences                       | no             | the closing fence may arrive many chunks later           |
+| trailing-window truncation (today's behaviour)   | no             | moves the start of the volatile region every call        |
+
+Note that the _append unit_ is not the character and not the render. `use-speech-recognition.ts:233-250` keeps a committed transcript that only ever grows, plus an interim tail that is replaced wholesale on each event. The genuinely append-only unit is a **finalised phrase**. Any sanitizer must therefore be a pure function of a single finalised phrase; cross-phrase repairs (a fence opened five phrases ago) are structurally out of reach, which is another way of saying the interesting sanitizations are the ones we cannot do.
+
+### 2.4 What a defensible guard looks like
+
+If something must run over the transcript, it should be narrow enough to be obviously safe, named for what it defends against rather than for "sanitizing", and applied per finalised phrase:
+
+1. **Delimiter-collision neutralisation.** Only needed if L3's delimiter is a string a user can utter. `<USER_INPUT>` is; a delimiter the input distribution cannot produce is a cheaper fix than escaping — see section 3.4.
+2. **Control and zero-width codepoint stripping.** C0 except `\n`, plus `U+200B`–`U+200F` and `U+FEFF`. These carry no meaning, are invisible in the UI, and perturb tokenisation. Per-character, so prefix-stable.
+
+And explicitly **not**: punctuation substitution, quote/bracket balancing, fence stripping, case folding, or truncation. Each is either lossy, non-prefix-stable, or both.
+
+There is also a product argument. The transcript is shown back to the user in the prompt footer. Silently drawing a diagram from a sentence different from the one on screen is exactly the kind of masked state `AGENTS.md` rules out ("fail loudly in core logic. Do not silently swallow errors or mask incorrect state"). Repairing the _model's output_ leaves the user's own words intact and keeps the mismatch, when there is one, visible in the mermaid rather than hidden in the input.
+
+**Verdict on the ticket's framing:** `sanitizeUserTranscript()` should not be built. Rename the slot to a delimiter/control-character guard, keep it under ten lines, and move the real work to the deterministic output repair.
