@@ -597,11 +597,19 @@ function Home() {
             onTranscript={(text) => {
               setPrompt(text);
             }}
-            onRecognitionError={(message) =>
-              handleError("llm_generate", "api_error", message, {
-                intent: null,
-              })
-            }
+            onRecognitionError={(message) => {
+              console.warn("[VoiceSTT] Notice:", message);
+              // Only show user-facing error toast for terminal/permission errors
+              if (
+                message.includes("permission") ||
+                message.includes("not allowed") ||
+                message.includes("No microphone")
+              ) {
+                handleError("llm_generate", "api_error", message, {
+                  intent: null,
+                });
+              }
+            }}
             loading={status === "loading"}
             loadProgress={loadProgress}
             generationProgress={generationProgress}

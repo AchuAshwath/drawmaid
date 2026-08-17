@@ -154,7 +154,7 @@ export function useSpeechRecognition(
 
   // Schedule a restart with exponential backoff on consecutive transient errors
   const scheduleRestart = useCallback(
-    (delayMs?: number) => {
+    (delayMs?: number, reason = "reconnect") => {
       if (!continuousRef.current || !shouldRestartRef.current) return;
       clearRestartTimer();
 
@@ -164,124 +164,139 @@ export function useSpeechRecognition(
 
       restartTimerRef.current = setTimeout(() => {
         if (!shouldRestartRef.current) return;
-        startRecognition();
+        startRecognition(reason);
       }, backoff);
     },
     [clearRestartTimer],
   );
 
   // Creates a clean, fresh SpeechRecognition instance and starts it
-  const startRecognition = useCallback(() => {
-    if (!SpeechRecognitionCtor || !shouldRestartRef.current) return;
-    if (statusRef.current === "starting" || statusRef.current === "listening") {
-      return;
-    }
+  const startRecognition = useCallback(
+    (triggerReason = "start") => {
+      if (!SpeechRecognitionCtor || !shouldRestartRef.current) return;
+      if (
+        statusRef.current === "starting" ||
+        statusRef.current === "listening"
+      ) {
+        return;
+      }
 
-    clearRestartTimer();
-    cleanupInstance();
+      clearRestartTimer();
+      cleanupInstance();
 
-    try {
-      const recognition = new SpeechRecognitionCtor();
-      recognition.lang = langRef.current;
-      recognition.continuous = continuousRef.current;
-      recognition.interimResults = interimResultsRef.current;
+      try {
+        const recognition = new SpeechRecognitionCtor();
+        recognition.lang = langRef.current;
+        recognition.continuous = continuousRef.current;
+        recognition.interimResults = interimResultsRef.current;
 
-      recognition.onstart = () => {
-        statusRef.current = "listening";
-        setIsListening(true);
-        consecutiveErrorsRef.current = 0;
-      };
+        recognition.onstart = () => {
+          statusRef.current = "listening";
+          setIsListening(true);
+          consecutiveErrorsRef.current = 0;
+          console.log(`[VoiceSTT] 🎙️ Microphone active (${triggerReason})`);
+        };
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const interimParts: string[] = [];
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          const interimParts: string[] = [];
 
-        for (
-          let i = lastProcessedIndexRef.current + 1;
-          i < event.results.length;
-          i++
-        ) {
-          const result = event.results[i];
-          const t = result[0].transcript.trim();
-          if (!t) continue;
-          if (result.isFinal) {
-            accumulatedTranscriptRef.current = accumulatedTranscriptRef.current
-              ? `${accumulatedTranscriptRef.current} ${t}`
-              : t;
-            lastProcessedIndexRef.current = i;
-          } else {
-            interimParts.push(t);
+          for (
+            let i = lastProcessedIndexRef.current + 1;
+            i < event.results.length;
+            i++
+          ) {
+            const result = event.results[i];
+            const t = result[0].transcript.trim();
+            if (!t) continue;
+            if (result.isFinal) {
+              accumulatedTranscriptRef.current =
+                accumulatedTranscriptRef.current
+                  ? `${accumulatedTranscriptRef.current} ${t}`
+                  : t;
+              lastProcessedIndexRef.current = i;
+            } else {
+              interimParts.push(t);
+            }
           }
-        }
 
-        const interimTranscript = interimParts.join(" ");
-        const text = [accumulatedTranscriptRef.current, interimTranscript]
-          .filter(Boolean)
-          .join(" ");
-        const isFinal =
-          interimTranscript.length === 0 &&
-          accumulatedTranscriptRef.current.length > 0;
+          const interimTranscript = interimParts.join(" ");
+          const text = [accumulatedTranscriptRef.current, interimTranscript]
+            .filter(Boolean)
+            .join(" ");
+          const isFinal =
+            interimTranscript.length === 0 &&
+            accumulatedTranscriptRef.current.length > 0;
 
-        setTranscript(text);
-        onTranscriptRef.current?.(text, isFinal);
-      };
+          setTranscript(text);
+          onTranscriptRef.current?.(text, isFinal);
+        };
 
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        // Silent programmatic aborts
-        if (event.error === "aborted") return;
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+          // Silent programmatic aborts
+          if (event.error === "aborted") return;
 
-        if (TERMINAL_ERRORS.has(event.error)) {
-          shouldRestartRef.current = false;
+          console.warn("[VoiceSTT] Recognition event error:", event.error);
+
+          if (TERMINAL_ERRORS.has(event.error)) {
+            shouldRestartRef.current = false;
+            statusRef.current = "idle";
+            setIsListening(false);
+            cleanupInstance();
+          } else {
+            consecutiveErrorsRef.current += 1;
+          }
+
+          const message =
+            ERROR_MESSAGES[event.error] ?? `Speech error: ${event.error}`;
+          onErrorRef.current?.(message);
+        };
+
+        recognition.onend = () => {
           statusRef.current = "idle";
           setIsListening(false);
-          cleanupInstance();
-        } else {
-          // Transient errors (no-speech, network, audio-capture)
-          consecutiveErrorsRef.current += 1;
-        }
+          lastProcessedIndexRef.current = -1;
 
-        const message =
-          ERROR_MESSAGES[event.error] ?? `Speech error: ${event.error}`;
-        onErrorRef.current?.(message);
-      };
+          if (shouldRestartRef.current && continuousRef.current) {
+            console.log(
+              "[VoiceSTT] Audio stream cycled by browser, reconnecting fresh stream...",
+            );
+            scheduleRestart(150, "stream-cycled");
+          }
+        };
 
-      recognition.onend = () => {
+        recognitionRef.current = recognition;
+        statusRef.current = "starting";
+        recognition.start();
+      } catch (err) {
         statusRef.current = "idle";
         setIsListening(false);
-        lastProcessedIndexRef.current = -1;
-
-        if (shouldRestartRef.current && continuousRef.current) {
-          scheduleRestart(150);
+        console.warn("[VoiceSTT] start() threw:", err);
+        if (shouldRestartRef.current) {
+          scheduleRestart(400, "start-retry");
         }
-      };
-
-      recognitionRef.current = recognition;
-      statusRef.current = "starting";
-      recognition.start();
-    } catch {
-      statusRef.current = "idle";
-      setIsListening(false);
-      if (shouldRestartRef.current) {
-        scheduleRestart(500);
       }
-    }
-  }, [
-    SpeechRecognitionCtor,
-    clearRestartTimer,
-    cleanupInstance,
-    scheduleRestart,
-  ]);
+    },
+    [
+      SpeechRecognitionCtor,
+      clearRestartTimer,
+      cleanupInstance,
+      scheduleRestart,
+    ],
+  );
 
   const start = useCallback(() => {
+    console.log("[VoiceSTT] User toggled ON voice input");
     clearRestartTimer();
     consecutiveErrorsRef.current = 0;
     accumulatedTranscriptRef.current = "";
     lastProcessedIndexRef.current = -1;
     setTranscript("");
     shouldRestartRef.current = true;
-    startRecognition();
+    startRecognition("user-start");
   }, [clearRestartTimer, startRecognition]);
 
   const stop = useCallback(() => {
+    console.log("[VoiceSTT] User toggled OFF voice input");
     shouldRestartRef.current = false;
     clearRestartTimer();
     statusRef.current = "stopping";
@@ -310,7 +325,10 @@ export function useSpeechRecognition(
         statusRef.current === "idle" &&
         !restartTimerRef.current
       ) {
-        scheduleRestart(100);
+        console.log(
+          "[VoiceSTT] 🐕 Watchdog detected idle state, reviving stream...",
+        );
+        scheduleRestart(100, "watchdog");
       }
     }, 1200);
 
@@ -324,7 +342,8 @@ export function useSpeechRecognition(
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === "visible" && shouldRestartRef.current) {
         if (statusRef.current === "idle") {
-          scheduleRestart(100);
+          console.log("[VoiceSTT] Tab focused / visible, checking stream...");
+          scheduleRestart(100, "focus-revive");
         }
       }
     };
