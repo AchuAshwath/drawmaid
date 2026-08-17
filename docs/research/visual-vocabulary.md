@@ -421,3 +421,153 @@ signal is a `console.error`. Two implications:
   Do not go to three: nothing in the converter prevents it, but dagre's nested-cluster layout is
   where mermaid's own quality falls off, and every extra level multiplies the chance of the
   graphImage fallback.
+
+---
+
+## 4. Node shapes: five survive, eleven collapse to a rectangle
+
+### 4.1 The converter's shape switch is five cases with no default
+
+`mte:dist/interfaces.js:1-8` — the entire shape vocabulary the converter knows:
+
+```js
+VERTEX_TYPE = {
+  ROUND: "round",
+  STADIUM: "stadium",
+  DOUBLECIRCLE: "doublecircle",
+  CIRCLE: "circle",
+  DIAMOND: "diamond",
+};
+```
+
+`mte:dist/converter/types/flowchart.js:103-144` switches on `vertex.type` over exactly those
+five and has **no `default` branch**. Every element starts life as
+`{ type: "rectangle", strokeWidth: 2, ... }` at `:85-102`, so anything not in the five stays a
+plain rectangle.
+
+Mermaid, meanwhile, produces **sixteen** classic vertex types
+(`mermaid:dist/diagrams/flowchart/types.d.ts:6`):
+
+```ts
+type FlowVertexTypeParam =
+  | undefined
+  | "square"
+  | "doublecircle"
+  | "circle"
+  | "ellipse"
+  | "stadium"
+  | "subroutine"
+  | "rect"
+  | "cylinder"
+  | "round"
+  | "diamond"
+  | "hexagon"
+  | "odd"
+  | "trapezoid"
+  | "inv_trapezoid"
+  | "lean_right"
+  | "lean_left";
+```
+
+The syntax-to-type mapping is in the generated parser
+(`mermaid:dist/chunks/mermaid.esm.min/flowDiagram-COCTKB5R.mjs`, parser cases 56-71).
+
+### 4.2 The matrix
+
+"Distinguishable" means: after conversion, can a reader tell this node apart from a default
+`A[Label]` box **by shape alone**?
+
+| Mermaid syntax   | `vertex.type`   | Excalidraw output                    | Distinguishable?                                                                                                              |
+| ---------------- | --------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `A[Label]`       | `square`        | `rectangle`                          | baseline                                                                                                                      |
+| `A(Label)`       | `round`         | `rectangle` + `roundness: {type: 3}` | **yes**                                                                                                                       |
+| `A([Label])`     | `stadium`       | `rectangle` + `roundness: {type: 3}` | **no** — byte-identical to `A(Label)` apart from mermaid's wider bbox                                                         |
+| `A((Label))`     | `circle`        | `ellipse`                            | **yes**                                                                                                                       |
+| `A(((Label)))`   | `doublecircle`  | `ellipse` + a second inset `ellipse` | **yes**, but see 4.3                                                                                                          |
+| `A{Label}`       | `diamond`       | `diamond`                            | **yes**                                                                                                                       |
+| `A[(Label)]`     | `cylinder`      | `rectangle`                          | **no**                                                                                                                        |
+| `A[[Label]]`     | `subroutine`    | `rectangle`                          | **no**                                                                                                                        |
+| `A{{Label}}`     | `hexagon`       | `rectangle`                          | **no**                                                                                                                        |
+| `A>Label]`       | `odd`           | `rectangle`                          | **no**                                                                                                                        |
+| `A[/Label/]`     | `lean_right`    | `rectangle`                          | **no**                                                                                                                        |
+| `A[\Label\]`     | `lean_left`     | `rectangle`                          | **no**                                                                                                                        |
+| `A[/Label\]`     | `trapezoid`     | `rectangle`                          | **no**                                                                                                                        |
+| `A[\Label/]`     | `inv_trapezoid` | `rectangle`                          | **no**                                                                                                                        |
+| `A(-Label-)`     | `ellipse`       | `rectangle`                          | **no** — the converter's enum has no `ELLIPSE`                                                                                |
+| `A@{shape: cyl}` | ShapeID string  | `rectangle`                          | **no** — mermaid 11's new shape syntax stores the raw ShapeID (`cyl`, `hex`, `diam`, …), which matches no `VERTEX_TYPE` value |
+
+**Said plainly: `[(Database)]`, `[[Subroutine]]`, `{{Hexagon}}`, `[/Input/]`, `[\Output\]` and the
+trapezoids are worthless in the prompt vocabulary.** They cost tokens, they add syntax the model
+can get wrong, and the user sees a rectangle. The classic "cylinder means database" idiom that
+every LLM reaches for by default is exactly the case that does not work — the semantic
+`classDef db` colour from §2 is the only way to say "database".
+
+Note also that the geometry still comes from the _real_ mermaid shape:
+`parseVertex` takes `node.getBBox()` of the rendered hexagon/cylinder
+(`mte:dist/parser/flowchart.js:47-51`). A `{{Hexagon}}` therefore becomes a rectangle padded to
+hexagon width (mermaid pads hexagons by `padding * 2.5`), i.e. an oversized box. So the collapsed
+shapes are not merely useless — they actively distort layout.
+
+### 4.3 Caveats on the shapes that do survive
+
+- **`A(Label)` vs `A([Label])` are the same output.** `roundness: {type: 3}` is
+  `ROUNDNESS.ADAPTIVE_RADIUS` (`@excalidraw/excalidraw/dist/types/excalidraw/constants.d.ts:250-252`).
+  Both branches (`:104-111`) produce it. Pick **one** — `A(Label)` — and drop the other from the
+  vocabulary; two spellings of one result is pure prompt entropy.
+- **`A(((Label)))` renders its label twice.** The inner ellipse gets
+  `label: { text: getText(vertex) }` (`:126-130`) _and_ the outer container keeps its own label
+  (`:94-99`). Two overlapping bound texts. Also the generated group id has a stray brace:
+  `` `doublecircle_${vertex.id}}` `` (`:115`). Usable only as a terminal marker with a short
+  label; #46 should confirm whether the double text is visible in practice.
+- **`A{Label}` diamonds** are the one shape that survives and carries universally understood
+  meaning (decision/branch). Keep it.
+
+### 4.4 Edges: the other shape channel, and it is better than the node channel
+
+`mte:dist/converter/types/flowchart.js:148-197` and `mte:dist/converter/helpers.js:6-32`:
+
+| Mermaid edge | Excalidraw result                                      |
+| ------------ | ------------------------------------------------------ | --- | ------------------------------- |
+| `A --> B`    | arrow, `strokeWidth: 2`, `endArrowhead: "arrow"`       |
+| `A --- B`    | `endArrowhead: null, startArrowhead: null` (open line) |
+| `A -.-> B`   | `strokeStyle: "dashed"` (`edge.stroke === "dotted"`)   |
+| `A ==> B`    | `strokeWidth: 4` (`edge.stroke === "thick"`)           |
+| `A <--> B`   | arrowheads on both ends                                |
+| `A --o B`    | `endArrowhead: "dot"`                                  |
+| `A --x B`    | `endArrowhead: "bar"`                                  |
+| `A -->       | label                                                  | B`  | bound arrow label at `fontSize` |
+
+All of these survive, and arrows are **bound** (`containerElement.start/end = {id}` at `:190-195`),
+which is the property the map cares about — a bound arrow re-routes when the user drags a node.
+
+The gap: **edge colour is not supported at all.** The converter never reads `edge.style`, and
+`linkStyle 0 stroke:#f00` is silently discarded. Do not emit `linkStyle`.
+
+`computeExcalidrawArrowType` returns `undefined` for `arrow_point` (there is no entry in
+`MERMAID_EDGE_TYPE_MAPPER`), which spreads to nothing and lets Excalidraw's default arrowhead
+apply — correct behaviour, but it means the mapper only has entries for the _unusual_ arrow types.
+
+### 4.5 Sequence and class diagrams have no shape vocabulary
+
+- **Sequence** (`mte:dist/converter/types/sequence.js:14-27`): the only element types accepted are
+  `line`, `rectangle`, `ellipse`, `text`. Actors are rectangles (or ellipses for `actor`), and
+  anything else throws. There is nothing an author can choose.
+- **Class** (`mte:dist/parser/class.js:121-133`): every class is a `rectangle` plus `line`
+  dividers. Shape is fixed; only colour is authorable (§1.7).
+- **Everything else** — ER, state, gantt, pie, journey, mindmap, timeline — hits the
+  `default` branch of `parseMermaid` (`mte:dist/parseMermaid.js:74-76`) and becomes a **single
+  base64 SVG image**. Not editable, not bound, not draggable-as-parts. `parseMermaid` in 2.0.0
+  handles only `flowchart-v2` / `graph`, `sequence`, and `class` / `classDiagram`.
+  (GitHub `master`, i.e. a future 2.1.x, adds `src/parser/er.ts` and `src/parser/state.ts` — worth
+  revisiting when the map takes up "diagram types beyond flowchart".)
+
+### 4.6 Tier assignment for shapes
+
+- **Fast** — `A[Label]` and `A{Decision}` only. Two shapes, both survive, both universally
+  understood.
+- **Rich** — add `A(Label)` (rounded, for start/end and external touchpoints) and `A((Label))`
+  (circle, for junctions/events). Four shapes total.
+- **Deep** — the same four plus `A(((Label)))` for terminal states, and only if #46 confirms the
+  double-label issue in 4.3 is not visible.
+- **No tier** may emit cylinders, hexagons, subroutines, parallelograms, trapezoids, or the
+  `@{shape: ...}` syntax.
