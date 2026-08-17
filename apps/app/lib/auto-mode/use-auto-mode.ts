@@ -24,6 +24,7 @@ interface UseAutoModeOptions {
   ) => Promise<string | null>;
   currentModel: string;
   localModels: { id: string }[];
+  isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
   transcript: string;
   onError?: (error: DrawmaidError) => void;
@@ -57,9 +58,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     setIsGenerating(true);
     onGeneratingChange?.(true);
 
-    const { generate: gen } = optionsRef.current;
-    const isLocal = models.some((m) => m.id === model);
-    const useLocal = isLocal && models.length > 0;
+    const { generate: gen, isLocalServerConfigured } = optionsRef.current;
+    const isLocal =
+      isLocalServerConfigured || models.some((m) => m.id === model);
+    const useLocal = isLocal;
     const intent = extractIntent(task.transcript);
 
     try {

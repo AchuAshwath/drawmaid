@@ -33,7 +33,7 @@ import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
 import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
-  loadConfig,
+  loadConfigAsync,
   getDownloadedModels,
   subscribeToConfigChanges,
   subscribeToDownloadedModelsChanges,
@@ -111,6 +111,7 @@ function Home() {
     generate,
     currentModel,
     localModels,
+    isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
     onError: (drawmaidError) => {
@@ -137,8 +138,8 @@ function Home() {
       recoverySucceeded?: boolean;
     },
   ) => {
-    const isLocal = localModelIds.has(currentModel);
-    const useLocalServer = isLocal && localModels.length > 0;
+    const useLocalServer =
+      localServerConfigured || localModelIds.has(currentModel);
 
     const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
@@ -163,36 +164,31 @@ function Home() {
   // Fetch local server models
   const fetchModels = useCallback((config: AIConfig) => {
     if (config.type === "local" && "url" in config && config.url) {
-      fetchLocalServerModels(config.url, config.apiKey, config.serverType).then(
-        (result) => {
-          if (result.success && result.models) {
-            setLocalModels(result.models);
-          }
-        },
-      );
+      fetchLocalServerModels(config.url, config.apiKey).then((result) => {
+        if (result.success && result.models) {
+          setLocalModels(result.models);
+        }
+      });
     }
   }, []);
 
   // Initial load and subscribe to config changes
   useEffect(() => {
-    const config = loadConfig();
+    loadConfigAsync().then((config) => {
+      const isLocal = config.type === "local";
+      setLocalServerConfigured(isLocal);
 
-    const isLocal = config.type === "local";
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-    setLocalServerConfigured(isLocal);
-
-    if (isLocal) {
-      if (config.model) {
-        // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-        setCurrentModel(config.model);
+      if (isLocal) {
+        if (config.model) {
+          setCurrentModel(config.model);
+        }
+        fetchModels(config);
+      } else {
+        const downloaded = getDownloadedModels();
+        const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
+        setCurrentModel(defaultModel);
       }
-      fetchModels(config);
-    } else {
-      const downloaded = getDownloadedModels();
-      const defaultModel = downloaded[0] || DEFAULT_WEBLLM_MODEL;
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setCurrentModel(defaultModel);
-    }
+    });
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
@@ -261,9 +257,9 @@ function Home() {
     const intent = extractIntent(prompt);
     const userPrompt = buildUserPrompt(prompt, intent);
 
-    // Determine which provider to use based on selected model
-    const isLocalModel = localModelIds.has(currentModel);
-    const useLocalServer = isLocalModel && localModels.length > 0;
+    // Determine which provider to use based on selected model/config
+    const useLocalServer =
+      localServerConfigured || localModelIds.has(currentModel);
 
     try {
       mermaidOutput = await generate(userPrompt, {

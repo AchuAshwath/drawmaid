@@ -12,7 +12,7 @@ export async function* localServerGenerate(
   const { url, apiKey, model } = config;
   const { maxTokens = 1024, temperature = 0.1, signal } = options;
 
-  const response = await fetch(resolveChatUrl(url, config.serverType), {
+  const response = await fetch(resolveChatUrl(url), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -86,15 +86,12 @@ export async function* localServerGenerate(
   }
 }
 
-function resolveChatUrl(baseUrl: string, serverType?: string): string {
+function resolveChatUrl(baseUrl: string): string {
+  if (baseUrl.endsWith("/chat/completions")) return baseUrl;
   if (baseUrl.endsWith("/v1")) return `${baseUrl}/chat/completions`;
   if (baseUrl.endsWith("/v1/")) return `${baseUrl}chat/completions`;
 
-  if (serverType === "opencode") {
-    return `${baseUrl}/v1/chat/completions`;
-  }
-
-  return `${baseUrl}/chat/completions`;
+  return `${baseUrl}/v1/chat/completions`;
 }
 
 export async function generateWithLocalServer(

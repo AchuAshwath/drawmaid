@@ -1,4 +1,4 @@
-export type ProviderType = "webllm" | "local" | "byok";
+export type ProviderType = "webllm" | "local";
 
 export interface WebLLMConfig {
   type: "webllm";
@@ -6,7 +6,7 @@ export interface WebLLMConfig {
 }
 
 export type LocalServerType =
-  | "opencode"
+  | "cliproxyapi"
   | "ollama"
   | "vllm"
   | "lmstudio"
@@ -19,50 +19,45 @@ export interface ServerPreset {
   defaultUrl: string;
   description?: string;
   recommended?: boolean;
-  comingSoon?: boolean;
 }
 
 export const SERVER_PRESETS: ServerPreset[] = [
   {
-    type: "opencode",
-    name: "OpenCode Serve",
-    defaultUrl: "http://127.0.0.1:4096",
-    description: "OpenCode's built-in local server",
+    type: "cliproxyapi",
+    name: "CLIProxyAPI",
+    defaultUrl: "http://127.0.0.1:8317/v1",
+    description: "OpenAI-compatible proxy for Claude, Gemini, GPT, and more",
+    recommended: true,
   },
   {
     type: "ollama",
     name: "Ollama",
     defaultUrl: "http://localhost:11434/v1",
     description: "Popular local LLM runner",
-    comingSoon: true,
   },
   {
     type: "vllm",
     name: "vLLM",
     defaultUrl: "http://localhost:8000/v1",
     description: "High-throughput inference engine",
-    comingSoon: true,
   },
   {
     type: "lmstudio",
     name: "LM Studio",
     defaultUrl: "http://localhost:1234/v1",
     description: "User-friendly local LLM UI",
-    comingSoon: true,
   },
   {
     type: "llamacpp",
     name: "llama.cpp / llamafile",
     defaultUrl: "http://localhost:8080/v1",
     description: "Lightweight C++ inference",
-    comingSoon: true,
   },
   {
     type: "custom",
     name: "Custom",
     defaultUrl: "http://localhost:8000/v1",
     description: "Custom OpenAI-compatible endpoint",
-    comingSoon: true,
   },
 ];
 
@@ -74,14 +69,7 @@ export interface LocalServerConfig {
   model: string;
 }
 
-export interface BYOKConfig {
-  type: "byok";
-  provider: "openai" | "anthropic" | "google";
-  apiKey: string;
-  model: string;
-}
-
-export type AIConfig = WebLLMConfig | LocalServerConfig | BYOKConfig;
+export type AIConfig = WebLLMConfig | LocalServerConfig;
 
 export interface StoredConfig {
   config: AIConfig;
@@ -98,8 +86,8 @@ export const DEFAULT_CONFIG: WebLLMConfig = {
 
 export const DEFAULT_LOCAL_SERVER: LocalServerConfig = {
   type: "local",
-  serverType: "opencode",
-  url: "http://127.0.0.1:4096",
+  serverType: "cliproxyapi",
+  url: "http://127.0.0.1:8317/v1",
   model: "",
 };
 

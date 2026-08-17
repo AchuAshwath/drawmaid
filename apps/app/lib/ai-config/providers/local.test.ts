@@ -16,7 +16,7 @@ describe("localServerGenerate", () => {
   it("is a function that returns async generator", () => {
     const config: LocalServerConfig = {
       type: "local",
-      serverType: "opencode",
+      serverType: "cliproxyapi",
       url: "http://localhost:11434",
       model: "test",
     };

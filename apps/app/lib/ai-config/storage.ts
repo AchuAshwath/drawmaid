@@ -1,10 +1,5 @@
 import { encrypt, decrypt } from "./encryption";
-import type {
-  AIConfig,
-  StoredConfig,
-  LocalServerConfig,
-  BYOKConfig,
-} from "./types";
+import type { AIConfig, StoredConfig, LocalServerConfig } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 
 const STORAGE_KEY = "drawmaid-ai-config";
@@ -28,9 +23,7 @@ export function getCachedConfig(): AIConfig {
   if (configCacheValid && configCache) {
     return configCache;
   }
-  configCache = loadConfig();
-  configCacheValid = true;
-  return configCache;
+  return loadConfig();
 }
 
 export async function getCachedConfigAsync(): Promise<AIConfig> {
@@ -135,20 +128,6 @@ async function serializeConfig(config: AIConfig): Promise<string> {
     } else {
       toStore = { config };
     }
-  } else if (config.type === "byok") {
-    const byokConfig = config as BYOKConfig;
-    const { ciphertext, iv } = await encrypt(byokConfig.apiKey);
-    const { apiKey: _removed, ...restConfig } = byokConfig;
-    void _removed;
-    toStore = {
-      config: {
-        type: "byok",
-        provider: restConfig.provider,
-        model: restConfig.model,
-      } as BYOKConfig,
-      encryptedApiKey: ciphertext,
-      iv,
-    };
   } else {
     toStore = { config };
   }
@@ -165,10 +144,8 @@ async function deserializeConfig(stored: string): Promise<AIConfig> {
     if (config.type === "local") {
       (config as LocalServerConfig).apiKey = decryptedApiKey;
       if (!(config as LocalServerConfig).serverType) {
-        (config as LocalServerConfig).serverType = "opencode";
+        (config as LocalServerConfig).serverType = "custom";
       }
-    } else if (config.type === "byok") {
-      (config as BYOKConfig).apiKey = decryptedApiKey;
     }
   }
 
@@ -178,6 +155,8 @@ async function deserializeConfig(stored: string): Promise<AIConfig> {
 export async function saveConfig(config: AIConfig): Promise<void> {
   const serialized = await serializeConfig(config);
   localStorage.setItem(STORAGE_KEY, serialized);
+  configCache = config;
+  configCacheValid = true;
   listeners.forEach((listener) => listener(config));
 }
 
@@ -214,6 +193,7 @@ export async function loadConfigAsync(): Promise<AIConfig> {
 
 export function resetConfig(): void {
   localStorage.removeItem(STORAGE_KEY);
+  invalidateConfigCache();
   listeners.forEach((listener) => listener(DEFAULT_CONFIG));
 }
 
@@ -223,10 +203,8 @@ export function getConfigDescription(config: AIConfig): string {
       return `WebLLM: ${config.modelId}`;
     case "local": {
       const url = new URL(config.url);
-      return `Local: ${url.hostname}:${url.port || "11434"}`;
+      return `Local: ${url.hostname}:${url.port || "8317"}`;
     }
-    case "byok":
-      return `${config.provider}: ${config.model}`;
   }
 }
 

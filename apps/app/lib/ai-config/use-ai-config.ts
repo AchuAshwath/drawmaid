@@ -30,6 +30,5 @@ export function useAIConfig() {
     configDescription,
     isWebLLM: config?.type === "webllm",
     isLocal: config?.type === "local",
-    isBYOK: config?.type === "byok",
   };
 }
