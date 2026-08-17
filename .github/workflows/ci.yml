@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Environment"
-        type: environment
-        default: "test"
-        required: true
 
 env:
   HUSKY: 0
@@ -22,85 +16,91 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
+  deployments: write
 
 jobs:
-  build:
-    name: "Build"
+  validate:
+    name: "Validate & Build"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-
-      # Code style (PRs only — merged code was already checked)
-      - run: bun prettier --check .
-        if: github.event_name == 'pull_request'
-      - run: bun lint
-        if: github.event_name == 'pull_request'
-
-      # Validate Terraform formatting
-      - uses: hashicorp/setup-terraform@v3
-      - run: terraform fmt -check -recursive infra/
-
-      # Type checking (email templates must be built first for types)
-      - run: bun email:build
-      - run: bun tsc --build
-
-      # Tests
-      - run: bun run test -- --run
-
-      # Build all workspaces
-      - run: bun --filter @repo/web build
-      - run: bun --filter @repo/api build
-      - run: bun --filter @repo/app build
-
-      # Upload build artifacts for deploy jobs
-      - uses: actions/upload-artifact@v6
         with:
-          name: build
-          path: |
-            apps/web/dist
-            apps/app/dist
-            apps/api/dist
+          bun-version: latest
 
-  deploy-preview:
-    name: "Deploy"
-    needs: [build]
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Code style and linting (PRs only)
+      - name: Check code formatting
+        run: bun prettier --check .
+        if: github.event_name == 'pull_request'
+
+      - name: Lint codebase
+        run: bun lint
+        if: github.event_name == 'pull_request'
+
+      # Type checking (build email templates first for template types)
+      - name: Build email templates for typecheck
+        run: bun email:build
+
+      - name: Typecheck
+        run: bun typecheck
+
+      # Unit Tests
+      - name: Run unit tests
+        run: bun run test -- --run
+
+      # Build workspaces
+      - name: Build workspaces
+        run: |
+          bun --filter @repo/email build
+          bun --filter @repo/web build
+          bun --filter @repo/api build
+          bun --filter @repo/app build
+        env:
+          APP_NAME: "Drawmaid"
+          APP_ORIGIN: "https://achuashwath.github.io"
+
+      # Upload App build artifact for Preview deployment
+      - name: Upload app build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-dist
+          path: apps/app/dist
+
+  preview:
+    name: "Deploy Preview"
+    needs: [validate]
     if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      name: Preview
-      environment: preview
-      url: https://{codename}.example.com
-    secrets: inherit
-    permissions:
-      deployments: write
-      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  deploy-staging:
-    name: "Deploy"
-    needs: [build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      name: Staging
-      environment: staging
-      url: https://staging.example.com
-    secrets: inherit
-    permissions:
-      deployments: write
-      pull-requests: read
+      - name: Download app build
+        uses: actions/download-artifact@v4
+        with:
+          name: app-dist
+          path: apps/app/dist
 
-  deploy-prod:
-    name: "Deploy"
-    needs: [build]
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      name: Production
-      environment: production
-      url: https://example.com
-    secrets: inherit
-    permissions:
-      deployments: write
-      pull-requests: read
+      - name: Deploy PR Preview to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        uses: cloudflare/wrangler-action@v3
+        id: cloudflare_deploy
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/app/dist --project-name=drawmaid --branch=${{ github.head_ref }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Log preview status
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
+        run: |
+          echo "Cloudflare secrets (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) not configured in repo settings yet."
+          echo "PR preview deployment skipped."
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
