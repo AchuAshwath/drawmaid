@@ -212,16 +212,29 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       return;
     }
 
-    logInfo("AUTO_MODE", "Auto Mode engine started");
-    engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
-    engineRef.current.start(() => transcriptRef.current);
+    if (!engineRef.current) {
+      logInfo("AUTO_MODE", "Auto Mode engine started");
+      engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
+      engineRef.current.start();
+    }
+
+    engineRef.current.onTranscriptChange(transcript);
 
     return () => {
-      logInfo("AUTO_MODE", "Auto Mode engine stopped");
+      if (!isAutoMode) {
+        logInfo("AUTO_MODE", "Auto Mode engine stopped");
+        engineRef.current?.stop();
+        engineRef.current = null;
+      }
+    };
+  }, [isAutoMode, transcript, handleGenerate, handleResult]);
+
+  useEffect(() => {
+    return () => {
       engineRef.current?.stop();
       engineRef.current = null;
     };
-  }, [isAutoMode, handleGenerate, handleResult]);
+  }, []);
 
   return {
     isGenerating,

@@ -16,19 +16,15 @@ export interface GenerationTask {
 }
 
 export interface AutoModeConfig {
-  intervalBaselineMs: number;
-  intervalScaleMs: number;
-  maxIntervalMs: number;
+  settlingMs: number;
   maxConcurrentGenerations: number;
   minTranscriptLength: number;
   maxStackSize: number;
 }
 
 export const DEFAULT_AUTO_MODE_CONFIG: AutoModeConfig = {
-  intervalBaselineMs: 1000,
-  intervalScaleMs: 2500,
-  maxIntervalMs: 8000,
-  maxConcurrentGenerations: 2,
+  settlingMs: 1500,
+  maxConcurrentGenerations: 1,
   minTranscriptLength: 3,
   maxStackSize: 50,
 };

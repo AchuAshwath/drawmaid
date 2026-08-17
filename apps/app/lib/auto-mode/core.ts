@@ -15,12 +15,12 @@ export type ResultCallback = (
 export class AutoModeEngine {
   private state: AutoModeState;
   private config: AutoModeConfig;
-  private checkTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private currentIntervalMs: number;
+  private settlingTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private onGenerate: GenerateFn;
   private onResult: ResultCallback;
   private lastTriggeredText: string = "";
-  private transcriptGetter: () => string = () => "";
+  private pendingTranscript: string | null = null;
+  private isStarted: boolean = false;
   private _activeGenerations: Map<number, number> = new Map();
   private _oldestGenerationId: number | null = null;
 
@@ -30,7 +30,6 @@ export class AutoModeEngine {
     onResult: ResultCallback,
   ) {
     this.config = { ...DEFAULT_AUTO_MODE_CONFIG, ...config };
-    this.currentIntervalMs = this.config.intervalBaselineMs;
     this.onGenerate = onGenerate;
     this.onResult = onResult;
     this.state = {
@@ -43,27 +42,20 @@ export class AutoModeEngine {
     };
   }
 
-  private getIntervalForGeneration(genCount: number): number {
-    const logValue = Math.log2(genCount + 1);
-    const interval =
-      this.config.intervalBaselineMs + logValue * this.config.intervalScaleMs;
-    return Math.min(interval, this.config.maxIntervalMs);
-  }
-
-  start(transcriptGetter: () => string): void {
-    this.transcriptGetter = transcriptGetter;
-    this.scheduleNextTick();
+  start(): void {
+    this.isStarted = true;
   }
 
   stop(): void {
-    if (this.checkTimeoutId !== null) {
-      clearTimeout(this.checkTimeoutId);
-      this.checkTimeoutId = null;
+    this.isStarted = false;
+    if (this.settlingTimeoutId !== null) {
+      clearTimeout(this.settlingTimeoutId);
+      this.settlingTimeoutId = null;
     }
     this._activeGenerations.clear();
     this._oldestGenerationId = null;
     this.lastTriggeredText = "";
-    this.currentIntervalMs = this.config.intervalBaselineMs;
+    this.pendingTranscript = null;
     this.state.generationCounter = 0;
     this.state.lastSuccessfulGenId = -1;
     this.state.lastProcessedTranscript = "";
@@ -71,42 +63,56 @@ export class AutoModeEngine {
     this.state.mermaidStackHead = 0;
   }
 
-  private scheduleNextTick(): void {
-    if (this.checkTimeoutId !== null) {
-      clearTimeout(this.checkTimeoutId);
+  onTranscriptChange(transcript: string): void {
+    if (!this.isStarted) return;
+
+    if (this.settlingTimeoutId !== null) {
+      clearTimeout(this.settlingTimeoutId);
+      this.settlingTimeoutId = null;
     }
 
-    this.checkTimeoutId = setTimeout(() => {
-      this.onIntervalTick();
-    }, this.currentIntervalMs);
-  }
-
-  private onIntervalTick(): void {
-    const currentText = this.transcriptGetter();
-    const trimmedLength = currentText.trim().length;
-
-    // Skip if text is too short, but keep interval running
+    const trimmedLength = transcript.trim().length;
     if (trimmedLength < this.config.minTranscriptLength) {
-      this.scheduleNextTick();
+      this.pendingTranscript = null;
       return;
     }
 
-    // Check if text changed from last triggered
-    if (currentText !== this.lastTriggeredText) {
-      this.triggerGeneration(currentText);
+    if (transcript === this.lastTriggeredText) {
+      this.pendingTranscript = null;
+      return;
     }
 
-    // Schedule next tick
-    this.scheduleNextTick();
+    this.settlingTimeoutId = setTimeout(() => {
+      this.onSettled(transcript);
+    }, this.config.settlingMs);
+  }
+
+  private onSettled(transcript: string): void {
+    this.settlingTimeoutId = null;
+
+    if (!this.isStarted) return;
+
+    const trimmedLength = transcript.trim().length;
+    if (trimmedLength < this.config.minTranscriptLength) {
+      return;
+    }
+
+    if (transcript === this.lastTriggeredText) {
+      return;
+    }
+
+    // If already generating, queue this transcript to run once current finishes
+    if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
+      this.pendingTranscript = transcript;
+      return;
+    }
+
+    this.triggerGeneration(transcript);
   }
 
   private triggerGeneration(transcript: string): void {
-    // Prevent piling up concurrent requests if already busy
-    if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
-      return;
-    }
-
     this.lastTriggeredText = transcript;
+    this.pendingTranscript = null;
     const genId = ++this.state.generationCounter;
 
     const task: GenerationTask = {
@@ -119,17 +125,10 @@ export class AutoModeEngine {
 
     this._activeGenerations.set(task.id, Date.now());
 
-    // Track oldest generation ID
     if (this._oldestGenerationId === null) {
       this._oldestGenerationId = genId;
     }
 
-    // Grow interval based on generation count
-    this.currentIntervalMs = this.getIntervalForGeneration(
-      this.state.generationCounter,
-    );
-
-    // Execute generation
     this.executeGeneration(task);
   }
 
@@ -143,13 +142,13 @@ export class AutoModeEngine {
         if (this._oldestGenerationId === task.id) {
           this._oldestGenerationId = this.findNewOldest();
         }
+        this.checkPendingQueue();
         return;
       }
 
       if (result) {
         this.state.lastSuccessfulGenId = task.id;
         this.state.lastProcessedTranscript = task.transcript;
-        this.lastTriggeredText = task.transcript;
         this.pushToStack(result);
       }
 
@@ -163,6 +162,22 @@ export class AutoModeEngine {
       if (this._oldestGenerationId === task.id) {
         this._oldestGenerationId = this.findNewOldest();
       }
+    } finally {
+      this.checkPendingQueue();
+    }
+  }
+
+  private checkPendingQueue(): void {
+    if (
+      this.isStarted &&
+      this._activeGenerations.size < this.config.maxConcurrentGenerations &&
+      this.pendingTranscript !== null &&
+      this.pendingTranscript !== this.lastTriggeredText &&
+      this.pendingTranscript.trim().length >= this.config.minTranscriptLength
+    ) {
+      const nextTranscript = this.pendingTranscript;
+      this.pendingTranscript = null;
+      this.triggerGeneration(nextTranscript);
     }
   }
 
@@ -198,17 +213,16 @@ export class AutoModeEngine {
   }
 
   isRunning(): boolean {
-    return this.checkTimeoutId !== null;
+    return this.isStarted;
   }
 
   getActiveCount(): number {
     return this._activeGenerations.size;
   }
 
-  retryWithCurrentTranscript(): void {
-    const currentText = this.transcriptGetter();
-    if (currentText.trim().length >= this.config.minTranscriptLength) {
-      this.triggerGeneration(currentText);
+  retryWithCurrentTranscript(transcript: string): void {
+    if (transcript.trim().length >= this.config.minTranscriptLength) {
+      this.triggerGeneration(transcript);
     }
   }
 }
