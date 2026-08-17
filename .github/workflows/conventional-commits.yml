@@ -1,4 +1,4 @@
-name: Conventional Commits
+name: PR Validation
 
 on:
   pull_request_target:
@@ -11,10 +11,25 @@ permissions:
   pull-requests: read
 
 jobs:
-  lint:
-    name: "Lint PR Title"
+  validate:
+    name: "Validate PR Title & Release Note"
     runs-on: ubuntu-latest
     steps:
-      - uses: amannn/action-semantic-pull-request@v6
+      - name: Lint PR Title
+        uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Release Note in PR Description
+        if: "!startsWith(github.event.pull_request.title, 'chore(main): release')"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const hasReleaseNote = /###\s*Release Note/i.test(body) || /##\s*Release Note/i.test(body);
+
+            if (!hasReleaseNote) {
+              core.setFailed("PR description is missing a '### Release Note' section. Please include a concise release note summarizing the changes.");
+            } else {
+              console.log("Valid '### Release Note' section found in PR description.");
+            }
