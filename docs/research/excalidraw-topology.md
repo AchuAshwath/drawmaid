@@ -213,3 +213,116 @@ element type**. Node _shape_ is never the reason a binding fails.
 > `boundElements` are plain data on the returned elements. A post-pass can repair a missing binding
 > by writing all three fields itself, given the arrow and the intended shape — no library change,
 > no fork. This is the escape hatch the map anticipated.
+
+---
+
+## 4. Dagre layout: what actually happens to disconnected components
+
+Layout is mermaid's, not Excalidraw's, and mermaid 11.12.2 pins `dagre-d3-es@7.0.13`
+(`node_modules/.bun/mermaid@11.12.2/node_modules/mermaid/package.json`). The call is a bare
+`dagreLayout(graph)` with no pre-processing for connectivity
+(`dist/chunks/mermaid.core/dagre-6UL2VRFP.mjs:33,497`).
+
+### 4.1 Dagre does not crash, and does not put anything at the origin
+
+`feasibleTree` states its preconditions outright — _"2. Graph must be connected"_
+(`dagre-d3-es/src/dagre/rank/feasible-tree.js:15-19`) — and would dereference `undefined` from
+`findMinSlackEdge` on a disconnected graph. It never sees one, because `runLayout` calls
+`nestingGraph.run(g)` immediately before `rank`
+(`dagre-d3-es/src/dagre/layout.js:29-30`). That function's stated postcondition is
+_"1. Input graph is connected"_ (`nesting-graph.js:19-22`); it adds a `_root` dummy node and, for
+every top-level leaf, `g.setEdge(root, v, { weight: 0, minlen: nodeSep })` (`nesting-graph.js:29-52`
+and the `dfs` at `:55-61`).
+
+**The crutch is temporary.** `runLayout`'s order is:
+
+```
+acyclic.run -> nestingGraph.run -> rank -> ... -> nestingGraph.cleanup -> normalizeRanks
+   -> ... -> order -> ... -> position -> ... -> translateGraph
+```
+
+`nestingGraph.cleanup` (`nesting-graph.js:127-137`) removes `_root` and every `nestingEdge` at step 8,
+so `order` and `position` run on the genuinely disconnected graph. They tolerate it:
+`initOrder` DFSes from every simple node sorted by rank, so unreached components are still assigned
+into layers (`order/init-order.js:14-39`), and Brandes-Köpf's `horizontalCompaction` enforces
+separation through `sep()`, which always adds `nodesep/2` on each side plus both half-widths
+(`position/bk.js:395-425`). **Within a rank, dagre cannot overlap two nodes.**
+
+Finally `translateGraph` (`layout.js:210-259`) shifts everything so that
+`min(node.x - node.width/2) === marginx` (default 0). Node coordinates are centres, so after
+translation **every node centre is strictly positive**. Dagre structurally cannot emit a node at
+`(0, 0)`.
+
+### 4.2 What disconnected components actually cost
+
+The `_root` edges carry `weight: 0`. Network simplex minimises `sum(weight x length)`, so those
+edges exert **zero pull**. A component with no edges is free to sit at any rank the simplex happens
+to settle on, and `initOrder` then interleaves it into the same layer arrays as the connected
+component. The visible result is not a node at the origin — it is a **floating node wedged into the
+middle of an unrelated component's rank**, at a position with no semantic meaning, which is very
+likely what the ticket observed.
+
+> **Verdict (disconnected components):** post-processable, and worth banning anyway. Post-processing
+> can detect connected components from the mermaid source and translate each component's elements
+> into a tidy column/row — the elements are plain `{x, y}` data and bindings are relative, so a
+> uniform per-component translation is safe (our call site already does exactly this kind of bulk
+> translation at `insert-mermaid-into-canvas.ts:100-124`). But the prompt should still require a
+> single connected component: it is free to enforce, it removes the whole failure class, and a
+> disconnected diagram is usually a symptom of the model losing the thread rather than an intent.
+
+### 4.3 Where `(0, 0)` really comes from
+
+There is a concrete origin-collapse mechanism, and it is in the converter, not dagre.
+
+Mermaid writes node positions as a plain string concatenation:
+
+```js
+el.attr("transform", "translate(" + node.x + ", " + node.y + ")");
+```
+
+(`dist/chunks/mermaid.core/chunk-JZLCHNYA.mjs:5462-5481`)
+
+The converter reads it back with a regex whose character classes do not include `e`:
+
+```js
+const translateMatch = transformAttr?.match(/translate\(([ \d.-]+),\s*([\d.-]+)\)/);
+let transformX = 0;
+let transformY = 0;
+if (translateMatch) { ... }
+return { transformX, transformY };
+```
+
+(`dist/utils.js:16-27`)
+
+Any coordinate that `String(Number)` renders in exponential notation — anything below `1e-6` in
+magnitude, which Brandes-Köpf float arithmetic can produce as residue — fails to match, and
+`getTransformAttr` silently returns `{0, 0}`. `computeElementPosition` sums those, so the element
+lands at the scene origin. The same regex is applied to the ancestor `<g class="root">` chain
+(`dist/parser/flowchart.js:126-155`), and that chain check is itself brittle:
+`root.classList.value === "root"` is exact whole-attribute equality, which holds today only because
+mermaid writes `_elem.insert("g").attr("class", "root")` with no other class
+(`dagre-6UL2VRFP.mjs:389`).
+
+> **Verdict (origin collapse):** post-processable, and cheaply detectable. A post-pass can reject
+> any skeleton containing an element at exactly `x === 0 && y === 0`, or more robustly any element
+> whose bounding box does not intersect the bounding box of the rest of the diagram. This is not a
+> prompt-vocabulary issue at all — no mermaid construct causes it — so nothing should be banned for
+> it. It is a regeneration trigger.
+
+### 4.4 Self-loops are laid out, but by a special case
+
+`A --> A` never reaches the layout proper: `removeSelfEdges` strips it before `acyclic.run`
+(`layout.js:27,332-343`), `insertSelfEdges` re-adds it as a `selfedge` dummy after ordering
+(`:41,345-370`), and `positionSelfEdges` hand-builds exactly **five** points forming a loop to the
+right of the node (`:44,372-393`). With `curve: "linear"` those become an `M`/`L` path, so the
+converter's five reflection points survive the `length > 1` filter and an arrow is produced with
+`start.id === end.id`.
+
+That arrow is bound to a single shape on both ends. On drag, `updateBoundElements` recomputes both
+endpoints against the same element (`chunk-3KPV5WBD.js:11080-11150`), which will not reproduce the
+loop shape. This is the one construct where I can establish the mechanism but not the outcome from
+source alone.
+
+> **Verdict (self-loops):** ban from the prompt vocabulary until #46 measures it. The construct adds
+> little expressive power, and the drag behaviour of a self-bound arrow is exactly the property the
+> vocabulary contract is supposed to guarantee. Cheap to forbid, expensive to verify.
