@@ -20,3 +20,161 @@ official documentation and installed/published source, not blog summaries.
 ## Status
 
 In progress.
+
+---
+
+## 1. WebLLM / MLC
+
+Version under investigation: `@mlc-ai/web-llm@0.2.80` (`apps/app/package.json:20`, resolved in
+`bun.lock:676`). All line references below are to the published TypeScript sources, recoverable
+from the shipped `lib/index.js.map` in `apps/app/node_modules/@mlc-ai/web-llm/lib/` and identical
+to <https://github.com/mlc-ai/web-llm/tree/v0.2.80/src>.
+
+### 1.1 There is no prefix cache. There is one mutable KV cache owned by the pipeline.
+
+Searching the entire published source for `cachedPrefix`, `prefix_cache`, `prefixCache` and
+`cache_control` returns nothing. The only thing named "cache" in the public API is `cache_util.ts`,
+which caches **model weights and tokenizer files** in the browser Cache API / IndexedDB
+(`src/cache_util.ts:22` `hasModelInCache`, and the rest of the file) — it has nothing to do with
+attention KV.
+
+What exists instead is a single `LLMChatPipeline` holding one KV cache plus a counter:
+
+- `src/llm_chat.ts:69` — `private filledKVCacheLength = 0;`
+- `src/llm_chat.ts:383-390` — `resetChat()` calls `this.resetKVCache()` and sets
+  `filledKVCacheLength = 0`.
+- `src/llm_chat.ts:1007` — `this.filledKVCacheLength += inputDataLen;` after each forward.
+
+This is positional, not content-addressed. Nothing hashes the prompt; nothing can recognise that
+two different requests share a prefix. Reuse is decided structurally, before tokenisation, by
+comparing conversation objects.
+
+### 1.2 The append-only claim from #35 is correct — and I can sharpen it
+
+Sibling ticket #35 established that `getInputData()` can only append. Having read
+`src/llm_chat.ts:1438-1507` myself, **I agree**, and the mechanism is exactly as described:
+
+```ts
+// src/llm_chat.ts:1452-1462
+if (this.filledKVCacheLength === 0) {
+  if (this.conversation.config.system_prefix_token_ids !== undefined && ...) {
+    curTokens = [...this.conversation.config.system_prefix_token_ids];
+  }
+  prompts = this.conversation.getPromptArray();
+} else {
+  prompts = this.conversation.getPromptArrayLastRound();
+}
+```
+
+`getPromptArray()` renders the whole conversation from index 0 (`src/conversation.ts:236-241`);
+`getPromptArrayLastRound()` renders only from `this.messages.length - 2`
+(`src/conversation.ts:251-259`). There is no third path. Once the KV cache is non-empty, the only
+tokens that can ever be prefilled are the final round's — so the cache can only grow forward, and
+any edit to earlier context is unrepresentable and must be preceded by a full reset.
+
+**The sharpening:** #35 frames this as a property of `getInputData()`, which makes it sound like
+the client could choose to append. It cannot choose directly. The append-vs-reset decision is made
+one level up, in `MLCEngine.prefill()`, and it is made _for_ the client by comparing conversation
+objects:
+
+```ts
+// src/engine.ts:1362-1377
+const oldConv = pipeline.getConversationObject();
+const newConv = getConversationFromChatCompletionRequest(input, chatConfig);
+if (!compareConversationObject(oldConv, newConv)) {
+  pipeline.resetChat(); // not the same conversation → full cold prefill
+  pipeline.setConversation(newConv);
+} else if (newConv.messages.length === 0) {
+  pipeline.resetChat(); // no history to reuse → full cold prefill
+  pipeline.setConversation(newConv);
+} else {
+  log.info("Multiround chatting, reuse KVCache.");
+}
+```
+
+Two details of that comparison decide everything for drawmaid:
+
+1. `getConversationFromChatCompletionRequest` deliberately **excludes the last message**:
+   `const iterEnd = includeLastMsg ? input.length : input.length - 1;`
+   (`src/conversation.ts:465-493`, and the `@note` at `:462`). The last message is not part of the
+   conversation state; it is the input to `prefillStep`.
+2. `compareConversationObject` requires `override_system_message`, `function_string`,
+   `use_function_calling`, `isTextCompletion`, `messages.length` and every message entry to be
+   **exactly equal** (`src/conversation.ts:378-455`). Equality is defined by the doc comment at
+   `:371` as "their `getPromptArray()` should return the exact same things".
+
+So KV reuse on WebLLM has one and only one trigger: **request N must be request N−1 plus the
+assistant's verbatim reply plus exactly one new trailing user/tool message.** The assistant reply
+the client echoes back must byte-match what the pipeline stored via
+`conversation.finishReply(this.outputMessage)` (`src/llm_chat.ts:780`, `:881`) — which is the
+message _after_ stop-string truncation (`src/llm_chat.ts:846-859`), not the raw stream.
+
+### 1.3 What happens when the prefix is byte-identical but the tail grows
+
+Nothing good. This is the case drawmaid is actually in, and the answer is: **the byte-identical
+prefix is irrelevant; the cache is discarded.**
+
+Concretely, drawmaid sends a fixed two-message array on every call
+(`apps/app/lib/llm/mermaid-llm.ts:259-265`):
+
+```ts
+messages: [
+  { role: "system", content: opts?.systemPrompt ?? SYSTEM_PROMPT },
+  { role: "user", content: prompt },
+],
+```
+
+Trace it through `prefill()` for the second call of a session:
+
+- `oldConv.messages` = `[user₁, assistant₁]` → length 2 (the system prompt lives in
+  `override_system_message`, not in `messages` — `src/conversation.ts:495-499`).
+- `newConv.messages` = `[]` → length 0, because `iterEnd = 2 - 1 = 1` and index 0 is the system
+  message, which only sets `override_system_message`.
+- `compareConversationObject` fails immediately on `convA.messages.length !== convB.messages.length`
+  (`src/conversation.ts:388`).
+- → `pipeline.resetChat()`.
+
+### 1.4 Does removing `resetChat()` from `mermaid-llm.ts:239` buy KV reuse?
+
+**No. It buys exactly nothing, and it is not even a no-op — it is strictly worse.**
+
+The call at `apps/app/lib/llm/mermaid-llm.ts:238-242` is redundant given the message shape at
+`:259-265`: WebLLM's own `prefill()` resets on the very next line of execution anyway, via the
+length mismatch traced in §1.3. Deleting the explicit reset does not create a cache hit; it just
+removes a reset that WebLLM immediately performs itself.
+
+It is _worse_ rather than neutral because of the abort path. Drawmaid calls
+`engine.interruptGenerate()` on both the auto-mode and cancel-previous paths
+(`apps/app/lib/llm/mermaid-llm.ts:209`, `:221`), and it also `break`s out of the `for await` stream
+loop without draining it (`:276`). `triggerStop()` sets `finishReason = "abort"` and commits the
+**truncated** output to conversation history via `this.conversation.finishReply(this.outputMessage)`
+(`src/llm_chat.ts:773-782`). The explicit `resetChat()` at `:239` is what currently guarantees that
+a half-generated mermaid fragment from an interrupted auto-mode run never becomes conversational
+context for the next run.
+
+So the reasons the current reset exists, and what breaks if it stops:
+
+| If `resetChat()` is removed with the message shape unchanged | Consequence                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| KV reuse                                                     | Still zero — `compareConversationObject` fails on length (§1.3).                                                                                                                                                                                                                                           |
+| Aborted generations                                          | Truncated assistant text is committed to history by `triggerStop()` (`src/llm_chat.ts:780`). With auto mode interrupting mid-stream by design, malformed mermaid becomes context.                                                                                                                          |
+| Context growth                                               | `filledKVCacheLength` never returns to 0. `getInputData()` throws `ContextWindowSizeExceededError` once `numPromptTokens + filledKVCacheLength > contextWindowSize` (`src/llm_chat.ts:1497-1505`). The model is compiled `ctx4k_cs1k` (`src/config.ts:1385`), so that ceiling is 4096, not the card's 32k. |
+| Output determinism                                           | Every generation would be conditioned on all previous diagrams in the session. For a 1.5B model this is a strong nudge toward repeating the previous diagram rather than rendering the new transcript.                                                                                                     |
+
+**To actually get KV reuse on WebLLM the message shape has to change, not the reset call.** The
+client would have to keep a real multi-turn array — `[system, user₁, assistant₁, …, userₙ]` — echo
+each stored assistant reply back verbatim, and never edit an earlier turn. That is precisely the
+"sliding windows and KV reuse are mutually exclusive" conclusion of #35, restated at the message
+level: drawmaid's transcript truncation at `apps/app/lib/llm/intent-extraction.ts:184-189` rewrites
+the _content of the single user message_, which under this scheme would be an edit to an earlier
+turn and would force a reset regardless.
+
+And even a correct multi-turn shape reuses KV only for the prior turns, at the cost of carrying
+every previous diagram in a 4096-token window and inheriting truncated aborted replies. Under a
+4096-token budget with `max_tokens: 1024` (`apps/app/lib/llm/mermaid-llm.ts:267`), the accumulation
+is not affordable for more than a couple of rounds.
+
+**Conclusion for the spec: WebLLM gets no prefix-caching benefit from prompt layering.** L0/L1/L2
+stability is worth nothing here. WebLLM pays a full cold prefill of the entire prompt on every
+single generation, and the only levers that move its latency are total prompt length and
+`prefill_chunk_size` (1024, fixed in the compiled `cs1k` library).
