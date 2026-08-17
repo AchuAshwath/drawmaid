@@ -19,6 +19,7 @@ export class AutoModeEngine {
   private onGenerate: GenerateFn;
   private onResult: ResultCallback;
   private lastTriggeredText: string = "";
+  private lastTriggeredTimestamp: number = 0;
   private pendingTranscript: string | null = null;
   private isStarted: boolean = false;
   private _activeGenerations: Map<number, number> = new Map();
@@ -44,6 +45,7 @@ export class AutoModeEngine {
 
   start(): void {
     this.isStarted = true;
+    this.lastTriggeredTimestamp = Date.now();
   }
 
   stop(): void {
@@ -55,6 +57,7 @@ export class AutoModeEngine {
     this._activeGenerations.clear();
     this._oldestGenerationId = null;
     this.lastTriggeredText = "";
+    this.lastTriggeredTimestamp = 0;
     this.pendingTranscript = null;
     this.state.generationCounter = 0;
     this.state.lastSuccessfulGenId = -1;
@@ -66,20 +69,50 @@ export class AutoModeEngine {
   onTranscriptChange(transcript: string): void {
     if (!this.isStarted) return;
 
-    if (this.settlingTimeoutId !== null) {
-      clearTimeout(this.settlingTimeoutId);
-      this.settlingTimeoutId = null;
-    }
-
     const trimmedLength = transcript.trim().length;
     if (trimmedLength < this.config.minTranscriptLength) {
       this.pendingTranscript = null;
+      if (this.settlingTimeoutId !== null) {
+        clearTimeout(this.settlingTimeoutId);
+        this.settlingTimeoutId = null;
+      }
       return;
     }
 
     if (transcript === this.lastTriggeredText) {
       this.pendingTranscript = null;
       return;
+    }
+
+    // Condition A: Max Continuous Speaking Cap (e.g. user has been speaking for >6s without a 1.5s breath)
+    const timeSinceLastTrigger = Date.now() - this.lastTriggeredTimestamp;
+    const newChars = Math.abs(
+      transcript.length - this.lastTriggeredText.length,
+    );
+
+    if (
+      this.lastTriggeredTimestamp > 0 &&
+      timeSinceLastTrigger >= this.config.maxContinuousSpeakingMs &&
+      newChars >= this.config.minNewCharsForContinuous
+    ) {
+      if (this.settlingTimeoutId !== null) {
+        clearTimeout(this.settlingTimeoutId);
+        this.settlingTimeoutId = null;
+      }
+
+      if (this._activeGenerations.size < this.config.maxConcurrentGenerations) {
+        this.triggerGeneration(transcript);
+        return;
+      } else {
+        this.pendingTranscript = transcript;
+        return;
+      }
+    }
+
+    // Condition B: Standard Speech-Cadence Settling Debounce (fires when user pauses for 1.5s)
+    if (this.settlingTimeoutId !== null) {
+      clearTimeout(this.settlingTimeoutId);
+      this.settlingTimeoutId = null;
     }
 
     this.settlingTimeoutId = setTimeout(() => {
@@ -112,6 +145,7 @@ export class AutoModeEngine {
 
   private triggerGeneration(transcript: string): void {
     this.lastTriggeredText = transcript;
+    this.lastTriggeredTimestamp = Date.now();
     this.pendingTranscript = null;
     const genId = ++this.state.generationCounter;
 

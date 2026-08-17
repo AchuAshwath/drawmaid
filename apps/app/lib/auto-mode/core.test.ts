@@ -81,6 +81,66 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
       engine.stop();
     });
 
+    it("triggers progressive milestone generation during long continuous speech without pauses", async () => {
+      const engine = new AutoModeEngine(
+        {
+          settlingMs: 1500,
+          maxContinuousSpeakingMs: 6000,
+          minNewCharsForContinuous: 50,
+        },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start();
+
+      // Words streaming in every 800ms (never pausing for 1.5s)
+      engine.onTranscriptChange("Start of speech");
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange("Start of speech with continuous");
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing",
+      );
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause",
+      );
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause for architecture",
+      );
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause for architecture and database",
+      );
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause for architecture and database microservices",
+      );
+      vi.advanceTimersByTime(800);
+
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause for architecture and database microservices backend",
+      );
+      vi.advanceTimersByTime(800);
+
+      // t = 6400ms (>6000ms): Next speech event triggers milestone generation immediately
+      engine.onTranscriptChange(
+        "Start of speech with continuous words flowing without pause for architecture and database microservices backend cloud",
+      );
+      await Promise.resolve();
+
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      engine.stop();
+    });
+
     it("skips transcripts shorter than minTranscriptLength", async () => {
       const engine = new AutoModeEngine(
         { settlingMs: 1500, minTranscriptLength: 3 },

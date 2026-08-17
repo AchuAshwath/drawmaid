@@ -17,6 +17,8 @@ export interface GenerationTask {
 
 export interface AutoModeConfig {
   settlingMs: number;
+  maxContinuousSpeakingMs: number;
+  minNewCharsForContinuous: number;
   maxConcurrentGenerations: number;
   minTranscriptLength: number;
   maxStackSize: number;
@@ -24,6 +26,8 @@ export interface AutoModeConfig {
 
 export const DEFAULT_AUTO_MODE_CONFIG: AutoModeConfig = {
   settlingMs: 1500,
+  maxContinuousSpeakingMs: 6000,
+  minNewCharsForContinuous: 50,
   maxConcurrentGenerations: 1,
   minTranscriptLength: 3,
   maxStackSize: 50,
