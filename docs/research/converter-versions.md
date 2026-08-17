@@ -136,3 +136,79 @@ Method: byte diff of the two installed `dist/` trees under `node_modules/.bun/@e
 Arrow **binding** is unchanged. Both versions emit the arrow, look the endpoints up in the emitted element list, and set `start` / `end` (2.0.0 `dist/converter/types/flowchart.js:184-196`; identical logic in 1.1.2). `graphToExcalidraw.js` and `utils.js` are byte-identical apart from sourcemap comments. The only diff inside the flowchart converter is `computeExcalidrawArrowType(edge.type)` → `computeExcalidrawArrowType(edge.type || "arrow_point")`.
 
 Both versions also share the arrow-id scheme `` `${edge.start}_${edge.end}` ``, so **two edges between the same node pair produce two elements with the same id**. That is a pre-existing hazard for our prompts (avoid parallel edges), not a version difference.
+
+---
+
+## 3. Q3 — is the 1.1.2 path reachable in drawmaid's UI?
+
+**Yes, by two separate routes, and neither is suppressed.**
+
+`apps/app/routes/index.tsx:482-494` mounts `<Excalidraw>` with only `theme`, `excalidrawAPI`, `initialData`, and `UIOptions={{ canvasActions: { toggleTheme: false } }}`. `canvasActions` governs the canvas-actions island only; it has no key for the text-to-diagram dialog. Nothing else in the tree removes it.
+
+### Route 1 — the "extra tools" toolbar dropdown
+
+In the shipped bundle (`@excalidraw/excalidraw@0.18.0/dist/prod/index.js`), the extra-tools dropdown renders:
+
+```js
+Me(Ce.Item, {
+  onSelect: () => t.setOpenDialog({ name: "ttd", tab: "mermaid" }),
+  icon: Jl,
+  "data-testid": "toolbar-embeddable",
+  children: g("toolBar.mermaidToExcalidraw"),
+});
+```
+
+Note what this is _not_ wrapped in. The neighbouring items are guarded by `t.props.aiEnabled !== !1` and `t.plugins.diagramToCode`; the mermaid item is rendered **unconditionally**. So even `aiEnabled={false}` would not hide it — that flag only removes the command-palette duplicate, which carries `predicate: k.aiEnabled`. The `openDialog` union in `dist/types/excalidraw/types.d.ts:259-263` confirms `{ name: "ttd"; tab: "text-to-diagram" | "mermaid" }` is a first-class app state.
+
+### Route 2 — pasting mermaid text onto the canvas
+
+This one is not in the ticket and is the more likely accidental hit. The paste handler sniffs pasted text and, if it looks like a mermaid definition, converts it:
+
+```js
+else if (m.text) {
+  if (m.text && lT(m.text)) {
+    let u = await import("@excalidraw/mermaid-to-excalidraw");
+    try {
+      let { elements: h, files: f } = await u.parseMermaidToExcalidraw(m.text);
+      …
+    } catch (h) {
+      console.warn(`parsing pasted text as mermaid definition failed: ${h.message}`);
+    }
+  }
+  …
+}
+```
+
+`lT` is the sniffer, and it is broad — it matches an optional `%%{…}%%` front-matter directive followed by any of `flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, stateDiagram-v2, erDiagram, journey, gantt, pie, quadrantChart, requirementDiagram, gitGraph, C4Context, mindmap, timeline, zenuml, sankey, xychart, block` (with optional `-beta`). Any user who copies mermaid out of ChatGPT and pastes it onto our canvas silently takes the 1.1.2 / mermaid-10.9.3 path, not the generate button's 2.0.0 path.
+
+### Both versions really do ship
+
+The dynamic `import("@excalidraw/mermaid-to-excalidraw")` inside Excalidraw's prod bundle resolves through Excalidraw's own nested `node_modules`:
+
+```
+node_modules/.bun/@excalidraw+excalidraw@0.18.0+…/node_modules/@excalidraw/mermaid-to-excalidraw
+  -> ../../../@excalidraw+mermaid-to-excalidraw@1.1.2/node_modules/@excalidraw/mermaid-to-excalidraw
+
+apps/app/node_modules/@excalidraw/mermaid-to-excalidraw
+  -> …/@excalidraw+mermaid-to-excalidraw@2.0.0/node_modules/@excalidraw/mermaid-to-excalidraw
+```
+
+Two different specifiers-to-realpaths from two different importers, so Vite emits both converters and both mermaid runtimes.
+
+### Do the two paths produce different results?
+
+Yes — every difference in §2 applies. The user-visible ones for a normal flowchart:
+
+- `classDef` / `style` colouring works in the generate button, is dropped on paste.
+- Label font size differs (1.1.2 multiplies by 1.25, 2.0.0 does not), so a pasted diagram and a generated diagram have visibly different text size.
+- Malformed input throws in 1.1.2 (caught and `console.warn`ed by Excalidraw, so paste falls through to plain-text/embeddable handling) but degrades to a flat image in 2.0.0.
+
+### Is this a divergence we have to live with?
+
+Mostly yes, for now. There is no supported prop to hide the toolbar entry or disable the paste sniffer, and #38 rules out forking the converter. Three options, in order of cost:
+
+1. **Live with it and document it.** The dialog and paste path are a fine "escape hatch" for power users; they are simply not the path our prompts target.
+2. **Hide the toolbar entry with CSS** (`[data-testid="toolbar-embeddable"]`) — cheap, but that testid is shared/mislabelled in the bundle and could move between Excalidraw releases, and it does nothing about paste.
+3. **Collapse the duplication** by upgrading `@excalidraw/excalidraw` to a release whose pinned converter is 2.x. As of this research the pin in `0.18.0` is still `1.1.2` (`bun.lock:538`), so this is not available today; it is the thing to watch.
+
+Whichever we pick, the vocabulary contract should be written against the **2.0.0+ direct dependency**, because that is what the generate button and auto mode use, and it is strictly the more capable of the two.
