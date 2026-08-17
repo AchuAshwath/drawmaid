@@ -85,7 +85,7 @@ export function usePromptFooterState(
     }
   }, []);
 
-  // Auto-grow textarea based on content
+  // Auto-grow textarea based on content and auto-scroll to end
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea || isCollapsed) return;
@@ -94,7 +94,12 @@ export function usePromptFooterState(
     const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT);
     textarea.style.height = nextHeight + "px";
     textarea.style.overflowY =
-      nextHeight >= MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+      textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+
+    // Smoothly scroll to the bottom as speech is recognized
+    if (textarea.scrollHeight > nextHeight) {
+      textarea.scrollTop = textarea.scrollHeight;
+    }
   }, [isCollapsed, transcript]);
 
   useEffect(() => {

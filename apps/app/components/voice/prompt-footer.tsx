@@ -97,7 +97,7 @@ export function PromptFooter({
                 onChange={(e) => onPromptChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe a diagram or use the mic..."
-                className="min-h-[22px] max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[22px] max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-auto custom-scrollbar break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
                 wrap="hard"
                 style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
                 aria-label="Diagram description"
