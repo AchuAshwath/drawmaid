@@ -273,3 +273,116 @@ Two consequences follow directly for the L0/L1/L2/L3 layering:
 2. Cache lifetime is eviction-bound, not TTL-bound — blocks live in the GPU block pool until LRU
    pressure frees them. A shared L0 across all users of a self-hosted server is therefore _more_
    likely to stay resident than a per-user prefix, because every request refreshes it.
+
+---
+
+## 3. llama.cpp server (and llamafile)
+
+References below are to `ggml-org/llama.cpp` at `master`. The server was split into several
+translation units, so the relevant code is in `tools/server/server-context.cpp`,
+`tools/server/server-task.{h,cpp}` and `tools/server/server-common.cpp`.
+
+### 3.1 The answer to "slot-only or cross-request?" is: **both, in two tiers**
+
+This is the question the ticket asks, and the honest answer is that llama.cpp has _two_ separate
+caches which behave differently.
+
+**Tier 1 — live slot KV, matched by longest common prefix.** Prompt caching is on by default
+(`--cache-prompt, --no-cache-prompt` — _"whether to enable prompt caching (default: enabled)"_,
+`tools/server/README.md:215`; per-request `cache_prompt` also defaults to `true`,
+`tools/server/README.md:580`). On each request the server computes the longest common prefix
+between the slot's existing tokens and the new prompt:
+
+```cpp
+// tools/server/server-context.cpp:3123-3125
+if (slot.task->params.cache_prompt) {
+    // reuse any previously computed tokens that are common with the new prompt
+    n_past = slot.prompt.tokens.get_common_prefix(input_tokens);
+```
+
+…and everything from `n_past` onward is re-prefilled. Without `cache_prompt` the else branch is
+blunt: _"if we don't cache the prompt, we have to remove all previous tokens"_, `n_past = 0`
+(`tools/server/server-context.cpp:3192-3194`).
+
+**Tier 2 — the RAM prompt cache, which is genuinely cross-request and cross-slot.** Slot selection
+is not round-robin. `get_available_slot()` scores every idle slot by LCP similarity against the
+incoming prompt and picks the best (`tools/server/server-context.cpp:1500-1550`):
+
+```cpp
+// fraction of the Longest Common Prefix length with respect to the input prompt length
+const size_t lcp_len   = tokens.get_common_prefix(task.tokens);
+const float  f_sim_cur = float(lcp_len) / task.tokens.size();
+if (f_sim_cur > f_sim_best && f_sim_cur > slot_prompt_similarity) { ... }
+```
+
+If no slot is similar enough it falls back to LRU (`:1552-1574`), and in that case — or when the
+chosen slot would lose more than half its context (`f_keep < 0.5f`, `:1546`) — it saves the slot's
+state and tries to _restore a better one from a RAM-resident store of past prompt states_
+(`:1582-1596`, `prompt_save` / `prompt_load`). That store searches all cached states for the one
+with the best LCP against the new prompt:
+
+```cpp
+// tools/server/server-task.cpp:1790-1820  (server_prompt_cache::load)
+const int lcp_cur = it->prompt.tokens.get_common_prefix(tokens_new);
+const float f_keep_cur = float(lcp_cur) / it->prompt.tokens.size();
+const float f_sim_cur  = float(lcp_cur) / tokens_new.size();
+if (f_keep_cur < 0.25f) { continue; }        // don't trash large prompts
+if (f_keep_best < f_keep_cur && f_sim_best < f_sim_cur) { ... }
+```
+
+So: **a shared prefix is reused across independent HTTP requests from different clients, without
+any client-side session handle** — provided the state is still in a live slot or in the RAM cache.
+
+### 3.2 Granularity — token-level, so there is no minimum
+
+`server_tokens::get_common_prefix` is a plain token-by-token walk
+(`tools/server/server-common.cpp:680-694`). **Granularity is one token; the minimum cacheable
+prefix is one token.** This is the loosest of every backend surveyed — llama.cpp will happily reuse
+a 5-token shared prefix. There is no block quantisation to plan around.
+
+### 3.3 The relevant server flags
+
+| Flag                                   | Default              | Meaning (verbatim from source)                                                                                                                            |
+| -------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cache-prompt` / `--no-cache-prompt` | enabled              | "whether to enable prompt caching" — `tools/server/README.md:215`                                                                                         |
+| `-cram, --cache-ram N`                 | **8192 MiB**         | "set the maximum cache size in MiB (default: 8192, -1 - no limit, 0 - disable)" — `tools/server/README.md:166`. This is the tier-2 cross-request store.   |
+| `-sps, --slot-prompt-similarity`       | **0.10**             | "how much the prompt of a request must match the prompt of a slot in order to use that slot (default: 0.10, 0.0 = disabled)" — `common/arg.cpp:3737-3742` |
+| `--cache-reuse N`                      | 0 (disabled)         | "min chunk size to attempt reusing from the cache via KV shifting, requires prompt caching to be enabled" — `tools/server/README.md:216`                  |
+| `--slot-save-path PATH`                | disabled             | "path to save slot kv cache" — `tools/server/README.md:220`. Enables the file endpoints below.                                                            |
+| `-np, --parallel N`                    | -1 (auto)            | number of server slots — `tools/server/README.md:175`                                                                                                     |
+| `--cache-idle-slots`                   | enabled (needs cram) | "save idle slots to the prompt cache on new task" — `tools/server/README.md:168`                                                                          |
+
+`--cache-reuse N` deserves a note because it is the one feature that survives a _mid-prompt_ edit.
+It scans past the first divergence for matching chunks of at least `N` tokens and KV-shifts them
+into their new positions (`tools/server/server-context.cpp:3144-3189`). It is off by default and
+requires a memory implementation that supports shifting
+(`llama_memory_can_shift`, `:3135-3137`). It does not rescue drawmaid's sliding-window transcript,
+because shifting preserves tokens, not meaning — but it does mean llama.cpp is the only surveyed
+backend where a non-prefix edit is not automatically a total loss.
+
+### 3.4 Prompt cache to file
+
+Two distinct things, and it is easy to conflate them:
+
+- **`--prompt-cache FNAME`** — _"file to cache prompt state for faster startup (default: none)"_
+  (`common/arg.cpp:1857-1862`). Note `.set_examples({LLAMA_EXAMPLE_COMPLETION})` on `:1862`: this
+  flag is registered for `llama-cli`/completion only. **It is not a server flag.**
+- **Server slot save/restore endpoints** — `POST /slots/{id_slot}?action=save` and `?action=restore`
+  with a `filename` body field, writing into `--slot-save-path`
+  (`tools/server/README.md:1141-1180`). Plus `?action=erase` (`:1181`). This is the server's
+  file-backed equivalent, and it is manual: nothing calls it for you.
+
+### 3.5 llamafile
+
+llamafile embeds llama.cpp and inherits whichever server generation it was built against; it is not
+an independent implementation with its own caching design. Anything asserted here about the current
+llama.cpp server should be re-verified against the specific llamafile build before relying on it —
+in particular `--cache-ram` and the LCP slot selection are recent and may not be present. Flagged as
+an open item rather than answered.
+
+### 3.6 What drawmaid must do
+
+Same as vLLM: emit a byte-stable prefix, nothing else. Operator-side, the useful recommendation for
+a self-hosted drawmaid backend is `-np` ≥ the number of concurrent users and a non-zero `--cache-ram`
+(both already the defaults), because those are what make L0/L1/L2 survive between one user's calls
+_and_ be shared across users.
