@@ -326,3 +326,166 @@ source alone.
 > **Verdict (self-loops):** ban from the prompt vocabulary until #46 measures it. The construct adds
 > little expressive power, and the drag behaviour of a self-bound arrow is exactly the property the
 > vocabulary contract is supposed to guarantee. Cheap to forbid, expensive to verify.
+
+---
+
+## 5. Node id safety
+
+Mermaid's node-id grammar is far more permissive than anyone assumes. The flowchart lexer's
+`NODE_STRING` rule, extracted from the compiled parser
+(`mermaid/dist/chunks/mermaid.core/flowDiagram-NV44I4VS.mjs`, rules table at `:2300`), is:
+
+```
+/^(?:([A-Za-z0-9!"\#$%&'*+\.`?\\_\/]|-(?=[^\>\-\.]))+)/
+```
+
+So a legal mermaid node id may contain `"`, `#`, `%`, `&`, `'`, `` ` ``, `\`, `/`, `.`, `+`, `*`,
+`?`, `!`, `_`, and `-` (whenever the `-` is not followed by `>`, `-`, or `.`). Six of those are
+actively dangerous downstream. Each mechanism below is a distinct failure with a distinct blast
+radius.
+
+### 5.1 Ids reach the DOM as `flowchart-<id>-<counter>` and are looked up by substring
+
+`FlowDB.addVertex` builds `domId: MERMAID_DOM_ID_PREFIX + id + "-" + this.vertexCounter` with
+`MERMAID_DOM_ID_PREFIX = "flowchart-"` (`flowDiagram-NV44I4VS.mjs:50,153`), and the renderer writes
+it straight onto the group: `parent.insert("g")...attr("id", node.domId ?? node.id)`
+(`chunk-JZLCHNYA.mjs:956` and siblings).
+
+The converter then looks the node back up with a **substring** attribute selector:
+
+```js
+const node = containerEl.querySelector(`[id*="${vertex.domId}"]`);
+```
+
+(`dist/parser/flowchart.js:32`; edges use the same shape at `:180,192`.)
+
+Two things go wrong.
+
+**`-` in an id creates domId ambiguity.** `flowchart-A-1` (node `A`, counter 1) is a strict substring
+of `flowchart-A-1-0` (node `A-1`, counter 0). `querySelector` returns the first match in document
+order, so one node can be scraped with another node's `getBBox()` — two elements land on identical
+coordinates. **This is the only mechanism I found that genuinely produces overlapping nodes**, and
+it is caused by the id, not by the topology.
+
+**`"` or `\` in an id makes the selector itself invalid.** The id is interpolated raw into a CSS
+string; `querySelector` throws a `SyntaxError`. `parseMermaid` catches every error from the parse
+switch and falls back to `convertSvgToGraphImage` (`dist/parseMermaid.js:59-82`), so the whole
+diagram degrades to a **single flat image** — no nodes, no arrows, nothing draggable — with only a
+`console.error`.
+
+### 5.2 `_` in an id can collide with a generated arrow id and hard-crash the conversion
+
+The converter names every arrow after its endpoints:
+
+```js
+const arrowId = `${edge.start}_${edge.end}`;
+```
+
+(`dist/converter/types/flowchart.js:167`;
+[upstream `src/converter/types/flowchart.ts:279`](https://github.com/excalidraw/mermaid-to-excalidraw/blob/65defca0f53b6bcca30acd21dfc27c1c3a26b2df/src/converter/types/flowchart.ts).)
+
+Take a diagram containing a node literally named `A_B`, an edge `A --> B`, and any edge touching
+`A_B`. The skeleton now holds two elements with id `A_B`: the vertex (pushed first) and the arrow
+(pushed later). In `convertToExcalidrawElements` with `regenerateIds: true`, both get fresh random
+ids, but the reverse map is keyed on the _original_ id:
+
+```ts
+oldToNewElementIdMap.set(originalId, excalidrawElement.id);
+```
+
+(`transform.ts:633`) — so the arrow's entry **overwrites the vertex's**. Pass 2 then resolves the
+other arrow's `start.id = "A_B"` to the _arrow's_ new id, `elementStore.getElement` returns an arrow,
+and `startType === "arrow"` falls into the switch default:
+
+```ts
+default: {
+  assertNever(linearElement as never, `Unhandled element start type "${start.type}"`, true);
+}
+```
+
+`assertNever` with `softAssert: true` only `console.error`s and returns
+(`chunk-3KPV5WBD.js:1572-1581`), leaving `startBoundElement` **undefined**. Control then falls
+through to:
+
+```ts
+bindLinearElement(
+  linearElement,
+  startBoundElement as ExcalidrawBindableElement,
+  "start",
+  elementsMap,
+);
+```
+
+(`transform.ts:325-330`) and `bindLinearElement` immediately reads `hoveredElement.id`
+(`chunk-3KPV5WBD.js:10922`). **`TypeError: Cannot read properties of undefined`**, thrown out of
+`convertToExcalidrawElements`. Our call site has no `try`/`catch`
+(`insert-mermaid-into-canvas.ts:141-147`), so `insertMermaidIntoCanvas` rejects and nothing is
+inserted. The `as` cast is what turns a handled case into a crash.
+
+Note that `regenerateIds: false` is not a fix — it makes `convertToExcalidrawElements` log
+`Duplicate id found` and **drop** the second element from the store entirely (`transform.ts:626-635`).
+Our current setting is the better of the two.
+
+### 5.3 Parallel edges reuse one arrow id (harmless today, but it is the same bug)
+
+The parser deliberately counts edges between the same pair:
+
+```js
+const edgeMapKey = `${edge.start}-${edge.end}`;
+const count = edgeCountMap.get(edgeMapKey) || 0;
+edgeCountMap.set(edgeMapKey, count + 1);
+return parseEdge(edge, count, containerEl);
+```
+
+(`dist/parser/flowchart.js:185-189`) — and then `parseEdge(edge, edgeIndex, containerEl)` **never
+uses `edgeIndex`** (`dist/parser/flowchart.js:104-121`; upstream
+[`src/parser/flowchart.ts:339-363`](https://github.com/excalidraw/mermaid-to-excalidraw/blob/65defca0f53b6bcca30acd21dfc27c1c3a26b2df/src/parser/flowchart.ts)).
+The disambiguator is computed and thrown away. Two `A --> B` edges therefore both become skeleton id
+`A_B`. Nothing binds _to_ an arrow, so with `regenerateIds: true` this is currently benign — but it
+is the exact collision that becomes fatal the moment a node id matches.
+
+### 5.4 The db and the SVG are parsed from two different strings
+
+```js
+const diagram = await mermaid.mermaidAPI.getDiagramFromText(
+  encodeEntities(definition),
+);
+const { svg } = await mermaid.render("mermaid-to-excalidraw", definition);
+```
+
+(`dist/parseMermaid.js:46-48`)
+
+`encodeEntities` rewrites every `#\w+;` to `ﬂ°...¶ß` and strips the terminating `;` from
+`style ...:#...;` and `classDef ...:#...;` lines (`dist/utils.js:31-47`). The logical graph therefore
+comes from the _encoded_ text while every position and dimension is scraped from an SVG rendered
+from the _raw_ text. Any id or label containing a `#...;` sequence makes the two disagree, and the
+disagreement surfaces as a `querySelector` miss, i.e. a silently dropped node (section 2B).
+
+### 5.5 Reserved words
+
+The flowchart grammar reserves `graph`, `subgraph`, `end`, `style`, `linkStyle`, `classDef`,
+`class`, `click`, `default`, `href`, and the direction tokens (terminals table,
+`flowDiagram-NV44I4VS.mjs:1079`). `o` and `x` are additionally edge-head characters, so `A---oB`
+parses as a circle-headed edge rather than a link to a node named `oB`. These produce parse errors
+or wrong topology, upstream of everything discussed above.
+
+### 5.6 The safe id set
+
+Everything in this section disappears under one rule:
+
+```
+^[A-Za-z][A-Za-z0-9]{0,30}$        and not a reserved word
+```
+
+ASCII alphanumeric, letter-initial, **no `_`, no `-`, no `.`, no `"`, no `#`, no `/`, no `\`**.
+Generated ids of the form `n1`, `n2`, ... satisfy it, are unambiguous under substring matching,
+cannot collide with `${start}_${end}`, and are the cheapest thing a small model can emit
+consistently. Human-readable labels belong in the bracket text, which is scraped from the SVG and
+has none of these constraints.
+
+> **Verdict (node ids):** **ban from the prompt vocabulary.** This is the one area where
+> post-processing is the wrong tool. Rewriting ids after the fact means re-parsing mermaid, and two
+> of the failure modes (5.1's `SyntaxError` -> image fallback, 5.2's `TypeError`) happen _inside_
+> the library before we ever see a skeleton — there is nothing to post-process. A pre-flight
+> validator on the generated mermaid text is the correct complement: reject and regenerate any
+> diagram whose ids fall outside the safe set, before calling `parseMermaidToExcalidraw` at all.
