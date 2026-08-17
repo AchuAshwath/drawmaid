@@ -114,6 +114,7 @@ export function useSpeechRecognition(
   const currentSessionFinalRef = useRef("");
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consecutiveErrorsRef = useRef(0);
+  const lastResultTimestampRef = useRef<number>(Date.now());
 
   // Keep callbacks fresh without re-creating recognition instances
   const onTranscriptRef = useRef(onTranscript);
@@ -195,10 +196,12 @@ export function useSpeechRecognition(
           setIsListening(true);
           consecutiveErrorsRef.current = 0;
           currentSessionFinalRef.current = "";
+          lastResultTimestampRef.current = Date.now();
           logInfo("STT", `🎙️ Microphone active (${triggerReason})`);
         };
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
+          lastResultTimestampRef.current = Date.now();
           let sessionFinal = "";
           let sessionInterim = "";
 
@@ -305,6 +308,7 @@ export function useSpeechRecognition(
     consecutiveErrorsRef.current = 0;
     baseTranscriptRef.current = "";
     currentSessionFinalRef.current = "";
+    lastResultTimestampRef.current = Date.now();
     setTranscript("");
     shouldRestartRef.current = true;
     startRecognition("user-start");
@@ -330,23 +334,48 @@ export function useSpeechRecognition(
     }
   }, [start, stop]);
 
-  // Watchdog: Revives idle microphone sessions when continuous listening is enabled
+  // Watchdog:
+  // 1. Revives idle microphone sessions when continuous listening is enabled
+  // 2. Detects zombie streams (>10s without speech recognition events) and reconnects fresh
   useEffect(() => {
     if (!isSupported) return;
 
     const watchdog = setInterval(() => {
-      if (
-        shouldRestartRef.current &&
-        statusRef.current === "idle" &&
-        !restartTimerRef.current
-      ) {
+      if (!shouldRestartRef.current) return;
+
+      // Case 1: Stream died and is in idle state
+      if (statusRef.current === "idle" && !restartTimerRef.current) {
         logInfo("STT", "🐕 Watchdog: Reviving idle stream session...");
-        scheduleRestart(50, "watchdog-revive");
+        scheduleRestart(50, "watchdog-idle-revive");
+        return;
+      }
+
+      // Case 2: Zombie stream — browser claims 'listening' but has emitted 0 events for >10s
+      if (statusRef.current === "listening") {
+        const silenceDuration = Date.now() - lastResultTimestampRef.current;
+        if (silenceDuration > 10000) {
+          logInfo(
+            "STT",
+            `🐕 Watchdog: Zombie stream detected (${Math.round(silenceDuration / 1000)}s silent), refreshing stream...`,
+          );
+          if (currentSessionFinalRef.current) {
+            baseTranscriptRef.current = [
+              baseTranscriptRef.current,
+              currentSessionFinalRef.current,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            currentSessionFinalRef.current = "";
+          }
+          cleanupInstance();
+          statusRef.current = "idle";
+          scheduleRestart(50, "zombie-revive");
+        }
       }
     }, 1000);
 
     return () => clearInterval(watchdog);
-  }, [isSupported, scheduleRestart]);
+  }, [isSupported, scheduleRestart, cleanupInstance]);
 
   // Visibility & Focus Recovery: Resume cleanly when tab becomes visible
   useEffect(() => {
