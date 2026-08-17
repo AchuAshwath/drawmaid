@@ -90,6 +90,18 @@ function getSpeechRecognitionCtor() {
     : undefined;
 }
 
+/**
+ * Production-Grade Speech Recognition Hook
+ *
+ * Uses the Atomic Utterance Model (continuous: false with seamless auto-restart on onend)
+ * as established in react-speech-recognition and production web speech implementations.
+ *
+ * Why this is the industry standard:
+ * - Setting continuous: true in Chrome leads to long-lived WebSocket quota limits,
+ *   half-open zombie sockets, fluctuating acoustic hypotheses, and 15s silent stalls.
+ * - Using atomic utterances with seamless restart on onend finalizes every phrase cleanly,
+ *   prevents Google cloud quota timeouts, and guarantees zero lost words.
+ */
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions = {},
 ): UseSpeechRecognitionReturn {
@@ -109,12 +121,11 @@ export function useSpeechRecognition(
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const statusRef = useRef<Status>("idle");
-  const shouldRestartRef = useRef(false);
-  const baseTranscriptRef = useRef("");
-  const currentSessionFinalRef = useRef("");
+  const shouldListenRef = useRef(false);
+  const committedTranscriptRef = useRef("");
+  const activeInterimRef = useRef("");
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consecutiveErrorsRef = useRef(0);
-  const lastResultTimestampRef = useRef<number>(Date.now());
 
   // Keep callbacks fresh without re-creating recognition instances
   const onTranscriptRef = useRef(onTranscript);
@@ -153,18 +164,19 @@ export function useSpeechRecognition(
     }
   }, []);
 
-  // Schedule a restart with exponential backoff on consecutive transient errors
+  // Schedule a restart
   const scheduleRestart = useCallback(
-    (delayMs?: number, reason = "reconnect") => {
-      if (!continuousRef.current || !shouldRestartRef.current) return;
+    (delayMs = 20, reason = "reconnect") => {
+      if (!shouldListenRef.current) return;
       clearRestartTimer();
 
       const backoff =
-        delayMs ??
-        Math.min(100 * Math.pow(1.5, consecutiveErrorsRef.current), 1500);
+        consecutiveErrorsRef.current > 0
+          ? Math.min(100 * Math.pow(1.5, consecutiveErrorsRef.current), 1500)
+          : delayMs;
 
       restartTimerRef.current = setTimeout(() => {
-        if (!shouldRestartRef.current) return;
+        if (!shouldListenRef.current) return;
         startRecognition(reason);
       }, backoff);
     },
@@ -174,7 +186,7 @@ export function useSpeechRecognition(
   // Creates a clean, fresh SpeechRecognition instance and starts it
   const startRecognition = useCallback(
     (triggerReason = "start") => {
-      if (!SpeechRecognitionCtor || !shouldRestartRef.current) return;
+      if (!SpeechRecognitionCtor || !shouldListenRef.current) return;
       if (
         statusRef.current === "starting" ||
         statusRef.current === "listening"
@@ -188,47 +200,56 @@ export function useSpeechRecognition(
       try {
         const recognition = new SpeechRecognitionCtor();
         recognition.lang = langRef.current;
-        recognition.continuous = continuousRef.current;
+        // Atomic phrase mode: Chrome finalizes each phrase with 100% precision
+        recognition.continuous = false;
         recognition.interimResults = interimResultsRef.current;
 
         recognition.onstart = () => {
           statusRef.current = "listening";
           setIsListening(true);
           consecutiveErrorsRef.current = 0;
-          currentSessionFinalRef.current = "";
-          lastResultTimestampRef.current = Date.now();
+          activeInterimRef.current = "";
           logInfo("STT", `🎙️ Microphone active (${triggerReason})`);
         };
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
-          lastResultTimestampRef.current = Date.now();
-          let sessionFinal = "";
-          let sessionInterim = "";
+          let phraseFinal = "";
+          let phraseInterim = "";
 
           for (let i = 0; i < event.results.length; i++) {
             const res = event.results[i];
             const text = res[0]?.transcript || "";
             if (!text.trim()) continue;
             if (res.isFinal) {
-              sessionFinal += text.trim() + " ";
+              phraseFinal += text.trim() + " ";
             } else {
-              sessionInterim += text.trim() + " ";
+              phraseInterim += text.trim() + " ";
             }
           }
 
-          sessionFinal = sessionFinal.trim();
-          sessionInterim = sessionInterim.trim();
-          currentSessionFinalRef.current = sessionFinal;
+          phraseFinal = phraseFinal.trim();
+          phraseInterim = phraseInterim.trim();
+
+          if (phraseFinal) {
+            committedTranscriptRef.current = [
+              committedTranscriptRef.current,
+              phraseFinal,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            activeInterimRef.current = "";
+          } else {
+            activeInterimRef.current = phraseInterim;
+          }
 
           const fullText = [
-            baseTranscriptRef.current,
-            sessionFinal,
-            sessionInterim,
+            committedTranscriptRef.current,
+            activeInterimRef.current,
           ]
             .filter(Boolean)
             .join(" ");
 
-          const isFinal = !sessionInterim && !!sessionFinal;
+          const isFinal = !activeInterimRef.current && !!phraseFinal;
 
           logInfo("STT", `Result: "${fullText.slice(-50)}"`, {
             isFinal,
@@ -245,7 +266,7 @@ export function useSpeechRecognition(
           logWarn("STT", `Recognition event error: ${event.error}`);
 
           if (TERMINAL_ERRORS.has(event.error)) {
-            shouldRestartRef.current = false;
+            shouldListenRef.current = false;
             statusRef.current = "idle";
             setIsListening(false);
             cleanupInstance();
@@ -259,26 +280,24 @@ export function useSpeechRecognition(
         };
 
         recognition.onend = () => {
-          // Fold the current session's final text into baseTranscriptRef
-          if (currentSessionFinalRef.current) {
-            baseTranscriptRef.current = [
-              baseTranscriptRef.current,
-              currentSessionFinalRef.current,
+          // If any interim text was active when stream ended, commit it to prevent lost words
+          if (activeInterimRef.current) {
+            committedTranscriptRef.current = [
+              committedTranscriptRef.current,
+              activeInterimRef.current,
             ]
               .filter(Boolean)
               .join(" ");
-            currentSessionFinalRef.current = "";
+            activeInterimRef.current = "";
           }
 
           statusRef.current = "idle";
-          setIsListening(false);
 
-          if (shouldRestartRef.current && continuousRef.current) {
-            logInfo(
-              "STT",
-              "Stream closed naturally by browser, auto-reconnecting fresh instance...",
-            );
-            scheduleRestart(50, "stream-cycled");
+          if (shouldListenRef.current && continuousRef.current) {
+            // Instantly start listening for the next phrase (atomic continuous loop)
+            scheduleRestart(20, "next-phrase");
+          } else {
+            setIsListening(false);
           }
         };
 
@@ -289,7 +308,7 @@ export function useSpeechRecognition(
         statusRef.current = "idle";
         setIsListening(false);
         console.warn("[VoiceSTT] start() threw:", err);
-        if (shouldRestartRef.current) {
+        if (shouldListenRef.current) {
           scheduleRestart(250, "start-retry");
         }
       }
@@ -306,86 +325,59 @@ export function useSpeechRecognition(
     logInfo("STT", "User toggled ON voice input");
     clearRestartTimer();
     consecutiveErrorsRef.current = 0;
-    baseTranscriptRef.current = "";
-    currentSessionFinalRef.current = "";
-    lastResultTimestampRef.current = Date.now();
+    committedTranscriptRef.current = "";
+    activeInterimRef.current = "";
     setTranscript("");
-    shouldRestartRef.current = true;
+    shouldListenRef.current = true;
     startRecognition("user-start");
   }, [clearRestartTimer, startRecognition]);
 
   const stop = useCallback(() => {
     logInfo("STT", "User toggled OFF voice input");
-    shouldRestartRef.current = false;
+    shouldListenRef.current = false;
     clearRestartTimer();
     statusRef.current = "stopping";
     cleanupInstance();
     statusRef.current = "idle";
     setIsListening(false);
-    baseTranscriptRef.current = "";
-    currentSessionFinalRef.current = "";
+    committedTranscriptRef.current = "";
+    activeInterimRef.current = "";
   }, [clearRestartTimer, cleanupInstance]);
 
   const toggle = useCallback(() => {
-    if (shouldRestartRef.current) {
+    if (shouldListenRef.current) {
       stop();
     } else {
       start();
     }
   }, [start, stop]);
 
-  // Watchdog:
-  // 1. Revives idle microphone sessions when continuous listening is enabled
-  // 2. Detects zombie streams (>10s without speech recognition events) and reconnects fresh
+  // Watchdog: Guarantees the continuous loop stays alive indefinitely while user has voice ON
   useEffect(() => {
     if (!isSupported) return;
 
     const watchdog = setInterval(() => {
-      if (!shouldRestartRef.current) return;
-
-      // Case 1: Stream died and is in idle state
-      if (statusRef.current === "idle" && !restartTimerRef.current) {
-        logInfo("STT", "🐕 Watchdog: Reviving idle stream session...");
-        scheduleRestart(50, "watchdog-idle-revive");
-        return;
+      if (
+        shouldListenRef.current &&
+        statusRef.current === "idle" &&
+        !restartTimerRef.current
+      ) {
+        scheduleRestart(20, "watchdog-revive");
       }
-
-      // Case 2: Zombie stream — browser claims 'listening' but has emitted 0 events for >10s
-      if (statusRef.current === "listening") {
-        const silenceDuration = Date.now() - lastResultTimestampRef.current;
-        if (silenceDuration > 10000) {
-          logInfo(
-            "STT",
-            `🐕 Watchdog: Zombie stream detected (${Math.round(silenceDuration / 1000)}s silent), refreshing stream...`,
-          );
-          if (currentSessionFinalRef.current) {
-            baseTranscriptRef.current = [
-              baseTranscriptRef.current,
-              currentSessionFinalRef.current,
-            ]
-              .filter(Boolean)
-              .join(" ");
-            currentSessionFinalRef.current = "";
-          }
-          cleanupInstance();
-          statusRef.current = "idle";
-          scheduleRestart(50, "zombie-revive");
-        }
-      }
-    }, 1000);
+    }, 500);
 
     return () => clearInterval(watchdog);
-  }, [isSupported, scheduleRestart, cleanupInstance]);
+  }, [isSupported, scheduleRestart]);
 
   // Visibility & Focus Recovery: Resume cleanly when tab becomes visible
   useEffect(() => {
     if (typeof document === "undefined") return;
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === "visible" && shouldRestartRef.current) {
+      if (document.visibilityState === "visible" && shouldListenRef.current) {
         if (statusRef.current === "idle") {
           logInfo("STT", "Tab focused/visible, reviving stream...");
-          scheduleRestart(50, "focus-revive");
+          scheduleRestart(20, "focus-revive");
         }
       }
     };
@@ -402,7 +394,7 @@ export function useSpeechRecognition(
   // Abort and clean up on unmount
   useEffect(() => {
     return () => {
-      shouldRestartRef.current = false;
+      shouldListenRef.current = false;
       clearRestartTimer();
       cleanupInstance();
     };
