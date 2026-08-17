@@ -39,7 +39,7 @@ Two lexer rules govern almost everything, both from the extracted `flow.jison`:
 /^(?:([A-Za-z0-9!"\#$%&'*+\.`?\\_\/]|-(?=[^\>\-\.])|(?!))+)/
 ```
 
-An unbracketed identifier may contain letters, digits, and `! " # $ % & ' * + . ` ? \ \_ /`, plus `-`when not followed by`>`, `-`, or `.`. Everything else — space, `( ) [ ] { } | < > @ = ~ ^`— terminates the identifier.`:`and`,`and`;` are separate terminals (`COLON`, `COMMA`, `SEMI`) that the `idStringToken`production happens to re-admit, so`a:b`and`a,b` are legal ids.
+An unbracketed identifier may contain letters, digits, and the punctuation `!`, `"`, `#`, `$`, `%`, `&`, `'`, `*`, `+`, `.`, backtick, `?`, `\`, `_`, `/` — plus `-` when it is not followed by `>`, `-`, or `.`. Everything else terminates the identifier: space, `(`, `)`, `[`, `]`, `{`, `}`, `|`, `<`, `>`, `@`, `=`, `~`, `^`. The characters `:`, `,` and `;` are separate terminals (`COLON`, `COMMA`, `SEMI`) that the `idStringToken` production re-admits, so `a:b` and `a,b` are legal ids.
 
 **Label text inside a shape** (lexer rule 115 → token `TEXT`, active in the `text` start condition entered by `[`, `(`, `{`, `|`):
 
