@@ -386,3 +386,92 @@ Same as vLLM: emit a byte-stable prefix, nothing else. Operator-side, the useful
 a self-hosted drawmaid backend is `-np` ≥ the number of concurrent users and a non-zero `--cache-ram`
 (both already the defaults), because those are what make L0/L1/L2 survive between one user's calls
 _and_ be shared across users.
+
+---
+
+## 4. Ollama
+
+### 4.1 The finding that makes this section short: Ollama _is_ llama.cpp's server
+
+Current Ollama does not implement its own inference loop for GGUF models. It locates and spawns the
+**llama.cpp `llama-server` binary** as a subprocess and proxies to it over HTTP:
+
+```go
+// llm/llama_server.go:335-338
+// FindLlamaServer locates the llama-server binary in lib/ollama/.
+// There is a single binary that dynamically loads GPU backends at runtime.
+func FindLlamaServer() (string, error) {
+	path, candidates, err := findLlamaCppBinary("llama-server", defaultLlamaCppBinarySearch())
+```
+
+The pinned upstream version is in `LLAMA_CPP_VERSION` at the repo root (`b10434` at time of
+writing). Note also that `runner/runner.go` is now a 21-line stub that only dispatches
+`--mlx-engine`; the old Go `llamarunner`/`ollamarunner` with its own `InputCache` is gone from
+`main`.
+
+**Therefore everything in §3 applies to Ollama**, modulated only by the flags Ollama chooses to
+pass.
+
+### 4.2 What Ollama passes, and what that means
+
+```go
+// llm/llama_server.go:370-376
+"--model", launch.modelPath,
+"--port", strconv.Itoa(port),
+"--host", "127.0.0.1",
+"--no-webui",
+"--offline",
+"-c", strconv.Itoa(launch.opts.NumCtx * launch.numParallel),
+"-np", strconv.Itoa(launch.numParallel),
+```
+
+and on every chat request:
+
+```go
+// llm/llama_server.go:2152-2155
+body := map[string]any{
+	"messages":     messages,
+	"stream":       stream,
+	"cache_prompt": true,
+	...
+```
+
+`cache_prompt` is **hardcoded `true`** — there is no Ollama API option to turn it off, and none to
+turn it on either. It is simply always on. Consequences:
+
+- **`-np` comes from `OLLAMA_NUM_PARALLEL`, default `1`** — `envconfig/config.go:274-275`
+  (`NumParallel = Uint("OLLAMA_NUM_PARALLEL", 1)`), corroborated by
+  `docs/faq.mdx:335`. So by default there is exactly **one slot**, holding exactly one prompt.
+  Sequential requests from one user LCP-match against that single slot and prefix-reuse works well.
+  Two users interleaving on a default install will evict each other's slot contents on every turn.
+- Ollama does **not** pass `--cache-ram`, `-sps`, or `--cache-reuse`, so llama.cpp's own defaults
+  apply: the cross-request RAM prompt cache is active at 8192 MiB, slot similarity threshold 0.10,
+  and cache-reuse KV shifting is off. The tier-2 RAM cache therefore does soften the
+  single-slot eviction problem — a displaced prompt state can be restored rather than recomputed.
+- `-c` is `NumCtx * numParallel`, so the per-request context is `num_ctx`, not the total.
+
+### 4.3 `keep_alive` — necessary, not sufficient
+
+`keep_alive` controls **how long the model stays resident**, and nothing finer:
+
+> "use the `keep_alive` parameter with the `/api/generate` and `/api/chat` endpoints to set the
+> amount of time that a model stays in memory" — `docs/faq.mdx:297`; `-1` keeps it loaded
+> indefinitely (`:307`), `0` unloads immediately (`:313`), `OLLAMA_KEEP_ALIVE` sets the global
+> default (`:316`) and the per-request parameter overrides it (`:318`).
+>
+> Default is 5 minutes — `envconfig/config.go:126-130`.
+
+Model unload tears down the `llama-server` process, and with it every slot and the RAM prompt
+cache. So:
+
+- **`keep_alive` does not create prefix reuse; it only prevents its destruction.** The reuse itself
+  is llama.cpp's LCP matching.
+- The number that matters for drawmaid is the **5-minute default**. A dictation session with gaps
+  longer than 5 minutes pays a model _load_ (far more expensive than a prefill) plus a cold prefill.
+  For an auto-mode workload the right operator advice is `OLLAMA_KEEP_ALIVE=-1` or a long duration.
+
+### 4.4 What drawmaid must do
+
+Nothing at the API level, again. There is no cache field to send. Byte-stable prefix, and — for
+self-hosted operators — `OLLAMA_KEEP_ALIVE` long, and `OLLAMA_NUM_PARALLEL` ≥ concurrent users if
+more than one person shares the server. Minimum cacheable prefix is llama.cpp's: **one token**.
