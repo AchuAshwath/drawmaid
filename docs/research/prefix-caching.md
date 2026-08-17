@@ -178,3 +178,98 @@ is not affordable for more than a couple of rounds.
 stability is worth nothing here. WebLLM pays a full cold prefill of the entire prompt on every
 single generation, and the only levers that move its latency are total prompt length and
 `prefill_chunk_size` (1024, fixed in the compiled `cs1k` library).
+
+---
+
+## 2. vLLM — automatic prefix caching
+
+### 2.1 Mechanism
+
+vLLM hashes each KV-cache block by _the tokens in the block plus the hash of the block before it_,
+producing a chain that uniquely identifies a prefix:
+
+> "we hash each kv-cache block by the tokens in the block and the tokens in the prefix before the
+> block" … the block hash is `hash(tuple[components])` where components are the **parent hash
+> value**, the **block tokens**, and **extra hashes** (LoRA IDs, multi-modal input hashes, and
+> "cache salts to isolate caches in multi-tenant environments").
+> — <https://github.com/vllm-project/vllm/blob/main/docs/design/prefix_caching.md> (lines 5–19)
+
+Because the key is content-derived and the block pool is global to the engine, reuse works **across
+independent HTTP requests, across connections, and across users** — no session affinity, no
+client-side handle. This is the opposite of WebLLM: the client does not have to reconstruct a
+conversation, it only has to emit a byte-identical (therefore token-identical) prefix.
+
+### 2.2 Granularity — the number that matters
+
+Two hard facts:
+
+- **`DEFAULT_BLOCK_SIZE: ClassVar[int] = 16`** — `vllm/config/cache.py:59`, with
+  `block_size: int = Field(default=None, gt=0)` at `:61` resolved to the default at
+  `vllm/config/cache.py:285-286`. Docstring: _"Size of a contiguous cache block in number of
+  tokens."_
+- **"We only cache full blocks."** — `docs/design/prefix_caching.md:21-22` (Note 1). The doc's
+  worked example is explicit that a block holding "3 of 4 tokens" is not cached until the fourth
+  token arrives.
+
+Therefore: **a shared prefix shorter than 16 tokens is cached as nothing at all, and a hit is
+truncated down to the nearest multiple of 16 tokens.** A 100-token shared prefix yields 6 cached
+blocks = 96 tokens reused; the remaining 4 tokens are re-prefilled.
+
+Current vLLM adds a knob that decouples match granularity from physical block size:
+
+> `prefix_match_unit` — _"The finest token boundary (in tokens) a prefix-cache hit can land on.
+> Prefix-cache keys are computed every `prefix_match_unit` tokens. It can be set finer than the
+> physical KV cache block sizes … as long as every KV cache group's `block_size` is divisible by
+> it, enabling cache hits at boundaries inside a physical block. It controls matching granularity
+> only, not how often states are stored."_
+> — `vllm/config/cache.py:68-79`
+
+So 16 is the default floor, and an operator can lower the _matching_ floor but not below a divisor
+of `block_size`. For planning purposes, treat **16 tokens as vLLM's minimum cacheable prefix**.
+
+### 2.3 How it is enabled
+
+- **On by default.** `enable_prefix_caching: bool = True` — `vllm/config/cache.py:107`. The
+  feature doc still says "Set `enable_prefix_caching=True` in vLLM engine to enable APC"
+  (`docs/features/automatic_prefix_caching.md:12`), which is stale relative to the config default;
+  the config field is authoritative. Disabling is `--no-enable-prefix-caching`.
+- Hash algorithm: `prefix_caching_hash_algo: PrefixCachingHashAlgo = "sha256"`
+  (`vllm/config/cache.py:109`), overridable with `--prefix-caching-hash-algo`
+  (`sha256`, `sha256_cbor`, `xxhash`, `xxhash_cbor`) — `docs/design/prefix_caching.md:27-31`.
+  Note the doc's own warning that `sha256` uses `pickle` and so "hashes may not be reproducible
+  across different Python or vLLM versions" — irrelevant to a single running server, but it means
+  a server restart or upgrade invalidates everything.
+
+### 2.4 CPU / disk offload
+
+Yes, for CPU, and it is opt-in:
+
+```python
+# vllm/config/cache.py:210-219
+kv_offloading_size: float | None = None
+"""Size of the KV cache offloading buffer in GiB. … By default, this is set
+to None, which means no KV offloading is enabled. When set, vLLM will
+enable KV cache offloading to CPU using the kv_offloading_backend."""
+
+kv_offloading_backend: KVOffloadingBackend = "native"
+"""The backend to use for KV cache offloading. Supported backends include
+'native' (vLLM native CPU offloading), 'lmcache'.
+KV offloading is only activated when kv_offloading_size is set."""
+```
+
+`native` is CPU RAM only. Disk (and cross-node) tiers come from the `lmcache` backend, i.e. an
+external dependency, not vLLM core. Note that `--cpu-offload-gb` is a _different_ knob and is not
+part of this config object.
+
+### 2.5 What drawmaid must do
+
+Nothing at the API level — there is no cache header, no breakpoint, no opt-in field. The entire
+contract is: **emit the same leading tokens, byte-for-byte, in the same order, on every request.**
+Two consequences follow directly for the L0/L1/L2/L3 layering:
+
+1. Any per-call substitution near the top of the prompt destroys the whole chain, because every
+   downstream block hash includes the parent hash. This is exactly the failure mode already
+   recorded on the map for `apps/app/lib/llm/intent-extraction.ts:154-200`.
+2. Cache lifetime is eviction-bound, not TTL-bound — blocks live in the GPU block pool until LRU
+   pressure frees them. A shared L0 across all users of a self-hosted server is therefore _more_
+   likely to stay resident than a per-user prefix, because every request refreshes it.
