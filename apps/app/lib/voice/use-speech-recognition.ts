@@ -116,6 +116,11 @@ export function useSpeechRecognition(
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consecutiveErrorsRef = useRef(0);
 
+  // Proactive stream health & stall tracking
+  const streamStartTimeRef = useRef(Date.now());
+  const lastResultTimestampRef = useRef(Date.now());
+  const latestInterimTextRef = useRef("");
+
   // Keep callbacks fresh without re-creating recognition instances
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
@@ -195,10 +200,14 @@ export function useSpeechRecognition(
           statusRef.current = "listening";
           setIsListening(true);
           consecutiveErrorsRef.current = 0;
+          streamStartTimeRef.current = Date.now();
+          lastResultTimestampRef.current = Date.now();
+          latestInterimTextRef.current = "";
           logInfo("STT", `🎙️ Microphone active (${triggerReason})`);
         };
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
+          lastResultTimestampRef.current = Date.now();
           const interimParts: string[] = [];
 
           for (
@@ -221,6 +230,8 @@ export function useSpeechRecognition(
           }
 
           const interimTranscript = interimParts.join(" ");
+          latestInterimTextRef.current = interimTranscript;
+
           const text = [accumulatedTranscriptRef.current, interimTranscript]
             .filter(Boolean)
             .join(" ");
@@ -260,12 +271,23 @@ export function useSpeechRecognition(
           setIsListening(false);
           lastProcessedIndexRef.current = -1;
 
+          // Commit any unfinalized interim words into accumulated transcript on stream end
+          if (latestInterimTextRef.current) {
+            accumulatedTranscriptRef.current = [
+              accumulatedTranscriptRef.current,
+              latestInterimTextRef.current,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            latestInterimTextRef.current = "";
+          }
+
           if (shouldRestartRef.current && continuousRef.current) {
             logInfo(
               "STT",
-              "Stream cycled by browser, reconnecting in 150ms...",
+              "Stream cycled by browser, reconnecting in 100ms...",
             );
-            scheduleRestart(150, "stream-cycled");
+            scheduleRestart(100, "stream-cycled");
           }
         };
 
@@ -277,7 +299,7 @@ export function useSpeechRecognition(
         setIsListening(false);
         console.warn("[VoiceSTT] start() threw:", err);
         if (shouldRestartRef.current) {
-          scheduleRestart(400, "start-retry");
+          scheduleRestart(350, "start-retry");
         }
       }
     },
@@ -290,18 +312,19 @@ export function useSpeechRecognition(
   );
 
   const start = useCallback(() => {
-    console.log("[VoiceSTT] User toggled ON voice input");
+    logInfo("STT", "User toggled ON voice input");
     clearRestartTimer();
     consecutiveErrorsRef.current = 0;
     accumulatedTranscriptRef.current = "";
     lastProcessedIndexRef.current = -1;
+    latestInterimTextRef.current = "";
     setTranscript("");
     shouldRestartRef.current = true;
     startRecognition("user-start");
   }, [clearRestartTimer, startRecognition]);
 
   const stop = useCallback(() => {
-    console.log("[VoiceSTT] User toggled OFF voice input");
+    logInfo("STT", "User toggled OFF voice input");
     shouldRestartRef.current = false;
     clearRestartTimer();
     statusRef.current = "stopping";
@@ -310,6 +333,7 @@ export function useSpeechRecognition(
     setIsListening(false);
     accumulatedTranscriptRef.current = "";
     lastProcessedIndexRef.current = -1;
+    latestInterimTextRef.current = "";
   }, [clearRestartTimer, cleanupInstance]);
 
   const toggle = useCallback(() => {
@@ -320,25 +344,55 @@ export function useSpeechRecognition(
     }
   }, [start, stop]);
 
-  // Watchdog Heartbeat: Checks every 1.2s if mic was dropped unexpectedly
+  // Comprehensive Watchdog:
+  // 1. Revives dropped/idle microphone sessions
+  // 2. Proactively cycles long streams (>40s) before Chrome hangs
+  // 3. Recovers unfinalized/stalled interim streams
   useEffect(() => {
     if (!isSupported) return;
 
     const watchdog = setInterval(() => {
-      if (
-        shouldRestartRef.current &&
-        statusRef.current === "idle" &&
-        !restartTimerRef.current
-      ) {
-        console.log(
-          "[VoiceSTT] 🐕 Watchdog detected idle state, reviving stream...",
-        );
-        scheduleRestart(100, "watchdog");
+      if (!shouldRestartRef.current) return;
+
+      // Case 1: Stream died and is in idle state
+      if (statusRef.current === "idle" && !restartTimerRef.current) {
+        logInfo("STT", "🐕 Watchdog: Reviving idle stream session...");
+        scheduleRestart(50, "watchdog-idle");
+        return;
+      }
+
+      // Case 2: Stream has been active for >40s or stalled with no results
+      if (statusRef.current === "listening") {
+        const streamDuration = Date.now() - streamStartTimeRef.current;
+        const silenceDuration = Date.now() - lastResultTimestampRef.current;
+
+        // Proactively cycle long sessions before Chromium cloud socket closes
+        if (
+          streamDuration > 40000 ||
+          (silenceDuration > 5000 && latestInterimTextRef.current.length > 0)
+        ) {
+          logInfo(
+            "STT",
+            `🐕 Watchdog: Proactively cycling stream (duration=${Math.round(streamDuration / 1000)}s)...`,
+          );
+          if (latestInterimTextRef.current) {
+            accumulatedTranscriptRef.current = [
+              accumulatedTranscriptRef.current,
+              latestInterimTextRef.current,
+            ]
+              .filter(Boolean)
+              .join(" ");
+            latestInterimTextRef.current = "";
+          }
+          cleanupInstance();
+          statusRef.current = "idle";
+          scheduleRestart(50, "watchdog-proactive-cycle");
+        }
       }
     }, 1200);
 
     return () => clearInterval(watchdog);
-  }, [isSupported, scheduleRestart]);
+  }, [isSupported, scheduleRestart, cleanupInstance]);
 
   // Visibility & Focus Recovery: Resume cleanly when tab becomes visible
   useEffect(() => {
@@ -347,8 +401,8 @@ export function useSpeechRecognition(
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === "visible" && shouldRestartRef.current) {
         if (statusRef.current === "idle") {
-          console.log("[VoiceSTT] Tab focused / visible, checking stream...");
-          scheduleRestart(100, "focus-revive");
+          logInfo("STT", "Tab focused/visible, reviving stream...");
+          scheduleRestart(50, "focus-revive");
         }
       }
     };

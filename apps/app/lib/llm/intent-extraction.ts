@@ -179,7 +179,16 @@ export function buildUserPrompt(
     example = config.examples[0] as string;
   }
 
-  return USER_PROMPT_RULES.replace("{{transcript}}", originalTranscript)
+  // For long transcripts (e.g. 2-5 minutes of speech), focus on the recent 700 chars
+  // to keep LLM response latency under 1.5s while preserving detected diagramType/direction.
+  let promptTranscript = originalTranscript;
+  if (originalTranscript.length > 800) {
+    const slice = originalTranscript.slice(-700);
+    const firstSpace = slice.indexOf(" ");
+    promptTranscript = firstSpace > 0 ? slice.slice(firstSpace + 1) : slice;
+  }
+
+  return USER_PROMPT_RULES.replace("{{transcript}}", promptTranscript)
     .replace("{{diagramType}}", config.name.toUpperCase())
     .replace("{{nodeSyntax}}", config.nodeSyntax)
     .replace("{{edgeSyntax}}", config.edgeSyntax)
