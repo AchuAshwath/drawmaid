@@ -304,3 +304,120 @@ flowchart LR
   render pass should map each planned entity to exactly one of the six. Do **not** invent a
   seventh colour per diagram: a stable palette across diagrams is worth more than a bespoke one
   within a diagram.
+
+---
+
+## 3. Subgraphs: real containers, but plain ones — and not Excalidraw frames
+
+### 3.1 What a `subgraph` becomes
+
+`mte:dist/converter/types/flowchart.js:57-75`, the entire subgraph branch:
+
+```js
+graph.subGraphs.reverse().forEach((subGraph) => {
+  const groupIds = getGroupIds(subGraph.id);
+  elements.push({
+    id: subGraph.id,
+    type: "rectangle",
+    groupIds,
+    x,
+    y,
+    width,
+    height, // straight from the rendered mermaid cluster bbox
+    label: {
+      groupIds,
+      text: getText(subGraph),
+      fontSize,
+      verticalAlign: "top",
+    },
+  });
+});
+```
+
+So a subgraph is:
+
+- a **plain `rectangle`** element with a **bound text label** anchored to the top;
+- **not** an Excalidraw `frame`. The flowchart converter never emits `type: "frame"`; only the
+  _sequence_ converter does (`mte:dist/converter/types/sequence.js:136-141`). Consequence:
+  subgraph membership is expressed purely through shared `groupIds`, so moving the rectangle
+  moves its contents (they are in the same group) but Excalidraw's frame semantics — clipping,
+  frame-name editing, "add to frame on drop" — do **not** apply.
+- **completely unstyled.** No `strokeColor`, no `backgroundColor`, no `strokeWidth`. Excalidraw's
+  defaults apply: transparent background, `#1e1e1e` stroke, `strokeWidth: 1`. Since vertices are
+  forced to `strokeWidth: 2` (`:93`), subgraph outlines naturally read as lighter than nodes,
+  which is the right visual hierarchy by accident rather than by design.
+
+**`classDef` does not reach subgraphs.** mermaid records the class (`FlowDB.setClass` pushes onto
+`subGraphLookup.get(id).classes`, and `FlowSubGraph` has a `classes: string[]` field —
+`mermaid:dist/diagrams/flowchart/types.d.ts:55-62`), but the converter's `SubGraph` interface has
+no style fields at all (`mte:dist/interfaces.d.ts:36-45`) and `parseSubGraph`
+(`mte:dist/parser/flowchart.js:3-32`) never reads `data.classes`. `class Backend svc` on a
+subgraph is silently a no-op. **Do not put subgraphs in the prompt's colour vocabulary.**
+
+### 3.2 Grouping and nesting: correct, including multi-level
+
+`computeGroupIds` (`mte:dist/converter/types/flowchart.js:4-50`) builds a parent tree and emits
+one group id per ancestor, named `subgraph_group_<subgraphId>`.
+
+Nesting works, and it works for a non-obvious reason worth recording so nobody "fixes" it:
+
+1. mermaid pushes subgraphs in **completion order** — `addSubGraph` runs at the `end` token, so
+   the innermost subgraph is `subGraphs[0]` (`mermaid:dist/chunks/mermaid.esm.min/flowDiagram-COCTKB5R.mjs`,
+   `addSubGraph`: `this.subGraphs.push(F)`).
+2. `addSubGraph` also calls `F.nodes = this.makeUniq(F, this.subGraphs).nodes`, which strips nodes
+   already claimed by an earlier (inner) subgraph. So an outer subgraph's `nodes` list contains the
+   **inner subgraph's id** plus only its own direct children.
+3. The converter therefore sets `tree[inner] = {parent: null}` while processing the inner
+   subgraph, then overwrites it with `tree[inner] = {parent: outer}` when it reaches the outer one.
+   Because inner always comes first, the overwrite is always in the right direction. Three or more
+   levels chain correctly for the same reason.
+
+`graph.subGraphs.reverse()` at `:57` mutates the array in place so outer rectangles are pushed
+before inner ones, giving inner containers the higher z-order. This runs _after_ `computeGroupIds`,
+so the tree is unaffected.
+
+Two edges of this that #46 should probe:
+
+- An **empty subgraph** (`subgraph X` / `end` with no nodes) never enters the tree, because
+  `tree[subGraph.id]` is only assigned inside the `nodeIds.forEach` loop (`:8-19`). Its rectangle
+  gets `groupIds: []` and is not grouped with anything.
+- An edge is only added to a subgraph's group when **both** endpoints share the same immediate
+  parent (`:150-154`). Cross-subgraph edges get `groupIds: []`, so dragging a subgraph leaves them
+  behind visually until Excalidraw's arrow bindings re-route them.
+
+### 3.3 The failure mode that matters most
+
+`parseSubGraph` throws `"SubGraph element not found"` if it cannot locate the cluster
+`<g id="...">` in the rendered SVG (`mte:dist/parser/flowchart.js:13-16`). `parseMermaid` wraps the
+entire dispatch in one `try/catch` and, on **any** error, falls back to
+`convertSvgToGraphImage` (`mte:dist/parseMermaid.js:74-82`) — the whole diagram becomes a single
+base64 SVG **image element**. Zero bound arrows, zero draggable nodes, no text.
+
+That is a total loss of the product's value from one bad subgraph, and it is silent — the only
+signal is a `console.error`. Two implications:
+
+- Subgraph syntax carries more risk than any other construct in the vocabulary. Fast should not
+  emit subgraphs at all.
+- The pipeline should **detect the graphImage fallback** (a single `type: "image"` element, or
+  `parseMermaid` returning `type: "graphImage"`) and treat it as a generation failure to retry,
+  rather than inserting an image. This belongs in the tier-contract / recovery ticket, not here.
+
+### 3.4 Syntax rules the prompt must state
+
+- Always use the **two-token form**: `subgraph backend["Backend services"]`. With the one-token
+  form, `addSubGraph` sets the id to `undefined` whenever the title contains whitespace and
+  auto-generates `subGraph0`, `subGraph1`, … — which then leak into the Excalidraw element ids
+  and any `A --> backend` reference breaks.
+- Subgraph ids share a namespace with node ids. A collision silently reparents nodes.
+- `direction TB` inside a subgraph is a mermaid layout hint only; nothing about it survives
+  conversion beyond the resulting geometry.
+
+### 3.5 Tier assignment
+
+- **Fast** — no subgraphs. Highest-risk construct, and Fast's diagrams are small enough not to
+  need grouping.
+- **Rich** — one level of subgraph, used for tiers/layers (edge, application, data).
+- **Deep** — up to two levels; the plan pass already produces layers, which map onto exactly this.
+  Do not go to three: nothing in the converter prevents it, but dagre's nested-cluster layout is
+  where mermaid's own quality falls off, and every extra level multiplies the chance of the
+  graphImage fallback.
