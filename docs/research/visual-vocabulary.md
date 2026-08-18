@@ -766,3 +766,166 @@ Corrections and traps:
   double-label issue in 4.3 is not visible.
 - **No tier** may emit cylinders, hexagons, subroutines, parallelograms, trapezoids, the
   `@{shape: ...}` syntax, or `~~~` links.
+
+---
+
+## 5. Construct support table
+
+This is the vocabulary contract. Sections 1–4 are the derivation; this section is the artefact
+the spec lifts. Everything is stated for **converter 2.2.2 + mermaid 11.12.2**, flowchart only.
+
+### 5.1 How to read it
+
+**Supported** answers one question and only one: _does this construct produce bound, draggable,
+individually-editable Excalidraw elements that reflect what the author asked for?_
+
+- **yes** — converts as intended.
+- **degraded** — converts without error, but the visual result is not what the syntax promises.
+  These are the dangerous ones: nothing fails, the user just gets something wrong.
+- **ignored** — parsed by mermaid, discarded by the converter. Costs tokens, changes nothing.
+- **fatal** — can take the whole diagram down to a single `image` element (§3.4).
+
+**Tier** is the highest tier permitted to emit the construct; a tier inherits everything below it.
+
+- `Fast` — WebLLM, ~4096 total tokens (#35). Minimum syntax, maximum safety.
+- `Rich` — one LLM call with a larger budget.
+- `Deep` — two-pass plan + render.
+- `none` — no tier may emit it. Either it does nothing, or it does the wrong thing.
+
+### 5.2 Node shapes
+
+| Construct                      | Supported    | Renders as                                                 | Tier   |
+| ------------------------------ | ------------ | ---------------------------------------------------------- | ------ |
+| `A["Label"]`                   | **yes**      | `rectangle`, `strokeWidth: 2`, bound label                 | Fast   |
+| `A{"Label"}`                   | **yes**      | `diamond`                                                  | Fast   |
+| `A("Label")`                   | **yes**      | `rectangle` + `roundness: {type: 3}`                       | Rich   |
+| `A(("Label"))`                 | **yes**      | `ellipse`                                                  | Rich   |
+| `A((("Label")))`               | **yes**\*    | `ellipse` + inset `ellipse`, label drawn **twice** (§4.3)  | Deep\* |
+| `A(["Label"])` stadium         | **degraded** | identical to `A("Label")` — a second spelling of one thing | none   |
+| `A[("Label")]` cylinder        | **degraded** | `rectangle`, label font may auto-shrink (§4.1)             | none   |
+| `A[["Label"]]` subroutine      | **degraded** | `rectangle`, widened to subroutine bbox                    | none   |
+| `A{{"Label"}}` hexagon         | **degraded** | `rectangle`, widened by `padding * 2.5`                    | none   |
+| `A>"Label"]` odd               | **degraded** | `rectangle`                                                | none   |
+| `A[/"Label"/]`, `A[\"Label"\]` | **degraded** | `rectangle`                                                | none   |
+| `A[/"Label"\]`, `A[\"Label"/]` | **degraded** | `rectangle`                                                | none   |
+| `A(-"Label"-)` ellipse         | **degraded** | `rectangle` — no `ELLIPSE` in `VERTEX_TYPE`                | none   |
+| `A@{ shape: cyl }`             | **degraded** | `rectangle` — ShapeID matches no `VERTEX_TYPE` value       | none   |
+
+\* Deep may emit the triple-circle only if #46 confirms the doubled label is not visible.
+
+**Label text inside a shape**
+
+| Construct                            | Supported    | Renders as                                                | Tier |
+| ------------------------------------ | ------------ | --------------------------------------------------------- | ---- |
+| Quoted label `A["Auth service"]`     | **yes**      | bound text, `\n` normalised to a real newline             | Fast |
+| Unquoted label `A[Auth service]`     | **yes**      | same, but breaks on `,` `(` `)` `[` `]` — never emit      | none |
+| Markdown label ``A["`**bold**`"]``   | **degraded** | markdown stripped by `removeMarkdown`, plain text         | none |
+| FontAwesome `A["fa:fa-database DB"]` | **degraded** | icon token stripped, text kept (`removeFontAwesomeIcons`) | none |
+| HTML entity `A["A #35; B"]`          | **yes**      | decoded by `entityCodesToText`                            | none |
+
+### 5.3 Edges
+
+| Construct                     | Supported    | Renders as                                                      | Tier |
+| ----------------------------- | ------------ | --------------------------------------------------------------- | ---- |
+| `A --> B`                     | **yes**      | bound `arrow`, `strokeWidth: 2`, default arrowhead              | Fast |
+| `A -->\|"label"\| B`          | **yes**      | same + bound arrow label                                        | Fast |
+| `A -- "label" --> B`          | **yes**      | identical to the pipe form — pick one spelling                  | Fast |
+| `A --- B`                     | **yes**      | open line, both arrowheads `null`                               | Rich |
+| `A -.-> B`                    | **yes**      | `strokeStyle: "dashed"` + default arrowhead                     | Rich |
+| `A ==> B`                     | **yes**      | `strokeWidth: 4`                                                | Rich |
+| `A <--> B`                    | **yes**      | `arrow` arrowheads on both ends                                 | Rich |
+| `A --o B`                     | **yes**      | `endArrowhead: "circle"` (was `"dot"` in 2.0.0)                 | none |
+| `A --x B`                     | **yes**      | `endArrowhead: "bar"`                                           | none |
+| `A ~~~ B` invisible link      | **degraded** | a **visible** 2px open line — `"invisible"` is never handled    | none |
+| `A --> B --> C` chain         | **yes**      | expands to two independent bound arrows                         | Fast |
+| `A & B --> C`                 | **yes**      | expands to two independent bound arrows                         | Rich |
+| Duplicate `A --> B`           | **degraded** | two elements sharing the id `A_B` (§4.4)                        | none |
+| Self-loop `A --> A`           | **unknown**  | id `A_A`; dropped if the DOM path has < 2 points — #46 verifies | none |
+| `linkStyle 0 stroke:...`      | **ignored**  | `edge.style` is never read; edge colour is unreachable          | none |
+| `class E1 myclass` on an edge | **ignored**  | mermaid records it, the converter never reads edge classes      | none |
+
+Arrows are **bound** at both ends (`start`/`end` set to the vertex ids), which is what makes them
+re-route on drag. This is the single most valuable property in the whole vocabulary; nothing in
+this table should be traded against it.
+
+### 5.4 Styling
+
+| Construct                           | Supported    | Renders as                                                        | Tier |
+| ----------------------------------- | ------------ | ----------------------------------------------------------------- | ---- |
+| `classDef c fill:#hex`              | **yes**      | `backgroundColor` + `fillStyle: "solid"`                          | Rich |
+| `classDef c stroke:#hex`            | **yes**      | `strokeColor`                                                     | Rich |
+| `classDef c stroke-width:2px`       | **yes**      | `strokeWidth: 2` (only `1` / `2` / `4` map to toolbar states)     | Rich |
+| `classDef c stroke-dasharray:4 4`   | **yes**      | `strokeStyle: "dashed"` — value ignored, one bit only             | Rich |
+| `classDef c color:#hex`             | **yes**      | bound-label `strokeColor`                                         | none |
+| `A:::c`                             | **yes**      | applies class `c`                                                 | Rich |
+| `class A,B c`                       | **yes**      | applies class `c` to both                                         | Rich |
+| `A:::c1:::c2` / `class A c1,c2`     | **yes**      | all classes applied, later wins per property (new in 2.2.2)       | none |
+| `style A fill:#hex,stroke:#hex`     | **yes**      | same fields as `classDef`, shape-independent since 2.2.2 (§1.2)   | none |
+| `classDef default ...`              | **unknown**  | not in `vertex.classes`; may leak via the DOM route — #46 decides | none |
+| `fill:rgb(1, 2, 3)`                 | **degraded** | mermaid splits on the commas first; three broken declarations     | none |
+| Any other CSS property              | **ignored**  | dropped by the whitelist switch (§1.1)                            | none |
+| Invalid colour, e.g. `fill:#gg0000` | **ignored**  | rejected by `isValidCSSColor`, falls back to Excalidraw's default | none |
+
+The six-class palette in §2.4 is the entire sanctioned use of this row group. `Rich` and `Deep`
+emit that block verbatim and nothing else; `Fast` emits no styling at all.
+
+### 5.5 Grouping
+
+| Construct                                  | Supported    | Renders as                                                       | Tier |
+| ------------------------------------------ | ------------ | ---------------------------------------------------------------- | ---- |
+| `subgraph id["Title"]` … `end`             | **fatal**    | `rectangle` + top-anchored label + shared `groupIds` (§3.1)      | Rich |
+| One-token `subgraph My Title`              | **degraded** | id becomes `subGraph0`; every reference to it breaks (§3.5)      | none |
+| Nested subgraphs, 2 levels                 | **fatal**    | correct parent chain, inner container on top (§3.3)              | Deep |
+| Nested subgraphs, 3+ levels                | **fatal**    | works, but multiplies graphImage-fallback risk                   | none |
+| `subgraph id["T"]:::c` / `class id c`      | **yes**      | container **and** label styled — new in 2.2.2 (§3.2)             | Rich |
+| `style <subgraphId> ...`                   | **degraded** | no subgraph equivalent of `vertex.styles`; DOM route only        | none |
+| Empty subgraph (no nodes)                  | **unknown**  | source says rectangle with `groupIds: []`; may not render at all | none |
+| Cross-subgraph edge                        | **degraded** | arrow gets `groupIds: []`, left behind on drag until re-route    | Rich |
+| Subgraph id colliding with a `classDef` id | **degraded** | silently inherits that class (§3.2, source 4)                    | none |
+| `direction TB` inside a subgraph           | **ignored**  | layout hint; nothing survives beyond the resulting geometry      | Rich |
+
+`subgraph` is marked **fatal** rather than **yes** because it is the one construct that can still
+collapse the entire diagram to a single `image` (§3.4) — edges degrade gracefully in 2.2.2,
+subgraphs do not. It is permitted from Rich upward because the layering it expresses is worth the
+risk at those budgets, not because the risk is small.
+
+### 5.6 Diagram-level constructs
+
+| Construct                              | Supported   | Renders as                                                    | Tier |
+| -------------------------------------- | ----------- | ------------------------------------------------------------- | ---- |
+| `flowchart LR` / `TD` / `TB`           | **yes**     | layout direction only; baked into element coordinates         | Fast |
+| `flowchart RL` / `BT`                  | **yes**     | same, but reversed reading order confuses small models        | none |
+| `graph LR` (legacy keyword)            | **yes**     | `diagram.type === "graph"`, same code path                    | none |
+| `%% comment`                           | **yes**     | stripped by mermaid, no elements                              | Rich |
+| `click A href "https://…"`             | **yes**     | Excalidraw element `link` (converter `:133`)                  | none |
+| `%%{init: {...}}%%` directives         | **unknown** | changes the rendered SVG the parser reads from — #46 verifies | none |
+| YAML frontmatter (`---` … `---`)       | **ignored** | `title:` and friends produce no element                       | none |
+| `sequenceDiagram`                      | partial     | fixed shapes, no `classDef` (§1.7, §4.5)                      | none |
+| `classDiagram`                         | partial     | `rectangle` + divider `line`s, colour only                    | none |
+| `erDiagram` / `stateDiagram-v2`        | partial     | structurally parsed as of 2.2.2, vocabulary unexplored        | none |
+| gantt, pie, journey, mindmap, timeline | **fatal**   | one base64 SVG `image`; nothing draggable or bound            | none |
+
+### 5.7 Identifier rules that cut across every row
+
+These are constraints on ids, not constructs, but a violation is as destructive as an unsupported
+construct so the contract has to carry them.
+
+- **No `_` in node ids.** Arrow ids are `` `${start}_${end}` ``, so a node named `A_B` collides
+  with the arrow for `A --> B` (#33). Use `apiGw`, never `api_gw`.
+- **Prefix subgraph ids** (`layer_*`) so they collide with neither node ids nor `classDef` ids
+  (§3.2, §3.5). This is the one place `_` is safe, because subgraph ids never form an arrow id.
+- **Always quote labels.** `A[Read, then write]` breaks the parser; `A["Read, then write"]` does not.
+- **Hex colours only**, never `rgb()`/`hsl()`, because mermaid splits declarations on commas
+  before the converter sees them (§1.3).
+
+### 5.8 The emit list, restated
+
+What a tier is actually allowed to produce, in full:
+
+- **Fast** — `flowchart LR|TD`; `A["…"]`, `A{"…"}`; `A --> B`, `A -->|"…"| B`; chains. Nothing else.
+- **Rich** — Fast, plus `A("…")`, `A(("…"))`; `A --- B`, `A -.-> B`, `A ==> B`, `A <--> B`;
+  `A & B --> C`; `%%` comments; the §2.4 six-class `classDef` block with `:::`; one level of
+  `subgraph layer_x["…"]`, optionally classed.
+- **Deep** — Rich, plus `A((("…")))` (pending #46) and a second level of subgraph nesting.
+
+Everything not on this list is forbidden to every tier.
