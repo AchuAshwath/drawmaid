@@ -245,3 +245,72 @@ The numbers above are from an isolated bun build, not from drawmaid's vite/rollu
 ### The docs-site `mermaid` dependency: same package, different concern
 
 `package.json:109` declares `"mermaid": "^11.12.2"` in **devDependencies** (the `devDependencies` block opens at `package.json:86`; there is no root `dependencies` block). It resolves to the same hoisted `mermaid@11.12.2` as the converter's (`bun.lock:2576`), so it is not a third copy on disk — but it ships in the **VitePress docs site** bundle, not the app worker. Different artefact, different budget, no interaction with the app's bundle. It is a separate concern and should not be collapsed into this one.
+
+---
+
+## 5. Q5 (owner's question) — the latest release, and what newer versions unlock
+
+**We are two minor versions behind, and the gap matters.**
+
+`apps/app/package.json:19` declares `"@excalidraw/mermaid-to-excalidraw": "^2.0.0"`. That range permits everything up to `<3.0.0`, but `bun.lock:544` pins the resolution at `2.0.0`. The npm `latest` tag is **`2.2.2`**, published 2026-03-24. Nothing about the declared range is blocking the upgrade — the lockfile simply has not been refreshed.
+
+Releases in the 2.x line, from the registry's `time` map:
+
+| Version | Published  | `mermaid` range |
+| ------- | ---------- | --------------- |
+| 2.0.0   | 2026-01    | `^11.12.1`      |
+| 2.1.0   | 2026-03-11 | `^11.12.1`      |
+| 2.1.1   | 2026-03-12 | `^11.12.1`      |
+| 2.2.1   | 2026-03-24 | `^11.12.1`      |
+| 2.2.2   | 2026-03-24 | `^11.12.1`      |
+
+The `mermaid` range is unchanged across the whole line, so upgrading the converter does **not** drag in a mermaid major. The bundle analysis in §4 stands as measured.
+
+### What 2.2.2 adds over 2.0.0
+
+Determined by diffing the published `dist/` of both versions, not from release notes.
+
+**1. Two new diagram types.** `dist/parser/er.js` + `dist/converter/types/er.js`, and `dist/parser/state.js` + `dist/converter/types/state.js`. `parseMermaid.js:104-110` adds `case "er"` and `case "state" / "stateDiagram"` to the dispatch that 2.0.0 handles only for `flowchart-v2`, `graph`, `sequence`, `class`, `classDiagram`. This is the single largest capability change: `erDiagram` and `stateDiagram` become emittable at all.
+
+**2. Subgraphs are styleable.** This is the one that changes a decision already recorded on this map. In 2.0.0, `flowchart.js` builds the subgraph container with nothing but geometry and a label — `classDef` applied to a subgraph is discarded. In 2.2.2 the same code computes `computeExcalidrawVertexStyle(subGraph.containerStyle)` and `computeExcalidrawVertexLabelStyle(subGraph.labelStyle)` and spreads both onto the container element. The parser side gained `applyContainerStyleProperty` / `applyLabelStyleProperty` in `parser/flowchart.js`, gated by a `CONTAINER_STYLE_PROPERTY` / `LABEL_STYLE_PROPERTY` whitelist and validated through `isValidCSSColor` and `parseCSSDeclarations`.
+
+Ticket #34 concluded against 2.0.0 that "subgraphs group but are unstyled". That is true of the version we ship and false of the current release.
+
+**3. Subgraph labels no longer overflow their container.** `SUBGRAPH_LABEL_HORIZONTAL_PADDING = 32`, `SUBGRAPH_LABEL_WIDTH_RATIO = 0.62`, and an `estimateLabelWidth` helper widen the container to fit its title and re-centre it (`x: subGraph.x - (width - subGraph.width) / 2`). 2.0.0 uses dagre's width verbatim, so a long subgraph title spills.
+
+**4. Cylinder labels auto-shrink.** `computeVertexLabelFontSize` reduces the font for `VERTEX_TYPE.CYLINDER` down to `MIN_VERTEX_LABEL_FONT_SIZE = 12` when the label would not fit.
+
+Be precise about what this is not: **the shape switch is still five cases** — `STADIUM`, `ROUND`, `DOUBLECIRCLE`, `CIRCLE`, `DIAMOND` — in both versions. `[(Database)]` still converts to a plain rectangle in 2.2.2; it just gets a label that fits. #34's "five shapes survive, eleven collapse to rectangles" holds unchanged at 2.2.2.
+
+**5. Mermaid calls are serialised.** New module `dist/mermaidExecutionQueue.js`, exporting `runMermaidTaskSequentially`. Its own comment states the reason: mermaid "is effectively a singleton in-process — `mermaid.initialize()` mutates shared config, `getDiagramFromText()` and `render()` use shared internal state, and `render()` also inserts temporary DOM nodes while it works. If those operations overlap, callers can race on config, parser state, and transient DOM."
+
+This is a live concern for us rather than a hypothetical. Auto mode's `disableAbort` path (`apps/app/lib/llm/mermaid-llm.ts:190`) is explicitly "newest wins", so a slow conversion can still be in flight when the next one starts. On 2.0.0 there is no queue and both calls enter mermaid's shared state concurrently.
+
+**6. Redundant `mermaid.initialize()` is skipped.** `parseMermaid.js` gained `lastConfigHash` and a `hashConfig` helper, commented as avoiding re-initialisation "which can cause performance issues during streaming". Directly relevant to auto mode's regeneration cadence.
+
+**7. Sequence diagrams gained group/box rendering** — `GROUP_RECT_PADDING`, `GROUP_LABEL_FONT_SIZE`, transparent-fill detection, and group-id assignment in `converter/types/sequence.js`.
+
+**8. Arrowhead bug fix.** `helpers.js` changed `endArrowhead`/`startArrowhead` from `"dot"` to `"circle"`. `"dot"` is not a valid Excalidraw arrowhead value, so the 2.0.0 output was wrong for the affected link types.
+
+### Verdict
+
+**Upgrade to 2.2.2 before #46 builds the conformance harness.** Reasons, in order of weight:
+
+1. Subgraph styling changes what the Rich tier can express, and #34's finding on this point is version-specific.
+2. The execution queue closes a real race in the auto-mode path we have already committed to.
+3. `erDiagram` and `stateDiagram` widen the diagram-type question sitting in the map's "Not yet specified".
+4. No mermaid major bump, so §4's bundle numbers do not move.
+
+Measuring 2.0.0's behaviour in #46 would produce a vocabulary contract for a version we should not be shipping.
+
+---
+
+## 6. Recommendation for #46 (vocabulary conformance harness)
+
+Target **`@excalidraw/mermaid-to-excalidraw@2.2.2`**, after the lockfile is refreshed. Concretely:
+
+- Bump the resolution (`bun update @excalidraw/mermaid-to-excalidraw`) and confirm `bun.lock` moves off `2.0.0`. The declared `^2.0.0` range needs no edit.
+- Re-verify #34's subgraph conclusion against 2.2.2 rather than inheriting it — subgraph `classDef` is the specific thing that changed.
+- Keep #34's shape matrix as-is; the shape switch did not change.
+- Add `erDiagram` and `stateDiagram` to the corpus as newly-supported types, flagged as candidates for the map's "diagram types beyond flowchart" fog.
+- Leave `@excalidraw/excalidraw@0.18.0`'s bundled `1.1.2` alone. It is a transitive pin we do not control, and §3 established which UI routes reach it.
