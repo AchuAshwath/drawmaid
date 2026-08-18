@@ -19,7 +19,16 @@ official documentation and installed/published source, not blog summaries.
 
 ## Status
 
-In progress.
+Complete. All eight sections answered from primary sources.
+
+**Headline.** The client contract is the same everywhere — emit a byte-stable prefix; no backend
+needs a cache field, and the one that has a field (Anthropic) has it filled in automatically by
+CLIProxyAPI. What differs is the **minimum cacheable prefix**, which spans 1 token (llama.cpp) to
+4,096 (Anthropic Haiku 4.5, Gemini 3.x). Drawmaid's entire prompt is ≈ 675–780 tokens: above every
+local floor, below every hosted one. So the `L0`/`L1`/`L2` layering pays on vLLM and
+llama.cpp/Ollama, buys nothing on WebLLM, Anthropic or Gemini, and is in every case worth less than
+one unglamorous fix — **the transcript is currently substituted at the _top_ of the user prompt,
+which strands ≈ 70 % of the prompt downstream of the most volatile string on every call.**
 
 ---
 
@@ -912,3 +921,94 @@ It is just not a caching reason, and #42 should not justify it as one.
 region.** The L0/L1/L2 split is worth building for prompt-authoring and tier-budgeting reasons, and
 for a genuine ≈ 206-tokens-per-session saving on the two local server backends. It should not be
 sold to #42 or #43 as a caching win on the hosted backends, because there it is not one.
+
+---
+
+## 7. Per-backend summary
+
+Every claim in this table is derived in §§1–6; this is a lookup, not new material.
+
+| Backend                       | Mechanism                                                                                                                                | How enabled                                                                                                                     | Granularity                                                  | Minimum cacheable prefix                                                              | What the client must do                                                                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **WebLLM / MLC**              | None. One mutable KV cache per pipeline, reused only when `compareConversationObject` says request N = N−1 + reply + one new turn (§1.2) | n/a — cannot be turned on                                                                                                       | Whole conversation, positional, not content-addressed        | n/a — no prefix cache exists at any size                                              | Nothing helps. KV reuse needs a real multi-turn message array, which the 4096-token ceiling makes unaffordable (§1.4, §6.7)              |
+| **vLLM**                      | Content-addressed block hash chained to the parent block's hash (§2.1)                                                                   | **On by default** — `enable_prefix_caching: bool = True`, `vllm/config/cache.py:107`. Disable with `--no-enable-prefix-caching` | **16 tokens**, full blocks only (`DEFAULT_BLOCK_SIZE`, §2.2) | **16 tokens**; a hit truncates down to a multiple of 16                               | Emit a byte-identical prefix. No header, no field, no opt-in (§2.5)                                                                      |
+| **llama.cpp server**          | Two tiers: live-slot longest-common-prefix, plus a cross-request RAM prompt-state store (§3.1)                                           | **On by default** — `--cache-prompt` and per-request `cache_prompt` both default true; RAM store `-cram` defaults 8192 MiB      | **1 token** — plain token-by-token walk (§3.2)               | **1 token**                                                                           | Emit a byte-identical prefix. Operators: `-np` ≥ concurrent users, non-zero `--cache-ram` (§3.6)                                         |
+| **Ollama**                    | Same as llama.cpp — Ollama spawns `llama-server` as a subprocess (§4.1)                                                                  | Always on: `"cache_prompt": true` is hardcoded, `llm/llama_server.go:2152-2155`. No API option either way                       | **1 token** (inherited)                                      | **1 token**                                                                           | Emit a byte-identical prefix. Operators: `OLLAMA_KEEP_ALIVE` long (default **5 min**), `OLLAMA_NUM_PARALLEL` ≥ users (§4.4)              |
+| **Anthropic via CLIProxyAPI** | Explicit `cache_control` breakpoints; lookup walks backward up to 20 blocks but only finds entries prior requests wrote (§6.5)           | **Automatic** — CPA runs `ensureCacheControl` on any non-Claude-Code caller that sends zero breakpoints (§5.1)                  | Breakpoint-positioned; entries only at breakpoints           | **512 / 1,024 / 2,048 / 4,096 tokens, model-dependent** (§5.3) — fails silently below | **Nothing, deliberately.** Sending one marker disables CPA's placement of the rest. Keep the system block stable and large enough (§5.7) |
+| **Gemini via CLIProxyAPI**    | Implicit caching, server-side, keyed on received content (§5.5)                                                                          | **On by default** for Gemini 2.5+; "There is nothing you need to do"                                                            | Opaque; Google does not document a block size                | **2,048** (2.5) / **4,096** (3.x) tokens, measured on **total input**                 | Nothing available. Explicit `cachedContent` is unreachable — no CPA translator ever sets it (§5.5)                                       |
+
+Three cross-cutting observations:
+
+1. **No backend in this survey requires a client-side cache field.** vLLM, llama.cpp, Ollama and
+   Gemini have none at all; Anthropic has one and CLIProxyAPI fills it in for us. The client's
+   entire contract everywhere is _emit a byte-stable prefix_.
+2. **The minimum cacheable prefix spans four orders of magnitude** — 1 token on llama.cpp, 16 on
+   vLLM, up to 4,096 on Anthropic and Gemini. Drawmaid's whole prompt (≈ 675–780 tokens, §6.1) sits
+   above the local floors and below the hosted ones. That single fact is why §6 splits the verdict
+   the way it does.
+3. **Two backends expire on a timer and both are ~5 minutes**: Anthropic's default TTL (§5.2) and
+   Ollama's `keep_alive` default (§4.3). vLLM and llama.cpp expire on eviction pressure instead, so
+   they degrade gracefully rather than at a cliff. For a dictation workload with natural pauses, the
+   5-minute cliff is the more likely cache killer than anything about prompt shape.
+
+---
+
+## 8. Open items
+
+Things this review could not close, in rough order of how much they would change the conclusions.
+
+**8.1 None of this is observable in drawmaid today.** `localServerGenerate` reads only
+`choices[].delta.content` and discards the response `usage` object entirely
+(`apps/app/lib/ai-config/providers/local.ts`). So `cache_read_input_tokens`,
+`cache_creation_input_tokens` and `cachedContentTokenCount` — the only evidence that any of this
+works — never reach the client. **Every quantitative claim in §6 is derived from source and docs,
+not measured.** Surfacing usage from the streaming response is a small change and is the
+precondition for validating any of it. This should probably be its own ticket.
+
+**8.2 Token counts are chars ÷ 4 estimates.** §6.1 says so explicitly. The comparisons that matter
+(≈ 206-token `L0` vs a 512-token floor; ≈ 780-token prompt vs a 2,048-token floor) have 2–5×
+headroom, so the conclusions are robust to the estimate being wrong by a third. They are not robust
+to it being wrong by 3×. Real counts need the Qwen2.5 tokenizer for WebLLM and Anthropic's
+`count_tokens` endpoint for the hosted path.
+
+**8.3 CLIProxyAPI cloaking may prepend a system preamble, and nobody checked.**
+`resolveClaudeWirePolicy` defaults `cloakMode` to `"auto"`
+(`internal/runtime/executor/claude_executor_cloaking.go:944-964`), and the file defines
+`claudeCodeCLIIdentity = "You are Claude Code, Anthropic's official CLI for Claude."` at `:203`. I
+did not trace whether cloaking injects that string into the system block for a translated OpenAI
+caller. It matters twice over: it would prepend a fixed, stable preamble to every drawmaid system
+prompt (harmless for caching, possibly helpful for clearing Anthropic's minimum) **and** it would
+change what the model is told it is, which is a behavioural change drawmaid never asked for. Worth
+30 minutes before #42 commits to the Anthropic path.
+
+**8.4 llamafile is asserted, not verified.** §3.5 flags this already. llamafile embeds whichever
+llama.cpp generation it was built against, and `--cache-ram` plus the LCP slot-selection logic are
+recent. Anything in §3 should be re-checked against the specific llamafile build before it is
+relied on.
+
+**8.5 vLLM's multi-tenant cache salt could void the cross-user `L0` sharing claim.** §2.1 quotes
+vLLM's design doc listing "cache salts to isolate caches in multi-tenant environments" among the
+block-hash components. §6.3 credits vLLM with sharing `L0` across every user of a self-hosted
+server — which is true only if no salt is set. Whether any common deployment sets one per user or
+per API key was not investigated. Also unestablished: which vLLM versions ship
+`prefix_match_unit` (§2.2), since it is recent.
+
+**8.6 The unit of Anthropic's 20-block lookback window.** The docs say "The lookback window is 20
+blocks" and the worked example counts blocks as a conversation grows, which reads like content
+blocks rather than fixed token blocks — but it is not stated outright. Irrelevant for drawmaid's
+current two-block prompt; material if a future design sends a real multi-turn array.
+
+**8.7 LM Studio was not surveyed.** `README.md:62` advertises it alongside CLIProxyAPI, Ollama and
+vLLM as a supported local server. It is presumably llama.cpp-derived, and if so §3 applies — but
+that is an assumption, not a finding.
+
+**8.8 Whether Deep's two passes can share `L0`.** Deep is a plan pass followed by a render pass
+(#38). If both passes share the `L0` block byte-for-byte, Deep pays one `L0` prefill instead of two
+and the §6.3 arithmetic improves for the tier that needs it most. That is a prompt-design decision
+for #42, not a fact recoverable from any backend's source.
+
+**8.9 Gemini's implicit-cache minimums may have undocumented conditions.** The per-model thresholds
+in §5.5 are quoted from Google's docs. Whether they vary by region, key type, or free-vs-paid tier
+is not stated on that page and was not chased down. The conclusion in §6.6 — that drawmaid's prompt
+is far below the floor — holds under any of those variations, so this is recorded for completeness
+rather than as a risk.
