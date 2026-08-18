@@ -475,3 +475,255 @@ cache. So:
 Nothing at the API level, again. There is no cache field to send. Byte-stable prefix, and — for
 self-hosted operators — `OLLAMA_KEEP_ALIVE` long, and `OLLAMA_NUM_PARALLEL` ≥ concurrent users if
 more than one person shares the server. Minimum cacheable prefix is llama.cpp's: **one token**.
+
+---
+
+## 5. CLIProxyAPI → Anthropic / Gemini
+
+Source: `router-for-me/CLIProxyAPI` at commit `ee2c494` (v7 module path). All file:line references
+in this section are to that tree, recoverable from
+<https://github.com/router-for-me/CLIProxyAPI>.
+
+Drawmaid reaches CLIProxyAPI as a plain OpenAI Chat Completions client — one `POST` to
+`{url}/chat/completions` with `model`, `messages`, `max_tokens`, `temperature`, `stream: true` and
+no cache fields whatsoever (`apps/app/lib/ai-config/providers/local.ts:16-30`). So the question is
+what CLIProxyAPI does with an OpenAI-shaped body that carries no cache hints, and what it would do
+if drawmaid added them.
+
+### 5.1 The answer is better than "passthrough": CLIProxyAPI _injects_ breakpoints for us
+
+The ticket asks whether `cache_control` is passed through or stripped. Both framings are wrong.
+CLIProxyAPI does three distinct things, in this order:
+
+1. **It passes client-supplied `cache_control` through the translation.** The OpenAI→Claude request
+   translator copies a `cache_control` object verbatim from every OpenAI system block, content
+   part, and tool onto the corresponding Anthropic block, via a helper whose whole body is a raw
+   JSON copy:
+
+   ```go
+   // internal/translator/common/cache_control.go:12-22
+   func AttachCacheControl(dst []byte, src gjson.Result) []byte {
+       cc := src.Get("cache_control")
+       if !cc.Exists() || cc.Type == gjson.Null || !cc.IsObject() {
+           return dst
+       }
+       out, err := sjson.SetRawBytes(dst, "cache_control", []byte(cc.Raw))
+       ...
+   }
+   ```
+
+   Call sites: system string content and array parts
+   (`internal/translator/claude/openai/chat-completions/claude_openai_request.go:191`, `:199`),
+   message-level `cache_control` demoted onto the last system block from that message (`:203-210`),
+   and tool definitions (`:348-351`, falling back from `tool` to `tool.function`).
+   `AttachMessageCacheControl` (`internal/translator/common/cache_control.go:27-70`) additionally
+   **promotes a plain string `content` into a one-element content array** so the marker has
+   somewhere legal to live. Nothing anywhere strips it.
+
+2. **If the client sends none, CLIProxyAPI adds its own.** This is the finding that matters for
+   drawmaid, because drawmaid sends none:
+
+   ```go
+   // internal/runtime/executor/claude_executor_stream.go:126-129  (and _execute.go:122-125)
+   cpaOwnsCacheControl := shouldEnsureCacheControl(body, cloaked, confirmedClaudeCode)
+   if cpaOwnsCacheControl {
+       body = ensureCacheControl(body)
+   }
+   ```
+
+   ```go
+   // internal/runtime/executor/claude_executor_cloaking.go:1190-1192
+   func shouldEnsureCacheControl(payload []byte, cloaked, confirmedClaudeCode bool) bool {
+       return !confirmedClaudeCode && (cloaked || countCacheControls(payload) == 0)
+   }
+   ```
+
+   Drawmaid is not the native Claude Code CLI, so `confirmedClaudeCode` is false, and it sends zero
+   breakpoints, so `countCacheControls == 0`. **`ensureCacheControl` therefore runs on every
+   drawmaid request.** Its placement rule, documented in the function's own comment
+   (`:1067-1083`) as recovered from the native Claude Code request builder:
+
+   ```go
+   // internal/runtime/executor/claude_executor_cloaking.go:1084-1091
+   func ensureCacheControl(payload []byte) []byte {
+       if !claudePayloadHasCacheableSystem(payload) {
+           payload = injectToolsCacheControl(payload)
+       }
+       payload = injectSystemCacheControl(payload)
+       payload = injectMessagesCacheControl(payload)
+       return payload
+   }
+   ```
+
+   - `injectSystemCacheControl` (`:1669-1750`) stamps `{"type":"ephemeral"}` on the **last** system
+     block, and converts a bare system _string_ into a one-element text array to do it. It bails if
+     **any** system element already carries a marker.
+   - `injectMessagesCacheControl` (`:1517-1580`) stamps the last _eligible_ message —
+     `claudeMessageEligibleForRollingCache` (`:1582-1600`) accepts any string-content message and
+     any non-assistant message, so a plain trailing user turn always qualifies.
+   - Tools are deliberately **not** stamped when a usable system prompt exists, because a system
+     breakpoint already covers the tools prefix (comment at `:1073-1079`).
+
+   Drawmaid's two-message body translates to `system: [<one text block>]` + `messages: [<user>]`,
+   so it comes out of `ensureCacheControl` with exactly **two breakpoints: end-of-system and
+   end-of-last-user-message** — without drawmaid asking for anything.
+
+3. **It clamps and normalises.** `enforceCacheControlLimit(body, 4)` runs unconditionally
+   (`claude_executor_stream.go:132`, `claude_executor_execute.go:128`) because Anthropic caps a
+   request at 4 breakpoints. Then `normalizeCacheControlTTL` (`:1250+`) walks tools → system →
+   messages and strips `ttl` from any `1h` block that appears after a `5m` block, to avoid the
+   ordering violation under `prompt-caching-scope-2026-01-05`.
+
+**Consequence for drawmaid: on the Anthropic path there is nothing to implement.** Sending
+`cache_control` ourselves is optional, and doing it badly is worse than doing nothing — the moment
+drawmaid sends one marker, `countCacheControls != 0` flips `shouldEnsureCacheControl` to false and
+CLIProxyAPI stops placing the other breakpoints. It is all-or-nothing: either own every breakpoint
+or own none. **Own none** is the correct default, because CPA's automatic placement is already
+exactly the L0/L1/L2-vs-L3 split that §6 wants.
+
+### 5.2 TTL: 5 minutes unless the proxy holds OAuth credentials
+
+Anthropic's default: _"By default, the cache has a 5-minute lifetime."_ The 1-hour pool is opt-in
+per breakpoint via `"cache_control": {"type": "ephemeral", "ttl": "1h"}`
+(<https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching>).
+
+Note the lifetime accounting, which matters for an auto-mode workload that streams long responses:
+
+> "The lifetime is measured from the start of the request that writes or reads the cache entry, not
+> from the end of its response. Time spent generating a response counts against the lifetime: if a
+> response takes 4 minutes to stream, a follow-up request that reuses the same cached prefix must
+> start within about 1 minute of that response completing."
+> — <https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching>
+
+CLIProxyAPI upgrades to 1h automatically, but only on one condition:
+
+```go
+// internal/runtime/executor/claude_executor_stream.go:144-146
+if cpaOwnsCacheControl && claudeCredentialUsesOAuth(auth, apiKey) {
+    body = upgradeClaudeCacheControlTTL(body, claudeCacheControlTTL1h)
+}
+```
+
+`upgradeClaudeCacheControlTTL` (`:1127-1160`) only touches blocks that already have a
+`cache_control` **without** a `ttl` — it never creates a breakpoint. The comment at `:1112-1126` is
+explicit that API-key credentials keep the plain 5-minute default, both to mirror native behaviour
+and "to avoid sending ttl to Anthropic-compatible gateways that never advertised support for it".
+The paired beta header is `extended-cache-ttl-2025-04-11`, emitted on the same credential
+condition.
+
+So: **a drawmaid user running CLIProxyAPI against an OAuth (subscription) Claude credential gets a
+1-hour prefix cache for free. A user on an API key gets 5 minutes.** Neither requires a client
+change. Five minutes is the number to design against, since it is the weaker case, and it is the
+same order as Ollama's 5-minute `keep_alive` default (§4.3) — a dictation pause longer than that
+costs a cold prefill on both.
+
+### 5.3 Anthropic's per-model minimum cacheable prefix — this is the binding constraint
+
+This is the number the layering plan actually has to clear, and it is far larger than every other
+backend surveyed. Verbatim from
+<https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching>:
+
+| Model                                                                            | Minimum cacheable tokens |
+| -------------------------------------------------------------------------------- | ------------------------ |
+| Claude Opus 5, Claude Fable 5, Claude Mythos 5                                   | **512**                  |
+| Claude Opus 4.8, Claude Sonnet 5, Claude Sonnet 4.6, Claude Sonnet 4.5, Opus 4.1 | **1,024**                |
+| Claude Mythos Preview, Claude Opus 4.7                                           | **2,048**                |
+| Claude Haiku 3.5 (retired)                                                       | **2,048**                |
+| Claude Opus 4.6, Claude Opus 4.5                                                 | **4,096**                |
+| Claude Haiku 4.5                                                                 | **4,096**                |
+
+> "Shorter prompts cannot be cached, even if marked with `cache_control`. Any requests to cache
+> fewer than this number of tokens will be processed without caching, and no error is returned."
+
+Two things follow, and both are load-bearing for §6:
+
+- **It fails silently.** No error, no warning — a too-short prompt simply is not cached and nobody
+  finds out. The only way to detect it is to read `usage.cache_read_input_tokens` off the response.
+- **The floor is model-dependent and drawmaid does not choose the model** — the user types a model
+  name into the local-server config (`apps/app/lib/ai-config/types.ts`). A prompt tuned to clear
+  512 tokens caches on Opus 5 and silently does not cache on Haiku 4.5. **Design against 4,096**,
+  the worst case in the table, or accept that caching is a coin flip across models.
+
+### 5.4 The invalidation hierarchy
+
+> "Cache prefixes are created in the following order: `tools`, `system`, then `messages`." …
+> "the cache follows the hierarchy: `tools` → `system` → `messages`. Changes at each level
+> invalidate that level and all subsequent levels."
+> — <https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching>
+
+Selected rows of the invalidation table (✘ = cache invalidated):
+
+| What changes     | Tools cache | System cache | Messages cache |
+| ---------------- | ----------- | ------------ | -------------- |
+| Tool definitions | ✘           | ✘            | ✘              |
+| Tool choice      | ✓           | ✓            | ✘              |
+| Images           | ✓           | ✓            | ✘              |
+
+This is structurally identical to vLLM's parent-hash chain (§2.1) and llama.cpp's LCP walk (§3.2):
+a prefix cache is a prefix cache, and an edit at position _i_ destroys everything at ≥ _i_.
+Drawmaid sends no tools and no images, so for us the hierarchy collapses to **system → messages**,
+which is exactly where CPA puts its two automatic breakpoints. The practical rule is unchanged from
+every other backend: **the L0/L1/L2 system block must be byte-identical across calls**, and the
+per-call `{{entities}}`/`{{tips}}`/`{{nodeSyntax}}` substitution at
+`apps/app/lib/llm/intent-extraction.ts:154-200` violates it on every single request.
+
+Pricing, for the cost argument in §6 — 5-minute cache writes cost **1.25×** base input, 1-hour
+writes **2×**, and cache reads **0.1×** (same source). A cache read is therefore a **90 % discount**
+on the cached span, and a 5m write costs a 25 % surcharge. The break-even is trivially low: a prefix
+written once and read once already saves money (1.25 + 0.1 = 1.35 vs 2.0 for two cold prefills).
+
+### 5.5 Gemini: implicit caching applies, explicit caching does not
+
+**Implicit caching survives the proxy, because it is not a request feature at all.**
+
+> "Implicit caching is enabled by default for all Gemini 2.5 and newer models." … "There is nothing
+> you need to do in order to enable this." … "Try putting large and common contents at the
+> beginning of your prompt."
+> — <https://ai.google.dev/gemini-api/docs/caching>
+
+Since it requires no request field, nothing in the OpenAI→Gemini translation can strip it. It keys
+on the content Google receives, so it applies to a proxied request exactly as it would to a direct
+one. Minimum input tokens for an implicit hit, from the same page:
+
+| Model                                         | Minimum tokens |
+| --------------------------------------------- | -------------- |
+| Gemini 2.5 Flash, Gemini 2.5 Pro              | **2,048**      |
+| Gemini 3.1 Pro Preview, 3.5 / 3.6 / 3.7 Flash | **4,096**      |
+
+Note this is a **minimum on the whole input**, not on the marked prefix — but the practical
+planning number is the same order as Anthropic's, and the same conclusion follows: a small prompt
+is not cached anywhere.
+
+**Explicit caching is not reachable through drawmaid's path.** Google does expose it over their own
+OpenAI-compatible endpoint, as `extra_body.google.cached_content` carrying a `cachedContents/...`
+resource name (<https://ai.google.dev/gemini-api/docs/openai>). But CLIProxyAPI never emits it:
+grepping the whole tree, **no translator ever sets `cachedContent` on an outbound request body.**
+Every non-test occurrence is either reading `usageMetadata.cachedContentTokenCount` off a
+_response_ for usage accounting (e.g.
+`internal/translator/gemini/openai/chat-completions/gemini_openai_response.go:113`, `:320`) or
+reading the field off an incoming _native_ Gemini body for session identity
+(`sdk/cliproxy/session/identity.go:196`). There is no OpenAI-side field that maps to it and no
+injection equivalent to `ensureCacheControl`.
+
+So on the Gemini path drawmaid gets implicit caching and only implicit caching — automatic, free,
+and entirely dependent on emitting a stable, front-loaded prefix that clears 2,048–4,096 tokens.
+
+### 5.6 One non-issue worth recording
+
+`convertOpenAIRequestToClaude` mints process-lifetime UUIDs and injects
+`metadata.user_id = "user_<sha256>_account_<uuid>_session_<uuid>"`
+(`internal/translator/claude/openai/chat-completions/claude_openai_request.go:59-74`). This looks
+like per-request volatility that would wreck a prefix cache, but it does not: the vars are
+package-level and generated once per proxy process (`:23-27`), and `metadata` is not part of the
+`tools`/`system`/`messages` prefix that Anthropic hashes. It is safe to ignore.
+
+### 5.7 What drawmaid must do
+
+| Backend via CLIProxyAPI | Client action required                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anthropic               | **Nothing.** Do not send `cache_control` — sending even one marker disables CPA's automatic placement of the others. Keep the system block byte-stable and ≥ the model minimum. |
+| Gemini                  | **Nothing available.** Implicit caching only; explicit `cachedContent` is unreachable. Keep the stable content at the front and clear 2,048 tokens.                             |
+
+The single client-side requirement on both paths is identical to vLLM's and llama.cpp's: **a
+byte-stable prefix**. The difference is that Anthropic and Gemini impose a _minimum size_ on it,
+which the local backends do not.
