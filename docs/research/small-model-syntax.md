@@ -302,3 +302,122 @@ One measured detail matters more than the tag choice. Appending a chunk directly
 3. **Do fix what ships today regardless.** `ROLE:` / `RULES:` / `BEHAVIOR:` in `system-prompt.md` and `CRITICAL FORMATTING RULES:` / `SYNTAX RULES FOR …:` in `user-prompt-rules.md` are an ad-hoc third format that is neither XML nor markdown, and it fragments into junk subwords. Pick one style and apply it across all four layers.
 4. **If the A/B says XML, use short lowercase tags** — `<role>`, `<rules>`, `<examples>`, `<input>` — not `SCREAMING_SNAKE`.
 5. **Settle it in #47**, one variant per arm, parse-rate before healing as the metric.
+
+---
+
+## 4. Q4 — Deterministic repair: what JavaScript can fix without a second LLM call
+
+This is the section [#44](https://github.com/AchuAshwath/drawmaid/issues/44) is blocked on.
+
+Method is §0's harness, extended: each candidate repair was applied to a malformed input and the result re-parsed against the same shipped grammar. A repair counts only if the input **fails** and the output **parses**. Where a repair produced a parse but changed the diagram's meaning, that is recorded separately in §4.3 — a repair that silences the parser while corrupting the graph is worse than no repair at all.
+
+### 4.1 Measured: repairs that work
+
+Every row below went `FAIL → OK` against `mermaid@11.12.2`'s flowchart grammar.
+
+| #   | Failure class                               | Detection                                  | Repair                                                                | Measured    |
+| --- | ------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------- | ----------- |
+| R1  | Markdown fence wrapper                      | first line matches ` ```` `                | take from the first header-matching line to the first following fence | `FAIL → OK` |
+| R1  | Prose preamble ("Here is the diagram:")     | first line does not match the header regex | same                                                                  | `FAIL → OK` |
+| R2  | `"` in an unquoted label                    | label body matches `/["()\{\}\|@]/`        | wrap body in `"…"`, rewrite inner `"` → `#quot;`                      | `FAIL → OK` |
+| R2  | `(` `)` in an unquoted label                | same                                       | same                                                                  | `FAIL → OK` |
+| R2  | `@` in an unquoted label                    | same                                       | same                                                                  | `FAIL → OK` |
+| R2  | `{` `}` in an unquoted label                | same                                       | same                                                                  | `FAIL → OK` |
+| R3  | Reserved word as node id — `end`            | word adjacent to a link token              | suffix `Node` at every occurrence                                     | `FAIL → OK` |
+| R3  | `graph`, `class`, `style`, `subgraph` as id | same                                       | same                                                                  | `FAIL → OK` |
+| R4  | Dangling arrow (`B -->` with no target)     | line ends in a link token                  | drop the line                                                         | `FAIL → OK` |
+
+R1 and R2 are the two that matter, because §1.6 Mechanism A predicts them: the model copies the transcript verbatim into the label, so whatever punctuation the ASR emitted lands inside `[...]`. That is a transcript property, not a model-capability property — it would happen at 70B too, and it is exactly the class deterministic repair removes for free.
+
+R2's escape round-trips end to end. §1.4 already established that `entityCodesToText()` in the converter decodes `#quot;` back to `"` when reading labels out of the rendered SVG, so `A["He said #quot;hi#quot;"]` reaches the canvas as `He said "hi"`.
+
+**R3 is safe against the `subgraph … end` block**, which is the obvious way to get this wrong. Measured: applying R3 to
+
+```
+flowchart TD
+ subgraph S
+  A --> B
+ end
+ B --> C
+```
+
+leaves the text byte-identical, because the detection requires adjacency to a link token and a bare `end` on its own line has none. Applied to `A --> end` inside a subgraph, it correctly rewrites only the endpoint and leaves the block terminator alone:
+
+```
+ subgraph S
+  A --> endNode
+ end
+```
+
+Both parse.
+
+### 4.2 What R4 costs
+
+R4 parses, but it is **lossy by construction**: the model said there was an edge and we deleted it. That is defensible only because the alternative — inventing a target — is exactly the intent-guessing §4.4 rules out. Log it; do not do it silently. `AGENTS.md` requires failing loudly rather than masking incorrect state, and a dropped edge is incorrect state.
+
+### 4.3 The repair that must not be built: bracket balancing
+
+Issue #31 Task 1 proposes auto-repairing "unclosed brackets". **Measured, it produces a parse and destroys the graph.**
+
+Input `flowchart TD\n A[Hi --> B` — the model opened a label and never closed it. Appending the missing `]` at end of line yields `A[Hi --> B]`, which parses. But `-->` inside brackets is label text, not a link. Confirmed directly: `A[Hi --> B] --> C` **parses**, which is only possible if the first `-->` was swallowed into A's label.
+
+So the "repair" turns
+
+- **intended:** node `A` labelled `Hi`, edge `A → B` — two nodes, one edge
+
+into
+
+- **actual:** one node `A` labelled `"Hi --> B"`, zero edges
+
+A malformed diagram became a confidently wrong one. The parser stops complaining and the user gets a single box containing an arrow as text. There is no way to distinguish "closing bracket missing" from "closing bracket missing _and_ an arrow lost inside it" without knowing what the user meant.
+
+**Verdict: do not implement bracket balancing.** Route it to the LLM recovery path instead, where the original transcript is available to disambiguate.
+
+### 4.4 Not deterministically repairable — the fix requires intent
+
+| Class                                    | Why JavaScript cannot decide                                                                                                                               |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unclosed bracket                         | §4.3. Closing it may swallow an edge; only the transcript says which.                                                                                      |
+| Dangling arrow, if the edge matters      | R4 deletes it. Recovering the intended target needs the transcript.                                                                                        |
+| Missing header line entirely             | If no line matches the header regex, R1 has nothing to anchor on. Guessing `flowchart TD` also guesses the direction and the diagram type.                 |
+| Wrong diagram type                       | The model emitted `sequenceDiagram` for something the user described as a flow. Syntactically valid, semantically wrong.                                   |
+| Duplicate node ids with different labels | Merging loses a label; renaming invents a node.                                                                                                            |
+| Truncated output (hit `max_tokens`)      | The tail is missing, not malformed. Nothing local reconstructs it. Note this is a live case: `triggerStop()` commits truncated output on abort (#39 §1.4). |
+
+These are the LLM recovery path's job, and they are the argument for keeping `buildErrorRecoveryPrompt` rather than replacing it wholesale with `autoHealMermaid()`.
+
+### 4.5 Better banned than repaired
+
+[#34](https://github.com/AchuAshwath/drawmaid/issues/34) measured that only five node shapes survive conversion; eleven collapse to a rectangle _and_ distort layout, because geometry still comes from the real mermaid bounding box. `[(Database)]`, `[[Subroutine]]`, `{{Hexagon}}`, `[/IO/]` and the trapezoids all parse — the grammar accepts them, so there is nothing for a repair to detect.
+
+That makes them a **vocabulary** problem, not a repair problem, with one exception worth taking: since these constructs parse but render worse than a plain box, rewriting them to `[Label]` before conversion is a cheap, lossless-in-practice normalisation. It costs nothing when the model ignores the prompt and emits `[(Store)]` anyway.
+
+Same for [#33](https://github.com/AchuAshwath/drawmaid/issues/33)'s invariants: node ids containing `_` parse fine (measured: `A_B --> C` is `OK`) but can collide with the generated arrow id `` `${start}_${end}` `` and hard-crash conversion. The grammar cannot see it, so this belongs in the **skeleton acceptance check** #33 §7 defines, not in a grammar-level repair. It _is_ deterministically repairable — rename ids to strip `_` and rewrite every occurrence — because renaming needs no intent.
+
+### 4.6 The pipeline
+
+Order matters; each stage assumes the previous one ran.
+
+1. **R1 extract** — find the first header-matching line, take to the first fence or EOF. Replaces the current `normalizeMermaid`, which recognises only 3 diagram types and silently returns `null` for a 4th (map §Notes).
+2. **R3 reserved-id rename**, then **id `_` stripping** (#33) — both are pure renames, both need no intent.
+3. **R2 label quoting** — after renames, so a renamed id is not re-quoted.
+4. **Shape normalisation** (§4.5) — rewrite the eleven collapsing shapes to `[…]`.
+5. **R4 dangling-arrow drop** — last, and logged loudly.
+6. **Parse.** If it still fails, go to the LLM recovery path with the original transcript. Do **not** attempt §4.3 or §4.4.
+
+### 4.7 What this settles for #44
+
+- Deterministic repair handles the transcript-echo class (R1, R2) and the reserved-word class (R3) completely. Those are the high-frequency ones §1.6 Mechanism A predicts.
+- It cannot handle the intent classes (§4.4), so `autoHealMermaid()` **replaces neither** `buildErrorRecoveryPrompt` nor the retry budget. #31 Task 1's framing — "auto-repair … without secondary LLM roundtrips" — is right for two of its four named cases and wrong for the other two.
+- One of #31 Task 1's four named repairs (unclosed brackets) is actively harmful and should be struck.
+- The "unquoted colons" case in #31 Task 1 does not exist: §1.3 measured the colon myth as false for flowchart.
+
+So of the four repairs #31 Task 1 names, **one is unnecessary, one is harmful, and two are correct** — and the two correct ones are joined by three more (fence/preamble extraction, shape normalisation, `_` id renaming) that it does not name.
+
+---
+
+## 5. Open items
+
+- Every frequency claim is a fixture-corpus question. The grammar table in §1 is certain; how often our model hits each row is not, and #47 is where that gets measured.
+- §3.5 leaves the delimiter style to an A/B in #47, one variant per arm, parse-rate before healing as the metric.
+- The db-level effects in §4.3 were confirmed at the grammar level (`A[Hi --> B] --> C` parses), not by reading `FlowDB` state — the harness parses but does not populate the db. The conclusion does not depend on it, but a browser-based check in #46 would close the gap.
