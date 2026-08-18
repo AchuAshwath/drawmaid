@@ -208,3 +208,97 @@ And explicitly **not**: punctuation substitution, quote/bracket balancing, fence
 There is also a product argument. The transcript is shown back to the user in the prompt footer. Silently drawing a diagram from a sentence different from the one on screen is exactly the kind of masked state `AGENTS.md` rules out ("fail loudly in core logic. Do not silently swallow errors or mask incorrect state"). Repairing the _model's output_ leaves the user's own words intact and keeps the mismatch, when there is one, visible in the mermaid rather than hidden in the input.
 
 **Verdict on the ticket's framing:** `sanitizeUserTranscript()` should not be built. Rename the slot to a delimiter/control-character guard, keep it under ten lines, and move the real work to the deterministic output repair.
+
+---
+
+## 3. Q3 — XML-style delimiters vs markdown headers
+
+The ticket asks whether `<ROLE>`, `<USER_INPUT>`, `<STRICT_RULES>`, `<SYNTAX_REFERENCE>` improve constraint adherence over markdown headers. The honest answer has three parts: the published evidence does not cover our case, the token-cost argument is too small to decide anything, and there is one measurable interaction with Qwen2.5's chat template that does change what the tags should look like if we use them.
+
+### 3.1 What the published evidence actually supports
+
+| source                                                                                                                                        | what it varies                                                                                       | models               | measured result                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sclar et al., ICLR 2024 ([arXiv:2310.11324](https://arxiv.org/abs/2310.11324))                                                                | separators, spacing, casing of few-shot fields — meaning-preserving formatting, not block delimiters | open LLMs, up to 13B | up to **76 accuracy points** between formats on LLaMA-2-13B; "sensitivity remains even when increasing model size, the number of few-shot examples, or performing instruction tuning" |
+| He et al. ([arXiv:2411.10541](https://arxiv.org/abs/2411.10541))                                                                              | plain text / Markdown / JSON / YAML — **there is no XML condition**                                  | GPT-3.5-turbo, GPT-4 | GPT-3.5-turbo varies "by up to 40% in a code translation task depending on the prompt template, while larger models like GPT-4 are more robust"                                       |
+| [OpenAI GPT-4.1 prompting guide](https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide) (vendor)                             | markdown vs XML vs JSON section delimiters                                                           | GPT-4.1              | markdown: "We recommend starting here"; XML: "performed well in our long context testing"; "JSON performed particularly poorly"                                                       |
+| [Anthropic prompting docs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) (vendor) | XML tags                                                                                             | Claude               | "XML tags help Claude parse complex prompts unambiguously" — a recommendation with **no numbers attached**                                                                            |
+
+Two things follow.
+
+First, **the two vendors who publish guidance disagree on the default**, and Sclar et al. found that "format performance only weakly correlates between models". Carrying Anthropic's XML preference or OpenAI's markdown preference over to `Qwen2.5-Coder-1.5B-Instruct` is analogy, not evidence.
+
+Second, the finding that _does_ transfer is second-order: **smaller models are more format-sensitive than larger ones**. That says the choice matters more for us than for a frontier model. It does not say which way it points.
+
+Nothing published measures XML-tag versus markdown-header block delimiters on a sub-2B code model, for constraint adherence or anything else. Searching turns up blog benchmarks with contradictory headlines, no released data, and no test of a model near our size; none meet this document's primary-source bar.
+
+**Verdict: unknown.** Not "XML is better", not "markdown is better". This is a two-arm A/B in #47 — identical `L0`/`L1`/`L2` content, one variant per delimiter style, parse-rate-before-healing as the metric — and it is cheap to run because the fixture corpus is being built for #47 anyway. Guessing wrong costs one prompt-asset edit; guessing confidently costs the map a wrong premise.
+
+### 3.2 What is measurable without the model: token cost
+
+Method, so this is reproducible: the tokenizer described by `Qwen2.5-Coder-1.5B-Instruct/tokenizer.json` (fetched from HuggingFace — NFC normalise → `Split` on Qwen2's pre-tokenizer regex → `ByteLevel` → BPE over the shipped 151,643-entry vocab and 151,387 merges) was reimplemented and run over each candidate delimiter. Validation: `<|im_start|>` resolves to a single added token, `"hello world"` to `["hello","Ġworld"]`, and every emitted piece exists in the shipped vocab.
+
+| delimiter                | tokens | pieces                           |
+| ------------------------ | ------ | -------------------------------- |
+| `<ROLE>`                 | 3      | `<` `ROLE` `>`                   |
+| `<USER_INPUT>`           | 4      | `<` `USER` `_INPUT` `>`          |
+| `<STRICT_RULES>`         | 6      | `<` `ST` `RICT` `_RULE` `S` `>`  |
+| `<SYNTAX_REFERENCE>`     | 5      | `<` `SY` `NTAX` `_REFERENCE` `>` |
+| `<rules>`                | 3      | `<` `rules` `>`                  |
+| `<input>`                | 2      | `<input` `>`                     |
+| `<examples>`             | 3      | `<` `examples` `>`               |
+| `## Role`                | 2      | `##` `ĠRole`                     |
+| `## Syntax reference`    | 3      | `##` `ĠSyntax` `Ġreference`      |
+| `ROLE:` (shipped today)  | 2      | `ROLE` `:`                       |
+| `RULES:` (shipped today) | 3      | `RULE` `S` `:`                   |
+| `SYNTAX REFERENCE:`      | 5      | `SY` `NTAX` `ĠREF` `ERENCE` `:`  |
+| `<\|im_start\|>`         | 1      | one added token, id 151644       |
+| `<tool_call>`            | 1      | one added token, id 151657       |
+
+A four-block scaffold (`ROLE`, `STRICT_RULES`, `SYNTAX_REFERENCE`, `USER_INPUT`), opening and closing markers, one payload line each:
+
+| style                         | total | scaffold only |
+| ----------------------------- | ----- | ------------- |
+| XML, `SCREAMING_SNAKE` tags   | 44    | 36            |
+| XML, `lowercase` tags         | 38    | 30            |
+| markdown `##` headers         | 23    | 15            |
+| `CAPS:` labels (what we ship) | 23    | 15            |
+| payload with no markers       | 8     | 0             |
+
+The entire XML-versus-markdown question is therefore worth **21 tokens** against #35's ~3000-token budget — 0.7%. For calibration, the three redundant layout rules section 1.5 disproved cost **34 tokens**, more than the delimiter choice does. Token cost cannot decide this, and neither side should be argued on it.
+
+One thing inside the XML branch _is_ decided by this measurement: **`SCREAMING_SNAKE` tag names fragment badly.** `<STRICT_RULES>` is six tokens, four of them (`ST`, `RICT`, `_RULE`, `S`) junk subwords that occur in no coherent training context. `<rules>` is three clean tokens and `<input>` is two. If we adopt tags they should be short, lowercase, and underscore-free — matching the form the model has actually seen (section 3.3). The same fragmentation afflicts the CAPS labels shipped today: `SYNTAX REFERENCE:` is 5 tokens and `CRITICAL FORMATTING RULES:` is 8 (`CR` `ITICAL` `ĠFORM` `ATT` `ING` `ĠRULE` `S` `:`).
+
+For scale, the shipped assets measure 172 tokens (`system-prompt.md`), 187 (`user-prompt-rules.md`), 252 (`recovery-prompt-rules.md`).
+
+### 3.3 The ChatML interaction, and why it argues for lowercase tags
+
+WebLLM loads this model with `context_window_size: 4096` and Qwen2.5's ChatML conversation template (`node_modules/@mlc-ai/web-llm/lib/index.js:1911-1922`). Our call sends a system message plus a user message (`apps/app/lib/llm/mermaid-llm.ts:259-265`), which the template renders into `<|im_start|>role … <|im_end|>` frames.
+
+From the model's own [`tokenizer_config.json`](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct/raw/main/tokenizer_config.json) and `tokenizer.json`:
+
+- `<|im_start|>` and `<|im_end|>` are **added tokens** (ids 151644/151645), one token each, and `<|im_end|>` is the `eos_token`.
+- The vendor's own chat template puts **angle-bracket XML inside the system prompt** on the tool path: "You are provided with function signatures within `<tools></tools>` XML tags" and "return a json object … within `<tool_call></tool_call>` XML tags".
+- `<tool_call>` and `</tool_call>` are themselves added tokens (ids 151657/151658), one token each.
+
+Read carefully this cuts both ways. XML-shaped markup is **not foreign** to this model family — the vendor post-trained on it and reserved vocabulary for two specific tags. But that support is **tag-specific**, not generic. `<tool_call>` is a single token the model has seen in a trained role; `<STRICT_RULES>` is six ordinary subwords with no such history, reaching the model through the same generic pretraining-exposure channel that markdown headers use. Qwen's template is evidence that angle-bracket blocks are a natural shape for this family, and evidence against expecting anything special from arbitrary uppercase tag names.
+
+It is also worth stating what does _not_ happen: our tags are ordinary text, cannot be confused with the ChatML frame, and cannot terminate a turn. There is no interference.
+
+With one exception. A literal `<|im_end|>` **typed into the textarea** is a different matter. The prompt state is written by both the microphone and the textarea (`apps/app/routes/index.tsx:596-598`), web-llm joins the rendered prompt and hands the whole string to `tokenizer.encode()` with no escaping (`node_modules/@mlc-ai/web-llm/lib/index.js:9672-9686`), and the HuggingFace tokenizer's added-vocabulary pass lifts added-token literals out of raw text before BPE runs. The user would then be injecting the end-of-turn token. This is the one delimiter collision with a real consequence, and it is far more specific than the `<USER_INPUT>` collision section 2.4 flagged. The guard is one line, per-character, and therefore prefix-stable in the section 2.3 sense: neutralise `<|` in transcript text. **Not verified against the wasm tokenizer at runtime** — the reimplementation in section 3.2 follows the same added-vocabulary rule, but confirming it end to end needs a live engine, so #47 should probe it rather than treat it as proven.
+
+### 3.4 Closing tags, the append-only tail, and the seam
+
+XML needs a closing marker after the volatile content; markdown headers and CAPS labels do not. Under section 2.3's append-only `L3` an unterminated trailing marker is prefix-stable and a closing tag is not — `</user_input>` sits after the transcript and moves every time the transcript grows.
+
+The cost is bounded: ChatML already appends `<|im_end|>\n<|im_start|>assistant\n` after the user content, so a re-prefilled suffix exists whatever we choose, and `</user_input>` adds 4 tokens to it. On WebLLM today it is moot anyway, because #39 established that every generation re-prefills regardless.
+
+One measured detail matters more than the tag choice. Appending a chunk directly to a committed transcript can **merge tokens across the seam**: `"…a data"` + `"base stores orders"` re-tokenises the last committed token, invalidating one token of otherwise-valid prefix. Appending the same chunk with a leading space or newline invalidates **zero**. Whatever `L3`'s marker turns out to be, each appended phrase must begin on a separator.
+
+### 3.5 Verdict
+
+1. **Do not adopt XML tags because a vendor recommends them.** That recommendation is about a different model, and the one paper that studied transfer says format preference correlates only weakly across models.
+2. **Do not reject them on token cost.** The delta is 21 tokens, less than the dead rules section 1.5 already found.
+3. **Do fix what ships today regardless.** `ROLE:` / `RULES:` / `BEHAVIOR:` in `system-prompt.md` and `CRITICAL FORMATTING RULES:` / `SYNTAX RULES FOR …:` in `user-prompt-rules.md` are an ad-hoc third format that is neither XML nor markdown, and it fragments into junk subwords. Pick one style and apply it across all four layers.
+4. **If the A/B says XML, use short lowercase tags** — `<role>`, `<rules>`, `<examples>`, `<input>` — not `SCREAMING_SNAKE`.
+5. **Settle it in #47**, one variant per arm, parse-rate before healing as the metric.
