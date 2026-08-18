@@ -625,3 +625,140 @@ structurally impossible (§4.1).
 - `classDef` and `style` now reach subgraphs and accumulate across multiple classes per vertex
   (`dist/parser/flowchart.js:12-101,115-137,169-186`). Relevant to #46's styling assertions.
 - Our call site is at `insert-mermaid-into-canvas.ts:143-147` (§1 cited `141-147`).
+
+---
+
+## 6. Topological invariants for the prompt contract
+
+This is research question 4. An invariant earns a place in the contract only if a mechanism in
+§§2–5A breaks without it. Four popular candidates fail that test and are killed below; six survive,
+each with the mechanism that requires it.
+
+The headline result is negative and worth stating first: **the contract contains no geometric
+condition.** No minimum node spacing, no maximum edge length, no requirement that an arrow endpoint
+land within `maxBindingGap` of its shape. §3.4 established that `updateBoundElements` has no path
+that clears a binding and that distance is never re-checked after bind time, so the entire family of
+"keep the nodes close enough / far enough apart" rules that the ticket anticipated does not exist.
+
+### 6.1 Candidates that the source does not support
+
+**"Every node must have at least one incoming or outgoing edge."** Issue #31 Task 2 asserts this,
+justified as "prevents disconnected floating nodes at canvas origin". Both halves are false.
+
+Vertices are scraped from `db.getVertices()` with no reference to any edge
+(`dist/parser/flowchart.js:245-262`) and converted in their own `forEach`
+(`dist/converter/types/flowchart.js:108`). An edgeless node produces an ordinary
+`rectangle`/`ellipse`/`diamond`, which `isBindableElement` accepts (§3.3) and which drags like any
+other. Degree does not enter the pipeline anywhere.
+
+And nothing lands at the origin because of connectivity. `translateGraph` shifts the whole layout so
+that `min(node.x - node.width/2) === marginx`, and node coordinates are centres, so every node
+centre is strictly positive (§4.1). The one real origin-collapse is the `translate()` regex that
+cannot read scientific notation (§4.3, re-verified unchanged at `dist/utils.js:17`), and that is
+triggered by float residue, not by degree.
+
+**Kill it as an invariant.** What survives is weaker and differently justified: an edgeless node is
+attached to the layout only by a `weight: 0` nesting edge (`nesting-graph.js:29-52`), so network
+simplex gives it no rank preference and `initOrder` interleaves it into an unrelated component's
+layer arrays (§4.2). That is an argument about layout quality for a _single connected component_,
+which §4.2 already made — not an argument about bindings or the origin. See I6.
+
+**"The graph must be acyclic."** dagre does require a DAG for `rank` and `order`, and supplies one
+itself. `acyclic.run` computes a feedback arc set by DFS and reverses those edges in place, tagging
+each `label.reversed = true` (`dagre-d3-es/src/dagre/acyclic.js:6-20,23-45`). After positioning,
+`reversePointsForReversedEdges` reverses each such edge's point array and `acyclic.undo` restores
+the original direction (`dagre-d3-es/src/dagre/layout.js:51-52,300-307`; `acyclic.js:47-59`). The
+converter never sees any of it: it binds from `db.getEdges()`, whose `start`/`end` are the authored
+ones. **Kill.** A feedback edge `C --> A` needs no special handling and no prompt rule.
+
+**"Single root / single exit."** Nothing in the pipeline privileges a source or a sink.
+`nestingGraph.run` inserts its own synthetic `_root` and attaches every top-level leaf to it
+regardless of the authored shape (`nesting-graph.js:29-61`), and network simplex is indifferent to
+how many nodes share rank 0. **Kill.**
+
+**"A node-count ceiling before dagre layout degrades."** There is no such threshold in the source.
+`order` iterates until four consecutive sweeps fail to reduce the crossing count — no size guard, no
+bail-out, no quality cliff (`dagre-d3-es/src/dagre/order/index.js:37-48`). Separation is exact at
+any size: `sep()` always adds `nodesep/2` per side plus both half-widths, so within-rank overlap is
+structurally impossible (§4.1). **Kill as a dagre fact.**
+
+Two hard numeric caps do exist, and they are the converter's own, not dagre's. `MERMAID_CONFIG` sets
+`maxEdges: 500` and `maxTextSize: 50000` (`dist/constants.js:13-14`). The 501st edge makes
+`FlowDB.addSingleLink` throw `Edge limit exceeded`
+(`mermaid/dist/chunks/mermaid.core/flowDiagram-NV44I4VS.mjs:280-289`), raised from
+`getDiagramFromText`, which is outside 2.2.2's inner `try` (§5A.2) — so it rejects cleanly rather
+than degrading to an image. Both caps are unreachable inside any tier's budget; the Fast tier's
+entire context is 4096 tokens (#35). Record them, do not design for them.
+
+### 6.2 The invariants the contract actually needs
+
+**I1 — Node ids match `^[A-Za-z][A-Za-z0-9]{0,30}$` and are not reserved words.** Mechanisms:
+substring `domId` matching (§5.1), the generated arrow id `` `${start}_${end}` `` (§5.2, unchanged
+at `dist/converter/types/flowchart.js:201`), and raw interpolation into a CSS selector string
+(§5.1). A fourth mechanism, not recorded in §5, points the same way: mermaid's edge DOM id is also
+underscore-joined — `` `${prefix}_${from}_${to}_${counter}` ``
+(`mermaid/dist/chunks/mermaid.core/chunk-S3R3BYOJ.mjs:550`, called from
+`flowDiagram-NV44I4VS.mjs:270-278`) — and the converter reads it back by substring
+(`dist/parser/flowchart.js:197,274`). So `A_B --> C` and `A --> B_C` both render an edge whose DOM
+id is `L_A_B_C_0`, and the second edge is scraped with the first edge's path geometry. Two
+independent underscore collisions, one on node ids and one on edge ids.
+
+Enforcement is a **pre-flight validator on the mermaid text**, not post-processing: §5.1's
+`SyntaxError` and §5.2's `TypeError` both fire inside the library, before we hold a skeleton.
+
+**I2 — Edge endpoints must be distinct; no `A --> A`.** Self-loops do survive: `removeSelfEdges` /
+`insertSelfEdges` / `positionSelfEdges` hand-build five points that pass the
+`reflectionPoints.length > 1` filter (§4.4), producing an arrow whose `start.id === end.id`. That
+arrow is bound to one shape at both ends, and `updateBoundElements` recomputes both endpoints
+against that same element on every drag. The mechanism is established; the visual outcome is not,
+and it is exactly the property the vocabulary contract exists to guarantee. Ban until #46 measures
+it.
+
+**I3 — Node ids, subgraph ids, and the implied arrow ids form one collision-free namespace.** The
+converter has exactly one id space and pushes into it in a fixed order: `computeGroupIds` builds its
+tree from `[...Object.keys(graph.vertices), ...graph.subGraphs.map((c) => c.id)]`
+(`dist/converter/types/flowchart.js:43`); subgraph rectangles are pushed first with
+`id: subGraph.id` (`:82-105`); vertices next with `id: vertex.id` (`:108-179`); arrows last with
+`id: ${edge.start}_${edge.end}` (`:201-227`). Any collision among those three yields duplicate
+skeleton ids and the `oldToNewElementIdMap` overwrite of §5.2, where the later element's entry wins
+and an arrow can be resolved as a binding target. I1 removes the arrow/node case; I3 adds that a
+**subgraph id must not equal any node id**, and must satisfy I1's character rule — plus `'`, which
+is fatal for subgraphs specifically because their selector is single-quoted (§5A.3).
+
+**I4 — No edge may name a subgraph id as an endpoint.** Two mechanisms combine badly. First, mermaid
+rewrites any edge terminating on a cluster so that it terminates on a non-cluster descendant instead
+— `getAnchorId` followed by `graph.removeEdge(...)` / `graph.setEdge(v, w, edge, e.name)` in
+`adjustClustersAndEdges` (`mermaid/dist/chunks/mermaid.core/dagre-6UL2VRFP.mjs:238-272`) — so the
+**rendered path** starts or ends at an inner node. Second, the converter binds from the
+_unrewritten_ `db.getEdges()`, so `elements.find((e) => e.id === edge.start)` resolves to the
+subgraph **rectangle** (`dist/converter/types/flowchart.js:196,220-225`), and `isBindableElement`
+accepts `rectangle` (§3.3) so nothing objects. The arrow is drawn against the child's geometry and
+bound to the container. Dragging the container moves an endpoint that was never attached there.
+Ban; hand the visual outcome to #46.
+
+**I5 — Every declared node appears in the skeleton, and every arrow has both bindings non-null.**
+This is not a rule a model can follow — it is the acceptance post-condition on the output, and it
+belongs in the contract because every failure it covers is silent. §2B drops a node and every edge
+touching it with no error; §3.2's binding miss is a no-op plus a `console.error`; §5A.2 turns a
+render failure into an `image` element that resolves normally. Nothing in the pipeline fails loudly.
+The contract's obligation here is on the pipeline: verify, then regenerate.
+
+**I6 (soft) — Prefer a single connected component.** Not required for correctness — I1–I5 already
+cover every failure that produces an unbound arrow or a missing element. Justified purely by §4.2's
+layout argument: a zero-weight nesting edge gives a detached component no rank preference, so it
+lands wedged inside an unrelated component at a position with no semantic meaning. Free to ask for
+in the prompt, cheap to detect from the source, and a disconnected result is usually a symptom of
+the model losing the thread. Enforce by regeneration, never by rejecting the user's request.
+
+### 6.3 Two constructs that are contract-relevant but are not invariants
+
+**`subgraph` is all-or-nothing, so it is a tier decision, not a topology rule.** A vertex that
+cannot be scraped degrades to a silent drop (§2B); a subgraph that cannot be scraped throws
+`SubGraph element not found` and collapses the entire diagram to one `image` element (§5A.3). There
+is no topological precondition that prevents this — the failure is a DOM lookup, not a graph
+property. The right response is to gate `subgraph` to the Rich and Deep tiers, where a regeneration
+round-trip is affordable, and keep it out of the Fast vocabulary.
+
+**Parallel edges are allowed until measured.** Two `A --> B` edges collapse to one skeleton arrow id
+(§5.3, unchanged at `dist/parser/flowchart.js:279-281`), but nothing binds _to_ an arrow, so under
+`regenerateIds: true` this is currently benign. Keep them in the vocabulary; #46 decides.
