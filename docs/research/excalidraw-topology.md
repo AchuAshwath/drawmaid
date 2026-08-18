@@ -16,6 +16,7 @@ an explicit verdict: **post-processable** or **ban from prompt vocabulary**.
 3. How bindings are actually produced
 4. Dagre layout: what it does with disconnected components
 5. Node id safety
+   - 5A. Re-verification against converter 2.2.2
 6. Topological invariants for the prompt contract
 7. Findings table: post-processable vs banned
 8. What #46's conformance harness should measure
@@ -26,9 +27,13 @@ an explicit verdict: **post-processable** or **ban from prompt vocabulary**.
 
 Two converters are installed. Only one is on the path we care about.
 
+> Sections 1–5 were researched against converter **2.0.0**. The repo has since bumped to **2.2.2**
+> (issue #50). §5A re-verifies every finding below against 2.2.2 and records the four things that
+> changed. Where a citation's line numbers moved, §5A gives the new location.
+
 | Package                             | Version | mermaid  | On our path?                                |
 | ----------------------------------- | ------- | -------- | ------------------------------------------- |
-| `@excalidraw/mermaid-to-excalidraw` | 2.0.0   | ^11.12.1 | **yes** — imported directly                 |
+| `@excalidraw/mermaid-to-excalidraw` | 2.2.2   | ^11.12.1 | **yes** — imported directly                 |
 | `@excalidraw/mermaid-to-excalidraw` | 1.1.2   | 10.9.3   | no — nested inside `@excalidraw/excalidraw` |
 | `@excalidraw/excalidraw`            | 0.18.0  | —        | **yes** — `convertToExcalidrawElements`     |
 
@@ -489,3 +494,134 @@ has none of these constraints.
 > the library before we ever see a skeleton — there is nothing to post-process. A pre-flight
 > validator on the generated mermaid text is the correct complement: reject and regenerate any
 > diagram whose ids fall outside the safe set, before calling `parseMermaidToExcalidraw` at all.
+
+---
+
+## 5A. Re-verification against converter 2.2.2
+
+Sections 1–5 were written against `@excalidraw/mermaid-to-excalidraw` **2.0.0**. The repo has since
+bumped to **2.2.2** (`bun.lock:544`, issue #50). `mermaid` still resolves to 11.12.2 and
+`dagre-d3-es` to 7.0.13, and `@excalidraw/excalidraw` is still 0.18.0 — so everything in §3.2–§3.4
+(`transform.ts`, `binding.ts`) is untouched by the bump. What follows re-checks the converter-side
+findings and records four changes.
+
+Line references in §§2–5 are 2.0.0's. Where a cited construct moved, the 2.2.2 location is given
+below.
+
+### 5A.1 All five headline findings survive the bump, verbatim
+
+| Finding                                                                                 | §        | 2.2.2 location                              | Status                                                       |
+| --------------------------------------------------------------------------------------- | -------- | ------------------------------------------- | ------------------------------------------------------------ |
+| Arrow id is `` `${edge.start}_${edge.end}` ``                                           | 5.2, 5.3 | `dist/converter/types/flowchart.js:201`     | identical                                                    |
+| Arrow skeleton carries only `{ id }` for `start`/`end`, never a `type`                  | 3.1      | `dist/converter/types/flowchart.js:220-225` | moved above `elements.push`, same semantics                  |
+| `translate()` regex `/translate\(([ \d.-]+),\s*([\d.-]+)\)/`                            | 4.3      | `dist/utils.js:17`                          | identical — still no `e`, still fails on scientific notation |
+| `root.classList.value === "root"` exact whole-attribute equality                        | 4.3      | `dist/parser/flowchart.js:236`              | identical                                                    |
+| Substring vertex lookup `[id*="${vertex.domId}"]` then `return undefined`               | 2B, 5.1  | `dist/parser/flowchart.js:147-149`          | identical                                                    |
+| Edge mapped to `null`, then `.filter(e => e !== null && e.reflectionPoints.length > 1)` | 2B       | `dist/parser/flowchart.js:274,283`          | identical                                                    |
+| `edgeCountMap` disambiguator computed and discarded                                     | 5.3      | `dist/parser/flowchart.js:279-281`, `:105`  | identical — `parseEdge` still ignores `edgeIndex`            |
+| `encodeEntities(definition)` for the db, raw `definition` for the SVG                   | 5.4      | `dist/parseMermaid.js:71,84`                | identical                                                    |
+| Vertices only ever become `rectangle` / `ellipse` / `diamond`                           | 3.3      | `dist/converter/types/flowchart.js:108-179` | identical                                                    |
+
+The `curve: "linear"` dependency of §1 also stands, with a wrinkle. 2.2.2 parameterises the path
+split — `computeEdgePositions(pathElement, offset, commandsPattern = "LM")` — and adds a `C`
+(cubic Bézier) branch that reads `coords[4], coords[5]` (`dist/utils.js:108-146`). But the flowchart
+parser calls it with two arguments (`dist/parser/flowchart.js:203`), so the default `"LM"` applies
+and flowcharts still cannot read a curved path. The curve support was added for the new `state` and
+`er` parsers, not for us.
+
+### 5A.2 Correction: a mermaid render failure no longer rejects — it returns a picture of the error
+
+In 2.0.0, `mermaid.render` ran **before** the `try` (`2.0.0 dist/parseMermaid.js:48`), so a syntax
+error, an exceeded `maxEdges`, or a renderer crash propagated out of `parseMermaidToExcalidraw`. In
+2.2.2 the render moved **inside** it (`dist/parseMermaid.js:84`, `catch` at `:118-121`), so the same
+throw is now answered with `convertSvgToGraphImage(svgContainer)`.
+
+The container is not empty when that happens. Our config never sets `suppressErrorRendering`, and
+mermaid's own `render` responds to a `draw` failure by calling `errorRenderer.draw(...)` — painting
+its "Syntax error in text" graphic into the container — before rethrowing
+(`mermaid/dist/mermaid.core.mjs:1047-1055`); `removeTempElements()` runs only on the success path
+(`:1079`). So the fallback finds an SVG, base64-encodes it, and resolves normally.
+
+**Net effect: a class of failures that used to reject now returns a single `image` element whose
+content is a picture of an error message.** §2's advice to treat
+`skeleton.length === 1 && skeleton[0].type === "image"` as a hard failure is no longer a defensive
+nicety — it is the only signal.
+
+`getDiagramFromText` (`:71`) is still outside the inner `try`, so pure _parse_ errors still reject.
+The image path covers render/draw failures and anything the per-type parsers throw.
+
+### 5A.3 New: a subgraph that fails to resolve destroys the whole diagram
+
+`parseSubGraph` looks the cluster up by **exact** id equality and throws on a miss:
+
+```js
+const el = containerEl.querySelector(`[id='${data.id}']`);
+if (!el) {
+  throw new Error("SubGraph element not found");
+}
+```
+
+(`dist/parser/flowchart.js:107-109`; the same code is in 2.0.0.) Mermaid renders clusters with
+`attr("id", node.id)` — the raw subgraph id, with no `flowchart-` prefix and no counter
+(`chunk-JZLCHNYA.mjs:360,521`), which is why exact equality is used here and substring matching in
+§5.1.
+
+That throw is raised inside `parseMermaidFlowChartDiagram`, i.e. inside the inner `try`, so it
+produces exactly the collapse of §5A.2: **one `image` element, zero nodes, zero arrows**. Reproduced
+while bumping to 2.2.2.
+
+Two consequences §5 did not record:
+
+- The selector is quoted with `'`, not `"`. A subgraph id containing `'` is a `SyntaxError` — the
+  mirror image of §5.1's `"` hazard for vertices, on the other quote character. Mermaid's
+  `NODE_STRING` permits both.
+- **A subgraph is all-or-nothing.** A vertex that cannot be scraped degrades to a silent drop
+  (§2B); a subgraph that cannot be scraped takes the entire diagram with it. That asymmetry is the
+  argument for gating `subgraph` to the Rich and Deep tiers rather than putting it in the shared
+  vocabulary.
+
+### 5A.4 New: arrow points are re-deduped after conversion, and a two-point arrow can be reduced to one
+
+`graphToExcalidraw` now runs every element that has a `points` array through
+`dedupeConsecutivePoints` at a 0.5px threshold (`dist/graphToExcalidraw.js:8-28`,
+`dist/utils.js:48-64`). The guard is evaluated before the dedupe:
+
+```js
+if (points.length < 2) {
+  return element;
+}
+const dedupedPoints = dedupeConsecutivePoints(points);
+```
+
+So a two-point arrow whose endpoints are less than 0.5px apart emerges with a **single** point.
+§2B's `reflectionPoints.length > 1` filter runs in the parser and cannot catch this — it is a
+second, later opportunity to produce a degenerate arrow, and this one is not filtered.
+
+### 5A.5 New: subgraph rectangles are widened from an estimated label width and re-centred
+
+```js
+const estimatedTextWidth = estimateLabelWidth(subGraphText, safeFontSize);
+const minSubGraphWidth =
+  estimatedTextWidth + SUBGRAPH_LABEL_HORIZONTAL_PADDING * 2;
+const width = Math.max(subGraph.width, minSubGraphWidth);
+const x = subGraph.x - (width - subGraph.width) / 2;
+```
+
+(`dist/converter/types/flowchart.js:80-85`, with
+`estimateLabelWidth = (text, fontSize) => Math.max(20, Math.ceil(text.length * fontSize * 0.62))`
+at `:10-12` and `SUBGRAPH_LABEL_HORIZONTAL_PADDING = 32` at `:5`.)
+
+The width is a character-count heuristic, not a measurement. For a long subgraph title the container
+is widened past what mermaid laid out and re-centred on its old centre, which can push its left edge
+to a negative x and over whatever dagre placed beside it. This is a **new source of overlap in
+2.2.2** unrelated to node ids (§5.1) and unreachable through dagre, where within-rank overlap is
+structurally impossible (§4.1).
+
+### 5A.6 Changes noted but not load-bearing here
+
+- `parseMermaid` is now wrapped in `runMermaidTaskSequentially` and uses a fresh render id per call
+  (`dist/parseMermaid.js:49,80`), serialising concurrent conversions. Relevant to auto mode, not to
+  topology.
+- `classDef` and `style` now reach subgraphs and accumulate across multiple classes per vertex
+  (`dist/parser/flowchart.js:12-101,115-137,169-186`). Relevant to #46's styling assertions.
+- Our call site is at `insert-mermaid-into-canvas.ts:143-147` (§1 cited `141-147`).
