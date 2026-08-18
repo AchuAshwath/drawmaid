@@ -929,3 +929,168 @@ What a tier is actually allowed to produce, in full:
 - **Deep** — Rich, plus `A((("…")))` (pending #46) and a second level of subgraph nesting.
 
 Everything not on this list is forbidden to every tier.
+
+---
+
+## 6. Open questions handed to #46
+
+Everything above is derived from reading source. This section lists what source-reading
+**cannot** settle, phrased so #46 can turn each item into an assertion and hand back a diff
+against the §5 table.
+
+### 6.1 The harness must run in Playwright, for two independent reasons
+
+1. **`getBBox` does not exist in happy-dom.** Mermaid's layout depends on it, so the rendered SVG
+   has no measurable geometry and `parseMermaidToExcalidraw` yields **zero elements**. Reproduced
+   during the 2.2.2 bump (#50). This is not a stub-able gap: `parseVertex`, `parseSubGraph` and
+   `computeElementPosition` all call `getBBox()` on real layout
+   (`mte:dist/parser/flowchart.js:113`, `:159`, `:222`).
+2. **`isValidCSSColor` returns `false` when neither `CSS` nor `document` is available**
+   (`mte:dist/parser/cssUtils.js:113-122`). In a DOM-less runner every `fill:` and `stroke:` is
+   silently dropped, so a styling test would pass vacuously — worse than failing. New in 2.2.2;
+   2.0.0 had no such gate.
+
+The existing `apps/app/lib/canvas/insert-mermaid-into-canvas.test.ts` does not import the code it
+claims to test (#38), so there is no prior art to extend. Assume a fresh Playwright fixture that
+mounts Excalidraw, runs `parseMermaidToExcalidraw` + `convertToExcalidrawElements`, and asserts on
+the returned element array plus a screenshot.
+
+### 6.2 The palette has never been seen, only computed
+
+§2 is the weakest part of this document. Every number in it — the sRGB distances, the dark-column
+hex values, the contrast ratios — was **computed by applying the CSS filter matrices by hand**.
+Not one of them was observed on a canvas. `THEME_FILTER = "invert(93%) hue-rotate(180deg)"`
+(`@excalidraw/excalidraw/dist/types/excalidraw/constants.d.ts:209`) is applied by the browser to
+the composited canvas, and browsers implement `hue-rotate` with the linear approximation matrix
+from the filter-effects spec, which is **not** a true hue rotation. Saturated colours come back
+noticeably shifted. This is exactly where hand-computation goes wrong.
+
+**Q6.2.1 — Do the six fills stay mutually distinguishable in dark theme?**
+Render one node per class from the §2.4 block, screenshot in light and in dark, sample the actual
+composited pixel at each node's centre, and compute the real pairwise sRGB distances. §2.3 claims
+a worst pair of 50 light / 43 dark. _If the measured dark worst-pair falls below ~35, the palette
+needs re-picking and §2 is wrong._
+
+**Q6.2.2 — Does the default label ink stay legible on every fill in dark theme?**
+§2.4 deliberately emits no `color:` declaration on the theory that Excalidraw's `#1e1e1e` ink
+inverts to a light grey that clears 6.5:1 on all six fills. Measure the real contrast ratio of
+sampled label pixel against sampled fill pixel, both themes. _If any pair drops below 4.5:1, the
+palette needs an explicit `color:` and §1.1's label-colour row becomes load-bearing._
+
+**Q6.2.3 — Do the strokes stay visible against their own fills?**
+§2.3 records stroke-on-fill contrast of 2.68 (green) and 2.09 (yellow) and argues 2px hand-drawn
+outlines carry it. That is an aesthetic judgement made from numbers. Screenshot at 100% and at
+50% zoom and decide by eye whether the outline reads. _If it does not, either the stroke shade
+moves from open-color 8 to 9, or `stroke-width` goes to 4px for those two classes._
+
+**Q6.2.4 — Does a generated node land on an Excalidraw toolbar swatch?**
+§2.2's argument for open-color shades 2 and 8 is that a user selecting a generated node sees their
+own colour picker highlight the matching swatch. Verify by selecting a generated node in the real
+editor and looking at the sidebar. _If nothing highlights, the "indistinguishable from hand-drawn"
+justification for these specific shades collapses and any pleasant palette would do._
+
+### 6.3 Subgraph styling in 2.2.2 — read, not observed
+
+§3 was rewritten from source for this ticket. The rewrite is confident about the code path and
+uncertain about what mermaid actually renders into it.
+
+**Q6.3.1 — Does `subgraph layer_x["Title"]:::c` actually colour the container?**
+The converter spreads `computeExcalidrawVertexStyle(subGraph.containerStyle)` onto the rectangle
+(`mte:dist/converter/types/flowchart.js:86`, `:103`), and `parseSubGraph` fills `containerStyle`
+from `data.classes` (`mte:dist/parser/flowchart.js:131-133`). Assert that the emitted rectangle
+carries `backgroundColor`, `strokeColor`, `strokeWidth` and `fillStyle: "solid"`. Test both
+spellings — `:::` on the `subgraph` line and a separate `class layer_x c` statement — because
+they take different routes into `FlowSubGraph.classes`.
+
+**Q6.3.2 — Does the subgraph _label_ pick up `color:`?**
+`labelStyle` is spread into the bound label (`:101`). Nothing in the source says mermaid puts a
+cluster label where `applyStyleTextToLabelStyle` expects it. Assert the label's `strokeColor`.
+
+**Q6.3.3 — Does an _unstyled_ subgraph stay transparent?**
+This is the regression risk of the whole feature. `parseSubGraph` reads the cluster shape's
+`style` attribute _and_ its `fill`/`stroke` presentation attributes (`:123-125`). Reading
+mermaid's cluster renderer, the rect gets `.attr("style", nodeStyles)` and no presentation
+attributes, and `nodeStyles` is empty for an unclassed cluster
+(`mermaid:dist/chunks/mermaid.esm.min/chunk-EQI6KKA3.mjs`, the `roundedWithTitle` renderer) — so
+nothing should leak. Verify. _If a theme fill does leak, every generated subgraph silently gains a
+background and §3.1's "transparent by default" note is wrong._
+
+**Q6.3.4 — Same question for unstyled vertices.**
+`parseVertex` now also reads the `.label-container`'s presentation attributes (`:177`). Mermaid's
+`drawRect` sets only `style`, not `fill`/`stroke`, so an unclassed node should stay default.
+Verify, because a leak here would repaint every node in every diagram, including Fast's.
+
+**Q6.3.5 — Is the widened subgraph rectangle a problem?**
+2.2.2 clamps subgraph width to `max(clusterWidth, 0.62 * len(title) * fontSize + 64)` and
+re-centres it (`mte:dist/converter/types/flowchart.js:82-85`). That is a character-count estimate,
+not a text measurement. Render two sibling subgraphs with long titles and check whether the
+widened rectangles overlap each other or clip their contents. _If they do, the vocabulary needs a
+title-length cap._
+
+**Q6.3.6 — Does `classDef default` reach anything?**
+§1.3 says it never lands in `vertex.classes`, but 2.2.2's DOM override route could pick it up from
+the rendered `style` attribute. One fixture settles it. _A yes would make `classDef default` a
+one-line way to restyle a whole diagram, which is materially cheaper than per-node classes._
+
+### 6.4 The failure surface
+
+**Q6.4.1 — Reproduce and characterise the subgraph collapse.**
+`parseSubGraph` throws `"SubGraph element not found"` when the cluster `<g>` cannot be located
+(`mte:dist/parser/flowchart.js:107-110`), `parseMermaid` catches **any** error and falls back to
+`convertSvgToGraphImage` (`mte:dist/parseMermaid.js:118-121`), and the entire diagram becomes a
+single base64 SVG **`image`** element — no bound arrows, no draggable nodes, no text. This was
+reproduced during the 2.2.2 bump (#50) and is the single worst failure in the pipeline, because
+it is silent: the only signal is one `console.error`.
+
+#46 should find **which inputs trigger it**, since that is what the prompt rules must forbid.
+Candidates worth fixturing: an empty subgraph; a subgraph id containing a quote, a bracket, a
+space, or a leading digit; a subgraph id colliding with a node id; a subgraph referenced by an
+edge from outside; three-level nesting; a subgraph whose title contains `#` entity codes.
+
+**Q6.4.2 — Confirm the detection signature.**
+The recovery ticket needs a reliable predicate. Check that the collapse is detectable as
+`elements.length === 1 && elements[0].type === "image"`, and whether `parseMermaid`'s
+`type: "graphImage"` is observable through `parseMermaidToExcalidraw`'s public return. _The answer
+decides whether recovery can be implemented without patching the library._
+
+**Q6.4.3 — Do edges really degrade gracefully now?**
+2.2.2 pre-filters edges whose DOM node is missing and drops any edge with fewer than two
+reflection points (`mte:dist/parser/flowchart.js:271-283`) instead of throwing. Confirm with a
+self-loop `A --> A`, which is the most likely producer of a degenerate path. _If a self-loop is
+silently dropped, §5.3 gets a definite row instead of an `unknown`._
+
+### 6.5 Shape and label artefacts
+
+**Q6.5.1 — Is `A((("X")))`'s doubled label visible?**
+Both the outer ellipse and the inner ellipse get a bound label with the same text
+(`mte:dist/converter/types/flowchart.js:127-132`, `:159-164`). Screenshot it. _This is the only
+gate on Deep being allowed the triple-circle at all (§5.2)._
+
+**Q6.5.2 — How badly do collapsed shapes distort layout?**
+Geometry comes from the real mermaid glyph's `getBBox()`, so `{{Hex}}` becomes a rectangle padded
+to hexagon width. Measure the width delta between `A["Text"]` and `A{{"Text"}}` for identical
+text. _This turns §4.2's "actively distort layout" from an argument into a number the prompt rules
+can cite._
+
+**Q6.5.3 — Does the cylinder's shrunken label look broken?**
+New in 2.2.2: a `cylinder` vertex gets its bound-label font size reduced, floor 12px
+(`mte:dist/converter/types/flowchart.js:13-24`). Since the shape still converts to a plain
+rectangle, the result is a rectangle whose text is smaller than its neighbours' for no visible
+reason. Confirm, as further evidence for the §5.2 ban.
+
+**Q6.5.4 — Is `A ~~~ B` visible?**
+Source says `"invisible"` is never handled and the arrow gets a normal 2px stroke
+(`mte:dist/converter/types/flowchart.js:210-211`). Confirm on a screenshot; it is a one-line
+fixture and it justifies an explicit prohibition in the prompt.
+
+### 6.6 What #46 should hand back
+
+Not a prose report. Two artefacts:
+
+1. **A diff against the §5 table** — every row whose `Supported` grade or `Renders as` column the
+   measurements contradict. §5 is the contract; if it is wrong, it must be corrected before the
+   spec quotes it.
+2. **A fixture corpus** — the mermaid sources and their expected element shapes, checked in, so
+   the next converter bump can be re-verified by running it instead of by reading `dist/` again.
+   This is also the seed for the "diagram quality evaluation" item still listed as unspecified in
+   map #38.
