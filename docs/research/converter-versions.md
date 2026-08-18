@@ -212,3 +212,36 @@ Mostly yes, for now. There is no supported prop to hide the toolbar entry or dis
 3. **Collapse the duplication** by upgrading `@excalidraw/excalidraw` to a release whose pinned converter is 2.x. As of this research the pin in `0.18.0` is still `1.1.2` (`bun.lock:538`), so this is not available today; it is the thing to watch.
 
 Whichever we pick, the vocabulary contract should be written against the **2.0.0+ direct dependency**, because that is what the generate button and auto mode use, and it is strictly the more capable of the two.
+
+---
+
+## 4. Q4 — what mermaid 11 costs in the bundle
+
+These are measured, not estimated. Method: isolated `bun build --minify --target=browser --conditions=production` of a two-line entry that imports only `parseMermaidToExcalidraw`, resolved through the repo's real `node_modules`. "Eager" = the entry plus every chunk reachable through **static** `import` statements (dynamic `import()` excluded), computed by walking the emitted chunk graph. This is a proxy for the app build, not the app build itself — see the caveat below.
+
+| Measurement (minified)                | converter 2.0.0 + mermaid 11.12.2 | converter 1.1.2 + mermaid 10.9.3 |
+| ------------------------------------- | --------------------------------- | -------------------------------- |
+| Everything inlined, no code splitting | **2.75 MB** (773 KB gzip)         | **3.52 MB** (1027 KB gzip)       |
+| Eager set with code splitting         | **570 KB** (169 KB gzip)          | **328 KB** (97 KB gzip)          |
+| Lazy remainder                        | ~2.14 MB across 56 chunks         | ~3.13 MB across 33 chunks        |
+
+Three things fall out of this:
+
+1. **mermaid 11 is smaller in total than mermaid 10, not larger.** ~770 KB less minified, ~254 KB less gzipped. The 11.x line dropped `elkjs`, `non-layered-tidy-tree-layout`, `web-worker` and `@types/d3-scale` from its runtime dependencies (compare `bun.lock:4270` for 10.9.3 against `bun.lock:2576` for 11.12.2) and added `@iconify/utils`, `marked`, `roughjs` and `cytoscape-fcose`. The net is a win. The `flowchart-elk-definition` chunk alone is 1.48 MB minified in the mermaid-10 tree and does not exist in the mermaid-11 one.
+2. **mermaid 11's eager core is bigger** — 570 KB vs 328 KB, +242 KB minified / +72 KB gzip. That is the real cost of the 11.x upgrade, and it is already paid: we are already on mermaid 11.
+3. **mermaid splits itself well, and our config partly defeats that.** 56 of 74 emitted chunks are lazy: per-diagram renderers (`flowDiagram` 61.5 KB, `erDiagram` 25.9 KB, `ganttDiagram` 49.5 KB, `c4Diagram` 71.5 KB), plus `katex` (280 KB), `cose-bilkent` (83 KB) and `dagre` (11.5 KB). **katex and cytoscape/cose-bilkent are lazy and are never reached by flowchart/sequence/class rendering** — they load only for diagram types we do not emit. So the "d3, cytoscape, katex" worry in #38 is largely unfounded: cytoscape and katex do not land in the first-load path. d3 does — it is in mermaid's static core.
+
+### Is any of it tree-shaken out by the converter's usage?
+
+Barely. The converter imports mermaid's default export (`dist/parseMermaid.js:1`, `import mermaid from "mermaid"`) and calls `mermaid.initialize`, `mermaid.mermaidAPI.getDiagramFromText` and `mermaid.render`. That pulls mermaid's whole registry and core. What saves us is mermaid's own dynamic `import()` per diagram type, not tree-shaking.
+
+### Caveat, stated rather than guessed
+
+The numbers above are from an isolated bun build, not from drawmaid's vite/rollup build, so treat them as the shape of the cost rather than the exact bytes shipped. Two things in `apps/app/vite.config.ts` will move the real figure and are worth fixing regardless:
+
+- `vite.config.ts:42-45` forces `@excalidraw/mermaid-to-excalidraw` into the same `excalidraw` manual chunk as the editor itself, so the converter's static graph is eager.
+- `apps/app/lib/canvas/insert-mermaid-into-canvas.ts:5` imports `parseMermaidToExcalidraw` **statically**. Nothing needs the converter until the user generates. Switching that single import to `await import("@excalidraw/mermaid-to-excalidraw")` inside `insertMermaidIntoCanvas` — and dropping it from `manualChunks` — would move roughly the whole 570 KB eager set off first paint at the cost of one lazy chunk fetch on first generation, which is already behind an LLM call taking orders of magnitude longer. That is the single highest-leverage bundle change available here.
+
+### The docs-site `mermaid` dependency: same package, different concern
+
+`package.json:109` declares `"mermaid": "^11.12.2"` in **devDependencies** (the `devDependencies` block opens at `package.json:86`; there is no root `dependencies` block). It resolves to the same hoisted `mermaid@11.12.2` as the converter's (`bun.lock:2576`), so it is not a third copy on disk — but it ships in the **VitePress docs site** bundle, not the app worker. Different artefact, different budget, no interaction with the app's bundle. It is a separate concern and should not be collapsed into this one.
