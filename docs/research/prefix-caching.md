@@ -727,3 +727,188 @@ package-level and generated once per proxy process (`:23-27`), and `metadata` is
 The single client-side requirement on both paths is identical to vLLM's and llama.cpp's: **a
 byte-stable prefix**. The difference is that Anthropic and Gemini impose a _minimum size_ on it,
 which the local backends do not.
+
+---
+
+## 6. Variant cost — how many cold prefills a session actually pays
+
+This is the section #42 and #43 are blocked on. The map's premise is that layering
+`L0` shared → `L1` tier → `L2` diagram-type + few-shots → `L3` append-only transcript "costs one
+cold prefill per variant, not per call". That premise is **correct in principle and, at drawmaid's
+current prompt size, worth almost nothing on three of the five backends.** This section shows the
+arithmetic.
+
+### 6.1 The measurements the arithmetic runs on
+
+Token counts below are chars ÷ 4, the standard rough conversion. They are estimates and are marked
+as such; the conclusions turn on order of magnitude, not on precision, and every threshold they are
+compared against is 2–16× away.
+
+| Layer                           | Source                                                                 | Chars                    | ≈ Tokens      |
+| ------------------------------- | ---------------------------------------------------------------------- | ------------------------ | ------------- |
+| `L0` shared role + hard rules   | `apps/app/prompts/system-prompt.md`                                    | 824                      | **≈ 206**     |
+| `L1` tier block                 | does not exist yet — Fast/Rich/Deep differ only by system prompt (#38) | —                        | ≈ 100 (est.)  |
+| `L2` diagram-type block         | `apps/app/config/diagram-configs.json`, substituted fields only        | 458 / 504 / 464 per type | **≈ 115–126** |
+| `L2` few-shots                  | one example today; #35 says use **four**                               | 107–139 each             | ≈ 27–35 each  |
+| static rules in the user prompt | `apps/app/prompts/user-prompt-rules.md` less placeholders              | ≈ 600                    | ≈ 150         |
+| `L3` transcript                 | capped at 800 chars (`lib/llm/intent-extraction.ts:184-189`)           | ≤ 800                    | ≤ 200         |
+
+Totals, with #35's 4-shot recommendation applied:
+
+- **Stable region (`L0`+`L1`+`L2`) ≈ 475–580 tokens.**
+- **`L0` alone ≈ 206 tokens.**
+- **Whole prompt ≈ 675–780 tokens.**
+
+Variant count: 3 tiers (Fast, Rich, Deep — and Deep is two passes, so **4 distinct prompt
+variants**) × 3 diagram types today (`lib/llm/normalize-mermaid.ts:4-8`), 5 if ER and state are
+added. So **V = 12 today, 20 planned**.
+
+### 6.2 The finding that dwarfs the layering question
+
+Before any per-backend analysis: **drawmaid's current user prompt puts the most volatile string
+first.** `{{transcript}}` is substituted at line 4 of `apps/app/prompts/user-prompt-rules.md`, above
+every one of the static formatting rules, the syntax rules, the tips, and the example. Then
+`{{diagramType}}`, `{{nodeSyntax}}`, `{{edgeSyntax}}`, `{{reservedWords}}`, `{{tips}}`,
+`{{entities}}`, `{{firstLine}}` and `{{example}}` are substituted below it
+(`lib/llm/intent-extraction.ts:193-200`).
+
+Under a prefix cache — any prefix cache, on any backend in this survey — everything after the first
+difference is dead. So today:
+
+- **Cacheable prefix = the system message only ≈ 206 tokens of ≈ 675 = 30 %.**
+- The ≈ 470 tokens of static rules, syntax and examples in the user message are re-prefilled on
+  every single call, purely because they sit downstream of the transcript.
+
+Simply **moving `L3` to the end of the prompt** raises the stable fraction from ≈ 30 % to ≈ 70 %,
+on every call, on every backend that caches at all. That single reordering is worth more than the
+entire L0/L1/L2 sub-split, which only pays when a user _switches variant mid-session_.
+
+**Recommendation for #42: order the fix. Transcript-last first, per-call substitution out of the
+static region second, L0/L1/L2 sub-layering third.** The third is real but second-order.
+
+### 6.3 Cold prefills per session, per backend
+
+Session model: one dictation session, **C = 20 generations**, one tier held throughout, **K = 2**
+distinct diagram types touched (a flowchart session where a sequence emerges). Under layering the
+per-session cold cost is
+
+```
+cold_tokens = |L0|·(1 if L0 not already resident else 0)
+            + K · (|L1| + |L2|)
+            + C · |L3|
+```
+
+versus the unlayered baseline `K · (|L0|+|L1|+|L2|) + C · |L3|`. **The whole benefit of the L0/L1/L2
+split is the term `(K − 1) · |L0|`** — at K = 2 and |L0| ≈ 206, that is **≈ 206 tokens saved across a
+20-generation session.** Not per call. Per session. That is the honest size of the prize.
+
+| Backend                     | Full cold prefills in the 20-call session, layered  | What the layering itself bought                                         |
+| --------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------- |
+| WebLLM                      | **20** (every call, entire prompt)                  | **Nothing.**                                                            |
+| vLLM (warm shared server)   | 0 for `L0`, 2 partial (`L1`+`L2`), 20 × `L3` tails  | ≈ 206 tokens/session, plus `L0` shared across _all users_ of the server |
+| llama.cpp / Ollama (1 user) | 1 for `L0` (first call), 2 partial, 20 × `L3` tails | ≈ 206 tokens/session, exact — no block rounding                         |
+| Anthropic via CLIProxyAPI   | **20 uncached** at current prompt size              | **Nothing.** Two independent reasons — §6.5.                            |
+| Gemini via CLIProxyAPI      | **20 uncached** at current prompt size              | **Nothing.** Below the implicit-caching minimum — §6.6.                 |
+
+### 6.4 Minimum `L0` for the prefix to be cacheable at all
+
+| Backend            | Minimum cacheable prefix                                            | Does `L0` ≈ 206 tokens clear it?                   |
+| ------------------ | ------------------------------------------------------------------- | -------------------------------------------------- |
+| WebLLM             | n/a — no prefix cache exists at any size (§1)                       | n/a                                                |
+| vLLM               | **16 tokens** (`DEFAULT_BLOCK_SIZE`, full blocks only — §2.2)       | **Yes**, comfortably — 12 full blocks (192 tokens) |
+| llama.cpp / Ollama | **1 token** (token-level LCP walk — §3.2)                           | **Yes**, exactly, no rounding                      |
+| Anthropic          | **512 / 1,024 / 2,048 / 4,096** depending on model (§5.3)           | **No** — misses even the most generous tier        |
+| Gemini (implicit)  | **2,048** (2.5) / **4,096** (3.x), measured on _total input_ (§5.5) | **No** — the whole prompt (≈ 780) misses too       |
+
+The spread is the story: the two local backends have effectively no floor, and the two hosted
+backends have a floor drawmaid's entire prompt does not reach.
+
+### 6.5 Anthropic: the layering buys nothing, for two independent reasons
+
+**Reason 1 — structural. No entry is ever written at the `L0`/`L1` boundary.** Anthropic's lookup
+walks backward from the breakpoint, but only finds entries that _prior requests wrote_:
+
+> "On each request the system computes the prefix hash at your breakpoint and checks for a matching
+> cache entry. If none exists, it walks backward one block at a time, checking whether the prefix
+> hash at each earlier position matches something already in the cache." … "Cache reads look
+> backward for entries that prior requests wrote."
+> — <https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching>
+
+CLIProxyAPI places exactly two breakpoints — end-of-system and end-of-last-user-message (§5.1). If
+`L0`+`L1`+`L2` all live in one system block, the only entry ever written covers the whole block,
+`L1` and `L2` included. Switch tier or diagram type and the end-of-system hash differs; the
+backward walk finds nothing at the `L0` boundary because **nothing was ever written there**. A
+variant switch is a total miss, exactly as if there were no layering.
+
+Fixing that means drawmaid emitting its own breakpoint at the end of `L0` — which requires **owning
+every breakpoint**, because sending even one marker flips `countCacheControls != 0` and turns off
+CPA's automatic placement of the others (`claude_executor_cloaking.go:1190-1192`, §5.1). That is a
+real cost: drawmaid would take on breakpoint management, the 4-breakpoint cap, and the TTL ordering
+rules, permanently.
+
+**Reason 2 — size. Even after doing that, `L0` would not be cached.** At ≈ 206 tokens it is below
+512, the lowest minimum in the table, so the segment is silently dropped: _"Any requests to cache
+fewer than this number of tokens will be processed without caching, and no error is returned."_ The
+work would be invisible and untestable.
+
+**Conclusion for Anthropic: keep the whole stable region in one system block, let CLIProxyAPI place
+the breakpoints, and do not sub-layer for caching.** The unit that can cache on Anthropic is the
+_whole system block per variant_ — V = 12 distinct cache entries, each written once per 5-minute
+window — and even that requires the block to reach ≥ 512 tokens. It is currently ≈ 475–580, i.e.
+right on the line for the 512-minimum models and below it for every other model.
+
+If Anthropic caching is judged worth having, the lever is **make the stable region bigger with real
+content, not with padding** — #35's 4-shot recommendation is the obvious candidate, and pushing the
+stable region past 1,024 tokens would bring the Sonnet family in. **Haiku 4.5 and Opus 4.5/4.6, at
+4,096, are out of reach and should be documented as never-caching.**
+
+### 6.6 Gemini: the layering is invisible
+
+Implicit caching needs ≥ 2,048 input tokens on Gemini 2.5 and ≥ 4,096 on 3.x (§5.5), measured on
+the _whole input_. Drawmaid's entire prompt is ≈ 675–780 tokens. It is **2.6–5× short of ever
+engaging the cache**, and no arrangement of `L0`/`L1`/`L2` changes a total. Explicit caching, which
+has no such floor, is unreachable through CLIProxyAPI (§5.5).
+
+So on Gemini the layering buys exactly nothing today, and would only start to matter if drawmaid's
+prompt tripled in size — at which point Google's own advice, _"Try putting large and common contents
+at the beginning of your prompt"_, is satisfied by §6.2's reordering alone, with no sub-layering
+needed.
+
+### 6.7 WebLLM: nothing, given the §1.4 constraint
+
+§1.4 established that KV reuse on WebLLM requires abandoning the fixed two-message shape for a real
+multi-turn array `[system, user₁, assistant₁, …, userₙ]`, echoing each stored assistant reply back
+verbatim. Given that constraint, the layering's value on WebLLM is **zero, and stays zero even if
+the constraint is met**:
+
+- **Without the message-shape change** (today): `compareConversationObject` fails on length every
+  call, `prefill()` resets, and the entire prompt is cold prefilled. `L0` stability is unobservable.
+- **With the message-shape change**: reuse is positional and covers _prior turns_, not a
+  content-addressed prefix. WebLLM never hashes the prompt (§1.1), so it cannot recognise that two
+  variants share `L0`. **Switching tier or diagram type changes `messages[0]`/the system override,
+  fails `compareConversationObject`, and forces a full reset regardless of how the prompt is
+  layered.** The layering is not the thing being compared.
+- And the multi-turn shape is unaffordable anyway: 4,096-token ceiling (`ctx4k_cs1k`,
+  `src/config.ts:1385`) against `max_tokens: 1024`, with truncated aborted replies entering history
+  (§1.4).
+
+**What layering _is_ worth on WebLLM is not caching — it is authoring.** WebLLM is the one backend
+where total prompt length maps directly to prefill latency (chunked at `prefill_chunk_size` 1024),
+so having the prompt explicitly segmented into stable and volatile regions is what lets Fast tier
+_drop_ `L1`/`L2` material to hit its latency budget. That is a real reason to build the layering.
+It is just not a caching reason, and #42 should not justify it as one.
+
+### 6.8 Verdict per backend
+
+| Backend            | Is the L0/L1/L2 layering worth it?                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| WebLLM             | **No, for caching.** Yes as an authoring structure that lets Fast drop layers. Buys zero cold prefills either way. |
+| vLLM               | **Yes**, cheaply. No size floor worth worrying about, and `L0` is shared across every user of the server.          |
+| llama.cpp / Ollama | **Yes**, and most cleanly of all — token-level granularity, no minimum, no block rounding.                         |
+| Anthropic          | **No.** Structurally defeated by CPA's breakpoint placement, and `L0` is below every model minimum anyway.         |
+| Gemini             | **No.** The whole prompt is below the implicit-caching floor; layering cannot change a total.                      |
+
+**The one change that pays on all five: move `L3` to the end and stop substituting into the static
+region.** The L0/L1/L2 split is worth building for prompt-authoring and tier-budgeting reasons, and
+for a genuine ≈ 206-tokens-per-session saving on the two local server backends. It should not be
+sold to #42 or #43 as a caching win on the hosted backends, because there it is not one.
