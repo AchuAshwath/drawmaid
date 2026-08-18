@@ -830,3 +830,125 @@ Three artefacts, and nothing else:
    arrows, un-widen subgraphs. Everything it touches is plain data on the returned elements.
 
 No forking, and no construct is banned that could have been repaired instead.
+
+---
+
+## 8. What #46's conformance harness should measure
+
+#46 already carries one hard constraint: **the harness must run in Playwright.** happy-dom has no
+`getBBox`, so mermaid's layout yields zero elements (recorded on #38 while bumping to 2.2.2), and
+§2A explains why — the converter is a screen-scrape of a rendered SVG, so it needs a DOM with real
+SVG geometry. Upstream's own suite runs in jsdom and reimplements bounding boxes inside the test
+file, which means upstream geometry assertions are against a stand-in and cannot be reused as
+evidence.
+
+Everything below is an assertion on the **pair** `(skeleton, elements)` where
+`skeleton = await parseMermaidToExcalidraw(src)` and
+`elements = convertToExcalidrawElements(skeleton, { regenerateIds: true })` — the exact call shape
+of `insert-mermaid-into-canvas.ts:143-147`. Asserting on the skeleton alone would miss §3.2 and
+§5A.4 entirely, since both happen during or after conversion.
+
+### 8.1 Instrument before asserting
+
+Install a `console.error` spy for the duration of each corpus entry and attach the captured messages
+to that entry's report. This is not optional colour: `No element for start binding with id … found`
+(§3.2), `Duplicate id found` (§5.2), `Unhandled element start type` (§5.2), and
+`Error processing Mermaid diagram:` (§5A.2) are the **only** in-band signals the pipeline emits for
+failures that otherwise resolve successfully. A corpus entry that produces any console error has
+failed, whatever its elements look like.
+
+### 8.2 Gate assertions — run first, on every entry
+
+A failure here makes the rest of the entry meaningless.
+
+1. **The call does not throw.** §5.2 predicts a `TypeError: Cannot read properties of undefined` for
+   a diagram containing node `A_B` plus edge `A --> B`. Include that fixture and expect the throw
+   today; if it stops throwing, §5.2 has been fixed upstream and row 15 of §7 can be revisited.
+2. **Not a total collapse:** `!(skeleton.length === 1 && skeleton[0].type === "image")`. §5A.2 and
+   §5A.3 predict this for subgraph misses, ids containing `"` / `\` / `'`, and any mermaid draw
+   failure. Report _which_ entries trip it — that list is the ban list's empirical half.
+3. **Node conservation.** Node ids parsed from the source, counted, equal the number of returned
+   elements that are neither `type === "arrow"` nor a subgraph container. §2B's silent drop.
+4. **Edge conservation.** Edges parsed from the source equal the number of `type === "arrow"`
+   elements. §2B's `reflectionPoints.length > 1` filter.
+
+### 8.3 Binding assertions — the core of the harness
+
+5. **Every arrow has non-null `startBinding` and `endBinding`.** §3.2's failure mode is a silent
+   no-op, so this is the assertion the whole vocabulary contract rests on.
+6. **Both directions of the binding exist.** For each arrow, `startBinding.elementId` and
+   `endBinding.elementId` resolve to elements present in the returned array, _and_ each of those
+   elements' `boundElements` contains `{ id: <arrow.id>, type: "arrow" }`. §3.3: `updateBoundElements`
+   iterates the shape's side, so an arrow-only binding will not move on drag.
+7. **The bound element is a vertex, not an arrow and not a container.** Assert
+   `type ∈ {rectangle, ellipse, diamond}` and that the id is not a subgraph container's — §5.2's
+   poisoned `oldToNewElementIdMap` produces an arrow as a binding target, and I4 produces a subgraph
+   rectangle.
+8. **Bindings point at the _right_ elements.** Build the expected `(startLabel, endLabel)` pairs from
+   the source and compare against the labels of the bound shapes. Id equality is unavailable —
+   `regenerateIds: true` destroys every mermaid id (§1) — so the label text scraped from the SVG is
+   the only handle back to the authored graph. This is what distinguishes "bound" from "bound
+   correctly", and #46's question 1 cannot be answered without it.
+
+### 8.4 Geometry assertions
+
+9. **No element at exactly `x === 0 && y === 0`** (§4.3), and no element whose bbox is disjoint from
+   the union of all the others' bboxes. The second form catches the same bug more robustly and is
+   also the row-10 post-processing detector, so implementing it here doubles as a prototype of the
+   production check.
+10. **No two non-arrow elements share identical `(x, y)`.** §5.1's `domId` substring ambiguity
+    produces exactly this — one node scraped with another's `getBBox()`. It is the only verified
+    mechanism for overlapping nodes, so this assertion is how the "overlap" complaint gets
+    attributed.
+11. **Every arrow has `points.length >= 2`.** §5A.4's post-conversion dedupe at a 0.5px threshold can
+    reduce a two-point arrow to one, and nothing downstream filters it.
+12. **Subgraph containment.** For each subgraph container, every element in its group is inside its
+    bbox, and no two containers overlap. §5A.5's estimated-width expansion breaks this for long
+    titles, so include a long-title fixture rather than assuming it holds.
+
+### 8.5 Fixtures with predicted outcomes
+
+Each of these has a mechanism behind it, so a divergence is a signal that the mechanism moved —
+which makes this corpus a version-drift detector as well as a vocabulary test. Record the prediction
+next to the result.
+
+| Fixture                                                          | Predicted outcome                                                                                   | §        |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | -------- |
+| node `A_B` + edge `A --> B` + any edge on `A_B`                  | `TypeError` thrown out of `convertToExcalidrawElements`                                             | 5.2      |
+| nodes `A` and `A-1`                                              | two elements at identical coordinates                                                               | 5.1      |
+| node id containing `"`                                           | single `image` element                                                                              | 5.1      |
+| subgraph id containing `'`                                       | single `image` element                                                                              | 5A.3     |
+| `A --> A`                                                        | one arrow with `startBinding.elementId === endBinding.elementId`; then the manual drag check        | 4.4      |
+| two `A --> B` edges                                              | two arrows, both bound; if either is unbound, §7 row 17 flips to banned                             | 5.3      |
+| `A --> sub1` where `sub1` is a subgraph                          | arrow bound to the subgraph rectangle while its points sit at an inner node                         | 6.2 I4   |
+| subgraph with a 60-character title                               | container widened past mermaid's cluster and re-centred; possible overlap                           | 5A.5     |
+| one node with no edges, plus a connected pair                    | the edgeless node is **not** at the origin, but at an arbitrary rank inside the connected component | 4.2, 6.1 |
+| a 6-node cycle                                                   | six arrows, all bound, directions as authored                                                       | 6.1      |
+| a diagram with a deliberate syntax error                         | 2.2.2: a single `image` element, resolved not rejected                                              | 5A.2     |
+| a flowchart with `%%{init: {"flowchart": {"curve": "basis"}}}%%` | edges lost or malformed — confirms §1's claim that `curve: "linear"` is load-bearing                | 1        |
+
+The edgeless-node fixture is the one that settles #31 Task 2 empirically. §6.1 kills the claim from
+source; this fixture is the evidence.
+
+### 8.6 What the harness cannot answer
+
+§3.4 proves from source that `updateBoundElements` has no path that clears a binding, so a unit
+assertion of the form "drag a node, bindings still present" is tautological — it would be testing
+Excalidraw's reducer, not the diagram. #46's question 3 therefore has to be answered by hand, and
+what needs looking at is not whether the binding survives but whether the **shape** stays sane:
+
+- the self-loop (§4.4) — the five-point loop recomputed against one element;
+- a subgraph-bound arrow (I4) — an endpoint that jumps to a container boundary it never touched;
+- a long arrow after its shape is dragged far — `updateBoundPoint` recomputation over a large delta.
+
+Three manual steps in the running app, with screenshots. Everything else in this section is
+automatable, and should be.
+
+### 8.7 Output shape
+
+Per corpus entry: the mermaid source, whether it threw, the console errors captured, the counts
+(declared vs returned nodes and edges), the per-arrow binding table (`startBinding.elementId` →
+resolved element type and label, same for end), the geometry assertion results, and the predicted
+outcome from §8.5 where one exists. That table is the direct input to the spec's vocabulary table —
+each row becomes a construct classified as contract, Rich/Deep-only, or banned, with the measurement
+that justifies it.
