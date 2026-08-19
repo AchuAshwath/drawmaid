@@ -15,7 +15,9 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      // Use the system Google Chrome: the bundled chrome-headless-shell
+      // download is impractically slow on this machine. Throwaway change for #46.
+      use: { ...devices["Desktop Chrome"], channel: "chrome" },
     },
   ],
   webServer: {
