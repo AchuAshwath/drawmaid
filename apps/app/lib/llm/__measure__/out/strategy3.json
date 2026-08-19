@@ -1,0 +1,1250 @@
+{
+  "swe-login-trivial": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 10008,
+    "usage": {
+      "completion_tokens": 64,
+      "total_tokens": 239,
+      "prompt_tokens": 175
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-deploy-trivial": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 7234,
+    "usage": {
+      "completion_tokens": 38,
+      "total_tokens": 213,
+      "prompt_tokens": 175
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-one-line-fragment": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 7245,
+    "usage": {
+      "completion_tokens": 20,
+      "total_tokens": 187,
+      "prompt_tokens": 167
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-oauth-sequence-explicit": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 7989,
+    "usage": {
+      "completion_tokens": 145,
+      "total_tokens": 345,
+      "prompt_tokens": 200
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-domain-class-explicit": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 6641,
+    "usage": {
+      "completion_tokens": 81,
+      "total_tokens": 273,
+      "prompt_tokens": 192
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "swe-flowchart-explicit-lr": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 9012,
+    "usage": {
+      "completion_tokens": 47,
+      "total_tokens": 235,
+      "prompt_tokens": 188
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-payment-class-in-a-flow": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 7575,
+    "usage": {
+      "completion_tokens": 104,
+      "total_tokens": 296,
+      "prompt_tokens": 192
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-flow-then-class-word": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6020,
+    "usage": {
+      "completion_tokens": 39,
+      "total_tokens": 224,
+      "prompt_tokens": 185
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-sequence-word-as-ordering": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6730,
+    "usage": {
+      "completion_tokens": 111,
+      "total_tokens": 307,
+      "prompt_tokens": 196
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-process-word-noise": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5630,
+    "usage": {
+      "completion_tokens": 53,
+      "total_tokens": 242,
+      "prompt_tokens": 189
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-timeline-word-noise": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6921,
+    "usage": {
+      "completion_tokens": 105,
+      "total_tokens": 291,
+      "prompt_tokens": 186
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-auth-cache-corrupted": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5886,
+    "usage": {
+      "completion_tokens": 95,
+      "total_tokens": 284,
+      "prompt_tokens": 189
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-redis-kafka-corrupted": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6600,
+    "usage": {
+      "completion_tokens": 79,
+      "total_tokens": 268,
+      "prompt_tokens": 189
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-queue-homophone": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5809,
+    "usage": {
+      "completion_tokens": 100,
+      "total_tokens": 297,
+      "prompt_tokens": 197
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-nginx-async-corrupted": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5078,
+    "usage": {
+      "completion_tokens": 83,
+      "total_tokens": 271,
+      "prompt_tokens": 188
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-s3-grpc-corrupted": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 7915,
+    "usage": {
+      "completion_tokens": 97,
+      "total_tokens": 291,
+      "prompt_tokens": 194
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-mild-corruption": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6681,
+    "usage": {
+      "completion_tokens": 62,
+      "total_tokens": 245,
+      "prompt_tokens": 183
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-correction-simple": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5907,
+    "usage": {
+      "completion_tokens": 45,
+      "total_tokens": 225,
+      "prompt_tokens": 180
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-correction-twice": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5879,
+    "usage": {
+      "completion_tokens": 32,
+      "total_tokens": 220,
+      "prompt_tokens": 188
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-correction-contradicts-earlier": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6667,
+    "usage": {
+      "completion_tokens": 137,
+      "total_tokens": 336,
+      "prompt_tokens": 199
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-correction-of-direction": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5293,
+    "usage": {
+      "completion_tokens": 33,
+      "total_tokens": 217,
+      "prompt_tokens": 184
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-flow-becomes-sequence": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6177,
+    "usage": {
+      "completion_tokens": 66,
+      "total_tokens": 277,
+      "prompt_tokens": 211
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-class-becomes-flow": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5359,
+    "usage": {
+      "completion_tokens": 68,
+      "total_tokens": 271,
+      "prompt_tokens": 203
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-spoken-parens": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6000,
+    "usage": {
+      "completion_tokens": 65,
+      "total_tokens": 242,
+      "prompt_tokens": 177
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-spoken-parens-worse": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5500,
+    "usage": {
+      "completion_tokens": 28,
+      "total_tokens": 206,
+      "prompt_tokens": 178
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-versioned-names": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5769,
+    "usage": {
+      "completion_tokens": 59,
+      "total_tokens": 242,
+      "prompt_tokens": 183
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-dotted-names": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4388,
+    "usage": {
+      "completion_tokens": 28,
+      "total_tokens": 203,
+      "prompt_tokens": 175
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-underscore-collision-risk": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4723,
+    "usage": {
+      "completion_tokens": 36,
+      "total_tokens": 222,
+      "prompt_tokens": 186
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-reserved-word-end": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4505,
+    "usage": {
+      "completion_tokens": 24,
+      "total_tokens": 204,
+      "prompt_tokens": 180
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-messy-architecture": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6170,
+    "usage": {
+      "completion_tokens": 141,
+      "total_tokens": 388,
+      "prompt_tokens": 247
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-trails-off": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6120,
+    "usage": {
+      "completion_tokens": 72,
+      "total_tokens": 274,
+      "prompt_tokens": 202
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-long-incident": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 8026,
+    "usage": {
+      "completion_tokens": 281,
+      "total_tokens": 634,
+      "prompt_tokens": 353
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-long-etl": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6800,
+    "usage": {
+      "completion_tokens": 217,
+      "total_tokens": 501,
+      "prompt_tokens": 284
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-ci-pipeline": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5566,
+    "usage": {
+      "completion_tokens": 94,
+      "total_tokens": 291,
+      "prompt_tokens": 197
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-rate-limit-decision": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5923,
+    "usage": {
+      "completion_tokens": 120,
+      "total_tokens": 339,
+      "prompt_tokens": 219
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-websocket-lifecycle": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "stateDiagram-v2",
+    "ms": 4877,
+    "usage": {
+      "completion_tokens": 83,
+      "total_tokens": 295,
+      "prompt_tokens": 212
+    },
+    "error": null,
+    "firstLine": "stateDiagram-v2"
+  },
+  "swe-k8s-deploy": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6492,
+    "usage": {
+      "completion_tokens": 140,
+      "total_tokens": 344,
+      "prompt_tokens": 204
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-cache-invalidation": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5606,
+    "usage": {
+      "completion_tokens": 118,
+      "total_tokens": 320,
+      "prompt_tokens": 202
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-monorepo-graph": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 7034,
+    "usage": {
+      "completion_tokens": 43,
+      "total_tokens": 234,
+      "prompt_tokens": 191
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-git-branching": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6313,
+    "usage": {
+      "completion_tokens": 98,
+      "total_tokens": 307,
+      "prompt_tokens": 209
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-retry-logic": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 7177,
+    "usage": {
+      "completion_tokens": 296,
+      "total_tokens": 498,
+      "prompt_tokens": 202
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-feature-flag": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5117,
+    "usage": {
+      "completion_tokens": 91,
+      "total_tokens": 289,
+      "prompt_tokens": 198
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-search-indexing": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5167,
+    "usage": {
+      "completion_tokens": 65,
+      "total_tokens": 273,
+      "prompt_tokens": 208
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "swe-microservice-sequence": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 5056,
+    "usage": {
+      "completion_tokens": 84,
+      "total_tokens": 291,
+      "prompt_tokens": 207
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-inheritance-no-keyword": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 5286,
+    "usage": {
+      "completion_tokens": 98,
+      "total_tokens": 292,
+      "prompt_tokens": 194
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "swe-terraform-apply": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 6741,
+    "usage": {
+      "completion_tokens": 178,
+      "total_tokens": 381,
+      "prompt_tokens": 203
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-error-budget": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5698,
+    "usage": {
+      "completion_tokens": 56,
+      "total_tokens": 232,
+      "prompt_tokens": 176
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-direction-top-down": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4636,
+    "usage": {
+      "completion_tokens": 31,
+      "total_tokens": 217,
+      "prompt_tokens": 186
+    },
+    "error": null,
+    "firstLine": "flowchart TB"
+  },
+  "swe-direction-conflicting": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4427,
+    "usage": {
+      "completion_tokens": 29,
+      "total_tokens": 216,
+      "prompt_tokens": 187
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-hiring-pipeline": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5183,
+    "usage": {
+      "completion_tokens": 116,
+      "total_tokens": 319,
+      "prompt_tokens": 203
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-expense-approval": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 168684,
+    "usage": {
+      "completion_tokens": 105,
+      "total_tokens": 298,
+      "prompt_tokens": 193
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-support-escalation": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 6388,
+    "usage": {
+      "completion_tokens": 119,
+      "total_tokens": 318,
+      "prompt_tokens": 199
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-org-chart": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5444,
+    "usage": {
+      "completion_tokens": 66,
+      "total_tokens": 260,
+      "prompt_tokens": 194
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-morning-routine": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5582,
+    "usage": {
+      "completion_tokens": 73,
+      "total_tokens": 264,
+      "prompt_tokens": 191
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-recipe": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5187,
+    "usage": {
+      "completion_tokens": 68,
+      "total_tokens": 272,
+      "prompt_tokens": 204
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-travel-decision": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5594,
+    "usage": {
+      "completion_tokens": 76,
+      "total_tokens": 267,
+      "prompt_tokens": 191
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-onboarding": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5295,
+    "usage": {
+      "completion_tokens": 69,
+      "total_tokens": 265,
+      "prompt_tokens": 196
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "gen-book-club": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4892,
+    "usage": {
+      "completion_tokens": 43,
+      "total_tokens": 221,
+      "prompt_tokens": 178
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-house-move": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5652,
+    "usage": {
+      "completion_tokens": 64,
+      "total_tokens": 291,
+      "prompt_tokens": 227
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-class-word-in-school-sense": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 7440,
+    "usage": {
+      "completion_tokens": 98,
+      "total_tokens": 288,
+      "prompt_tokens": 190
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "gen-sequence-word-in-dance-sense": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 5478,
+    "usage": {
+      "completion_tokens": 54,
+      "total_tokens": 239,
+      "prompt_tokens": 185
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "gen-empty-ish": {
+    "expectedType": null,
+    "expectedOnRequest": null,
+    "detected": null,
+    "ms": 2676,
+    "usage": {
+      "completion_tokens": 27,
+      "total_tokens": 199,
+      "prompt_tokens": 172
+    },
+    "error": null,
+    "firstLine": "It looks like your description got cut off — could you share"
+  },
+  "swe-payment-webhook-sequence": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 4697,
+    "usage": {
+      "completion_tokens": 84,
+      "total_tokens": 286,
+      "prompt_tokens": 202
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-sso-sequence-explicit": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 4832,
+    "usage": {
+      "completion_tokens": 104,
+      "total_tokens": 302,
+      "prompt_tokens": 198
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-grpc-streaming-sequence": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 3426,
+    "usage": {
+      "completion_tokens": 121,
+      "total_tokens": 324,
+      "prompt_tokens": 203
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "gen-restaurant-order-sequence": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 2880,
+    "usage": {
+      "completion_tokens": 82,
+      "total_tokens": 283,
+      "prompt_tokens": 201
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "swe-repository-pattern-class": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 3828,
+    "usage": {
+      "completion_tokens": 123,
+      "total_tokens": 322,
+      "prompt_tokens": 199
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "swe-ecommerce-model-explicit": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 3665,
+    "usage": {
+      "completion_tokens": 105,
+      "total_tokens": 304,
+      "prompt_tokens": 199
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "swe-event-hierarchy-class": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 5724,
+    "usage": {
+      "completion_tokens": 152,
+      "total_tokens": 353,
+      "prompt_tokens": 201
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "gen-library-model-class": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "erDiagram",
+    "ms": 3332,
+    "usage": {
+      "completion_tokens": 130,
+      "total_tokens": 327,
+      "prompt_tokens": 197
+    },
+    "error": null,
+    "firstLine": "erDiagram"
+  },
+  "typed-precise-short": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 2468,
+    "usage": {
+      "completion_tokens": 26,
+      "total_tokens": 207,
+      "prompt_tokens": 181
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "typed-parens-in-names": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 2977,
+    "usage": {
+      "completion_tokens": 70,
+      "total_tokens": 256,
+      "prompt_tokens": 186
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "typed-slashes-and-quotes": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4837,
+    "usage": {
+      "completion_tokens": 77,
+      "total_tokens": 271,
+      "prompt_tokens": 194
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "typed-braces-and-pipes": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 2889,
+    "usage": {
+      "completion_tokens": 52,
+      "total_tokens": 235,
+      "prompt_tokens": 183
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "typed-multiline": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 2911,
+    "usage": {
+      "completion_tokens": 109,
+      "total_tokens": 310,
+      "prompt_tokens": 201
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "typed-reserved-word-literal": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "stateDiagram-v2",
+    "ms": 2625,
+    "usage": {
+      "completion_tokens": 41,
+      "total_tokens": 217,
+      "prompt_tokens": 176
+    },
+    "error": null,
+    "firstLine": "stateDiagram-v2"
+  },
+  "paste-mermaid-extend": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 3691,
+    "usage": {
+      "completion_tokens": 39,
+      "total_tokens": 242,
+      "prompt_tokens": 203
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "paste-mermaid-with-banned-constructs": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 3715,
+    "usage": {
+      "completion_tokens": 35,
+      "total_tokens": 252,
+      "prompt_tokens": 217
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "paste-mermaid-fenced": {
+    "expectedType": "sequenceDiagram",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 3223,
+    "usage": {
+      "completion_tokens": 59,
+      "total_tokens": 267,
+      "prompt_tokens": 208
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "paste-typescript-interfaces": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 4701,
+    "usage": {
+      "completion_tokens": 106,
+      "total_tokens": 341,
+      "prompt_tokens": 235
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "paste-python-class": {
+    "expectedType": "classDiagram",
+    "expectedOnRequest": null,
+    "detected": "classDiagram",
+    "ms": 3372,
+    "usage": {
+      "completion_tokens": 80,
+      "total_tokens": 293,
+      "prompt_tokens": 213
+    },
+    "error": null,
+    "firstLine": "classDiagram"
+  },
+  "paste-sql-schema": {
+    "expectedType": "erDiagram",
+    "expectedOnRequest": null,
+    "detected": "erDiagram",
+    "ms": 2975,
+    "usage": {
+      "completion_tokens": 68,
+      "total_tokens": 289,
+      "prompt_tokens": 221
+    },
+    "error": null,
+    "firstLine": "erDiagram"
+  },
+  "paste-yaml-manifest": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 4475,
+    "usage": {
+      "completion_tokens": 229,
+      "total_tokens": 484,
+      "prompt_tokens": 255
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "paste-stack-trace": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 3820,
+    "usage": {
+      "completion_tokens": 176,
+      "total_tokens": 427,
+      "prompt_tokens": 251
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "paste-json-config": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 2594,
+    "usage": {
+      "completion_tokens": 47,
+      "total_tokens": 264,
+      "prompt_tokens": 217
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "paste-readme-section": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 2586,
+    "usage": {
+      "completion_tokens": 53,
+      "total_tokens": 270,
+      "prompt_tokens": 217
+    },
+    "error": null,
+    "firstLine": "flowchart LR"
+  },
+  "paste-delimiter-collision": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 3250,
+    "usage": {
+      "completion_tokens": 104,
+      "total_tokens": 301,
+      "prompt_tokens": 197
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "paste-very-long-file": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "sequenceDiagram",
+    "ms": 3140,
+    "usage": {
+      "completion_tokens": 116,
+      "total_tokens": 524,
+      "prompt_tokens": 408
+    },
+    "error": null,
+    "firstLine": "sequenceDiagram"
+  },
+  "paste-mixed-dictation-and-paste": {
+    "expectedType": "flowchart",
+    "expectedOnRequest": null,
+    "detected": "flowchart",
+    "ms": 2755,
+    "usage": {
+      "completion_tokens": 59,
+      "total_tokens": 268,
+      "prompt_tokens": 209
+    },
+    "error": null,
+    "firstLine": "flowchart TD"
+  },
+  "swe-gantt-request": {
+    "expectedType": null,
+    "expectedOnRequest": "gantt",
+    "detected": "gantt",
+    "ms": 3084,
+    "usage": {
+      "completion_tokens": 87,
+      "total_tokens": 278,
+      "prompt_tokens": 191
+    },
+    "error": null,
+    "firstLine": "gantt"
+  },
+  "gen-pie-request": {
+    "expectedType": null,
+    "expectedOnRequest": "pie",
+    "detected": "pie",
+    "ms": 2443,
+    "usage": {
+      "completion_tokens": 42,
+      "total_tokens": 225,
+      "prompt_tokens": 183
+    },
+    "error": null,
+    "firstLine": "pie"
+  },
+  "gen-mindmap-request": {
+    "expectedType": null,
+    "expectedOnRequest": "mindmap",
+    "detected": "mindmap",
+    "ms": 3711,
+    "usage": {
+      "completion_tokens": 72,
+      "total_tokens": 251,
+      "prompt_tokens": 179
+    },
+    "error": null,
+    "firstLine": "mindmap"
+  },
+  "swe-gitgraph-request": {
+    "expectedType": null,
+    "expectedOnRequest": "gitGraph",
+    "detected": "gitGraph",
+    "ms": 2776,
+    "usage": {
+      "completion_tokens": 87,
+      "total_tokens": 266,
+      "prompt_tokens": 179
+    },
+    "error": null,
+    "firstLine": "gitGraph"
+  },
+  "swe-er-request-dictated": {
+    "expectedType": "erDiagram",
+    "expectedOnRequest": null,
+    "detected": "erDiagram",
+    "ms": 2294,
+    "usage": {
+      "completion_tokens": 51,
+      "total_tokens": 233,
+      "prompt_tokens": 182
+    },
+    "error": null,
+    "firstLine": "erDiagram"
+  },
+  "swe-state-machine-request": {
+    "expectedType": "stateDiagram-v2",
+    "expectedOnRequest": null,
+    "detected": "stateDiagram-v2",
+    "ms": 5552,
+    "usage": {
+      "completion_tokens": 60,
+      "total_tokens": 249,
+      "prompt_tokens": 189
+    },
+    "error": null,
+    "firstLine": "stateDiagram-v2"
+  },
+  "swe-state-diagram-explicit": {
+    "expectedType": "stateDiagram-v2",
+    "expectedOnRequest": null,
+    "detected": "stateDiagram-v2",
+    "ms": 2407,
+    "usage": {
+      "completion_tokens": 54,
+      "total_tokens": 237,
+      "prompt_tokens": 183
+    },
+    "error": null,
+    "firstLine": "stateDiagram-v2"
+  }
+}

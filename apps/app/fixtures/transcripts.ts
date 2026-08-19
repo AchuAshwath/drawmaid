@@ -41,7 +41,26 @@
  * current pipeline; that is the point.
  */
 
-export type DiagramType = "flowchart" | "sequenceDiagram" | "classDiagram";
+/** The five types the converter turns into editable elements (parseMermaid.js:88-115). */
+export type DiagramType =
+  | "flowchart"
+  | "sequenceDiagram"
+  | "classDiagram"
+  | "erDiagram"
+  | "stateDiagram-v2";
+
+/**
+ * Types mermaid parses but the converter has no handler for. They fall through
+ * `default: convertSvgToGraphImage` and arrive as one flat, non-editable image.
+ * Honoured when explicitly requested, never prompted for.
+ */
+export type OnRequestType =
+  | "gantt"
+  | "pie"
+  | "mindmap"
+  | "gitGraph"
+  | "journey"
+  | "timeline";
 
 /** Dictation phenomena an entry exercises. Lets a consumer filter by failure mode. */
 /** How the text reached the prompt. Dictation and typing have opposite properties. */
@@ -67,7 +86,8 @@ export type Phenomenon =
   | "no-type-keyword"
   | "long"
   | "very-short"
-  | "direction-hint";
+  | "direction-hint"
+  | "on-request-type";
 
 export interface Transcript {
   id: string;
@@ -82,6 +102,12 @@ export interface Transcript {
    * itself a case worth measuring rather than a gap.
    */
   expectedType: DiagramType | null;
+  /**
+   * Set when the user explicitly asks for a type that can only arrive as a flat
+   * image. #44's guard is conditional on this: one `image` element is `ok` when
+   * it was requested and `broken` when it was not.
+   */
+  expectedOnRequest?: OnRequestType;
   phenomena: Phenomenon[];
   /** Why this entry exists, when it is not obvious. */
   notes?: string;
@@ -1002,7 +1028,7 @@ export const TRANSCRIPTS: Transcript[] = [
     inputMode: "pasted",
     scenario: "pastes DDL",
     text: "CREATE TABLE users (\n  id UUID PRIMARY KEY,\n  email TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id UUID PRIMARY KEY,\n  user_id UUID REFERENCES users(id),\n  total NUMERIC\n);\n\nER diagram for these two tables.",
-    expectedType: null,
+    expectedType: "erDiagram",
     phenomena: [
       "code-paste",
       "real-punctuation",
@@ -1091,6 +1117,83 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "Realistic hybrid: paste the diagram, dictate the edit. Half the text has punctuation and half has none, and `writes`->`right` survives from the spoken half.",
+  },
+
+  // ────────── explicit requests for types the converter cannot make editable
+  {
+    id: "swe-gantt-request",
+    category: "swe",
+    inputMode: "dictated",
+    scenario: "asks for a gantt chart by name",
+    text: "give me a gantt chart of the migration we do the schema change in week one backfill in week two and cut over in week three",
+    expectedType: null,
+    expectedOnRequest: "gantt",
+    phenomena: ["on-request-type", "no-punctuation", "run-on"],
+    notes:
+      "Converter has no gantt handler, so this arrives as one image element. #44's guard must call it ok, not broken.",
+  },
+  {
+    id: "gen-pie-request",
+    category: "general",
+    inputMode: "typed",
+    scenario: "asks for a pie chart",
+    text: "Pie chart please: 60% web, 30% mobile, 10% API clients.",
+    expectedType: null,
+    expectedOnRequest: "pie",
+    phenomena: ["on-request-type", "real-punctuation", "very-short"],
+  },
+  {
+    id: "gen-mindmap-request",
+    category: "general",
+    inputMode: "dictated",
+    scenario: "asks for a mind map",
+    text: "make a mind map for the product launch with marketing engineering and support as the main branches",
+    expectedType: null,
+    expectedOnRequest: "mindmap",
+    phenomena: ["on-request-type", "no-punctuation"],
+  },
+  {
+    id: "swe-gitgraph-request",
+    category: "swe",
+    inputMode: "dictated",
+    scenario: "asks for a commit graph",
+    text: "draw a git graph showing main with a feature branch that gets merged back after two commits",
+    expectedType: null,
+    expectedOnRequest: "gitGraph",
+    phenomena: ["on-request-type", "no-punctuation"],
+  },
+
+  // ────────── the two editable types the app does not yet ship
+  {
+    id: "swe-er-request-dictated",
+    category: "swe",
+    inputMode: "dictated",
+    scenario: "asks for an ER diagram out loud",
+    text: "I need an entity relationship diagram customers place orders orders contain line items and each line item references a product",
+    expectedType: "erDiagram",
+    phenomena: ["strong-keyword", "no-punctuation"],
+    notes:
+      "#46 measured erDiagram converting at 10 elements. Absent from configs, the normalizer and the keyword lists.",
+  },
+  {
+    id: "swe-state-machine-request",
+    category: "swe",
+    inputMode: "dictated",
+    scenario: "asks for a state machine by name",
+    text: "draw the state machine for an order it starts as pending goes to paid then to shipped and from any of those it can go to cancelled",
+    expectedType: "stateDiagram-v2",
+    phenomena: ["strong-keyword", "no-punctuation", "run-on"],
+    notes:
+      "#46 measured stateDiagram-v2 converting at 11 elements with 3 ellipses.",
+  },
+  {
+    id: "swe-state-diagram-explicit",
+    category: "swe",
+    inputMode: "typed",
+    scenario: "state diagram, typed",
+    text: "State diagram for the socket: disconnected -> connecting -> connected, and connected -> closing -> disconnected.",
+    expectedType: "stateDiagram-v2",
+    phenomena: ["strong-keyword", "real-punctuation", "fragile-chars"],
   },
 ];
 
