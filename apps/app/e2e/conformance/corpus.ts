@@ -525,4 +525,20 @@ export const CORPUS: Case[] = [
       "A[One] --> B[Two]\nclassDef both fill:#ffc9c9,stroke-width:4px\nclass A both",
     expect: "both properties in ONE classDef",
   },
+  {
+    id: "probe-one-class-many-nodes",
+    group: "styling-probe",
+    mermaid:
+      FLOW +
+      "A[One] --> B[Two]\nclassDef hot fill:#ffc9c9,stroke:#c92a2a\nclass A,B hot",
+    expect: "the common idiom: one class applied to several nodes",
+  },
+  {
+    id: "probe-shorthand-many",
+    group: "styling-probe",
+    mermaid:
+      FLOW +
+      "A[One]:::hot --> B[Two]:::hot\nclassDef hot fill:#ffc9c9,stroke:#c92a2a",
+    expect: "inline ::: on each node instead of a class statement",
+  },
 ];
