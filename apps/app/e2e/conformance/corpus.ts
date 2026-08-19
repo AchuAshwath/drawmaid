@@ -541,4 +541,32 @@ export const CORPUS: Case[] = [
       "A[One]:::hot --> B[Two]:::hot\nclassDef hot fill:#ffc9c9,stroke:#c92a2a",
     expect: "inline ::: on each node instead of a class statement",
   },
+
+  // --- valid mermaid the converter has no handler for: does it fall back to an image? ---
+  {
+    id: "unsupported-gantt",
+    group: "unsupported-types",
+    mermaid:
+      "gantt\ntitle Rollout\ndateFormat YYYY-MM-DD\nsection Phase\nInternal :a1, 2026-01-01, 3d\nBeta :after a1, 5d",
+    expect: "valid mermaid, no converter handler -> expect single image",
+  },
+  {
+    id: "unsupported-pie",
+    group: "unsupported-types",
+    mermaid: 'pie title Traffic\n"Web" : 60\n"Mobile" : 40',
+    expect: "valid mermaid, no handler -> expect single image",
+  },
+  {
+    id: "unsupported-mindmap",
+    group: "unsupported-types",
+    mermaid: "mindmap\n  root((System))\n    API\n    Database",
+    expect: "valid mermaid, no handler -> expect single image",
+  },
+  {
+    id: "unsupported-gitgraph",
+    group: "unsupported-types",
+    mermaid:
+      "gitGraph\n  commit\n  branch feature\n  commit\n  checkout main\n  merge feature",
+    expect: "valid mermaid, no handler -> expect single image",
+  },
 ];
