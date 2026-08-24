@@ -1,0 +1,122 @@
+{
+  "flowchart": {
+    "id": "flowchart",
+    "name": "Flowchart",
+    "nodeSyntax": "A[Label] or B(Label) or C{Decision}",
+    "edgeSyntax": "A --> B or A -->|label| B",
+    "reservedWords": [
+      "end",
+      "graph",
+      "class",
+      "click",
+      "default",
+      "state",
+      "subgraph",
+      "link",
+      "style",
+      "direction",
+      "flowchart"
+    ],
+    "takesDirection": true,
+    "examples": [
+      "flowchart TD\nNode1[Label Text] --> Node2{Decision}\nNode2 -->|Option A| Node3[Result A]\nNode2 -->|Option B| Node4[Result B]"
+    ],
+    "tips": [
+      "Node IDs must be single words without spaces",
+      "Labels go INSIDE brackets: A[My Label]",
+      "Use --> for arrows, -->|text| for labeled arrows",
+      "Shapes: [rectangle], (rounded), {decision}, [/parallelogram/]"
+    ]
+  },
+  "sequenceDiagram": {
+    "id": "sequenceDiagram",
+    "name": "Sequence Diagram",
+    "nodeSyntax": "participant Name as \"Label\"",
+    "edgeSyntax": "A ->> B: message or A -->> B: dotted message",
+    "reservedWords": [
+      "end",
+      "loop",
+      "alt",
+      "else",
+      "par",
+      "break",
+      "critical",
+      "section",
+      "note",
+      "activate",
+      "deactivate",
+      "create",
+      "destroy"
+    ],
+    "takesDirection": false,
+    "examples": [
+      "sequenceDiagram\nparticipant Entity1\nparticipant Entity2\nEntity1 ->> Entity2: Message description\nEntity2 -->> Entity1: Response description"
+    ],
+    "tips": [
+      "Define participants first: participant User",
+      "Arrows: ->> (solid), -->> (dotted)",
+      "Use 'as' for display names: participant U as User",
+      "A branch is alt/else/end; every alt needs its end"
+    ]
+  },
+  "classDiagram": {
+    "id": "classDiagram",
+    "name": "Class Diagram",
+    "nodeSyntax": "class Name { +field: Type\\n+method() Type }",
+    "edgeSyntax": "A <|-- B (inherits), A *-- B (composition), A --> B (association)",
+    "reservedWords": [
+      "class",
+      "end",
+      "namespace",
+      "note",
+      "link",
+      "click",
+      "style",
+      "direction"
+    ],
+    "takesDirection": true,
+    "examples": [
+      "classDiagram\nclass Shape {\n+area() float\n}\nShape <|-- Circle\nShape <|-- Square"
+    ],
+    "tips": [
+      "Inheritance is <|--, pointing at the PARENT: Parent <|-- Child",
+      "Composition *-- means the owner deletes the part; association --> does not",
+      "Visibility markers: + public, - private, # protected",
+      "Generics use tildes, not angle brackets: Repository~T~"
+    ]
+  },
+  "erDiagram": {
+    "id": "erDiagram",
+    "name": "Entity Relationship Diagram",
+    "nodeSyntax": "ENTITY { type field_name }",
+    "edgeSyntax": "A ||--o{ B : label",
+    "reservedWords": ["end"],
+    "takesDirection": false,
+    "examples": [
+      "erDiagram\nCUSTOMER ||--o{ ORDER : places\nORDER ||--|{ ORDER_ITEM : contains\nORDER_ITEM }o--|| PRODUCT : references"
+    ],
+    "tips": [
+      "Cardinality reads left-to-right: || exactly one, o| zero or one, }o zero or many, }| one or many",
+      "Every relationship needs a label after the colon",
+      "Entity names are conventionally UPPER_CASE",
+      "erDiagram takes NO direction keyword; do not emit one"
+    ]
+  },
+  "stateDiagram-v2": {
+    "id": "stateDiagram-v2",
+    "name": "State Diagram",
+    "nodeSyntax": "StateName or state \"Label\" as S1",
+    "edgeSyntax": "A --> B : trigger",
+    "reservedWords": ["state", "end", "note", "direction", "class"],
+    "takesDirection": true,
+    "examples": [
+      "stateDiagram-v2\n[*] --> Idle\nIdle --> Running : start\nRunning --> Done : finish\nRunning --> Failed : error\nFailed --> Idle : retry\nDone --> [*]"
+    ],
+    "tips": [
+      "[*] is the start and end marker, not a node label",
+      "Transition labels go after a colon: A --> B : on submit",
+      "A self-transition is allowed: A --> A : retry",
+      "Direction goes on its OWN line: 'direction LR', not on the declaration"
+    ]
+  }
+}

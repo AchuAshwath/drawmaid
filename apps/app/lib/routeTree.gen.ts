@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './../routes/__root'
+import { Route as HarnessRouteImport } from './../routes/harness'
 import { Route as appRouteRouteImport } from './../routes/(app)/route'
 import { Route as IndexRouteImport } from './../routes/index'
 import { Route as authSignupRouteImport } from './../routes/(auth)/signup'
 import { Route as authLoginRouteImport } from './../routes/(auth)/login'
 import { Route as appSettingsRouteImport } from './../routes/(app)/settings'
 
+const HarnessRoute = HarnessRouteImport.update({
+  id: '/harness',
+  path: '/harness',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const appRouteRoute = appRouteRouteImport.update({
   id: '/(app)',
   getParentRoute: () => rootRouteImport,
@@ -42,12 +48,14 @@ const appSettingsRoute = appSettingsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/harness': typeof HarnessRoute
   '/settings': typeof appSettingsRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/harness': typeof HarnessRoute
   '/settings': typeof appSettingsRoute
   '/login': typeof authLoginRoute
   '/signup': typeof authSignupRoute
@@ -56,19 +64,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/(app)': typeof appRouteRouteWithChildren
+  '/harness': typeof HarnessRoute
   '/(app)/settings': typeof appSettingsRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/signup': typeof authSignupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/login' | '/signup'
+  fullPaths: '/' | '/harness' | '/settings' | '/login' | '/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/login' | '/signup'
+  to: '/' | '/harness' | '/settings' | '/login' | '/signup'
   id:
     | '__root__'
     | '/'
     | '/(app)'
+    | '/harness'
     | '/(app)/settings'
     | '/(auth)/login'
     | '/(auth)/signup'
@@ -77,12 +87,20 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   appRouteRoute: typeof appRouteRouteWithChildren
+  HarnessRoute: typeof HarnessRoute
   authLoginRoute: typeof authLoginRoute
   authSignupRoute: typeof authSignupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/harness': {
+      id: '/harness'
+      path: '/harness'
+      fullPath: '/harness'
+      preLoaderRoute: typeof HarnessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/(app)': {
       id: '/(app)'
       path: ''
@@ -136,6 +154,7 @@ const appRouteRouteWithChildren = appRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   appRouteRoute: appRouteRouteWithChildren,
+  HarnessRoute: HarnessRoute,
   authLoginRoute: authLoginRoute,
   authSignupRoute: authSignupRoute,
 }
