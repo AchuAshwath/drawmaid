@@ -64,6 +64,12 @@ bun apps/app/e2e/harness/generate.ts --model claude-sonnet-4-6 --arms keyword,mo
 cd apps/app && bunx playwright test e2e/harness/render.playwright.ts
 ```
 
+Playwright is pinned to the machine's installed Google Chrome via
+`channel: "chrome"` in `playwright.config.ts`, so it never downloads its own
+~550MB browser. The conversion needs a real browser for `getBBox` and CSS colour
+parsing (#40/#50, #34), not a specific Chromium revision. Set
+`PLAYWRIGHT_CHANNEL=` to opt back into the bundled build.
+
 `generate.ts` flags: `--model` (required), `--arms`, `--limit`, `--filter`,
 `--out`, `--concurrency`.
 `render.playwright.ts` env: `HARNESS_IN`, `HARNESS_OUT`, `HARNESS_SHOT_LIMIT`.

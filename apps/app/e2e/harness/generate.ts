@@ -24,6 +24,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { fileURLToPath, URL } from "node:url";
 import { TRANSCRIPTS, type Transcript } from "../../fixtures/transcripts";
 import { callCpa, preflight, type Usage } from "./cpa-client";
 import { normalize } from "./normalize";
@@ -101,7 +102,12 @@ async function main() {
   const arms = (arg("arms", "keyword,model") as string).split(",") as ArmId[];
   const limit = Number(arg("limit", "0"));
   const filter = arg("filter");
-  const out = arg("out", "apps/app/e2e/harness/out/generated.json") as string;
+  // Resolved from this module so it lands in the same place whether the runner
+  // is invoked from the repo root or from apps/app.
+  const out = arg(
+    "out",
+    fileURLToPath(new URL("out/generated.json", import.meta.url)),
+  ) as string;
   const concurrency = Number(arg("concurrency", "4"));
 
   let corpus = TRANSCRIPTS;

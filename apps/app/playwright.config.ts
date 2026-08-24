@@ -15,7 +15,15 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      // `channel: "chrome"` uses the Google Chrome already installed on the
+      // machine instead of Playwright's own ~550MB download. The bundled build
+      // buys nothing here: the conversion needs a real browser for getBBox and
+      // CSS colour parsing (#40/#50, #34), not a specific Chromium revision.
+      // CI still has to install one; set PLAYWRIGHT_CHANNEL= to opt out.
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.PLAYWRIGHT_CHANNEL ?? "chrome",
+      },
     },
   ],
   webServer: {

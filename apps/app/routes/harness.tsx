@@ -39,6 +39,13 @@ interface RunResult {
 
 interface ExcalidrawApi {
   updateScene: (scene: Json) => void;
+  /**
+   * On-request types come back as ONE image element plus a `files` map. The
+   * file has to go in through `addFiles`; passing it to `updateScene` leaves
+   * the element pointing at a fileId the store has never seen, and it renders
+   * as a grey placeholder. A screenshot of a placeholder is not evidence.
+   */
+  addFiles: (files: unknown[]) => void;
   scrollToContent: (target?: unknown, opts?: Json) => void;
   getSceneElements: () => Json[];
 }
@@ -108,7 +115,10 @@ function Harness() {
         const api = apiRef.current;
         if (api && result.status === "ok") {
           const { converted, files } = await convert(mermaid);
-          api.updateScene({ elements: converted, files });
+          if (files && Object.keys(files).length > 0) {
+            api.addFiles(Object.values(files));
+          }
+          api.updateScene({ elements: converted });
           api.scrollToContent(undefined, { fitToContent: true });
         }
         return result;

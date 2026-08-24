@@ -15,11 +15,19 @@
  */
 import { test } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath, URL } from "node:url";
 import { classify, USABLE, type Verdict } from "./guard";
 import type { GeneratedFile, GeneratedRecord } from "./generate";
 
-const IN = process.env.HARNESS_IN ?? "apps/app/e2e/harness/out/generated.json";
-const OUT_DIR = process.env.HARNESS_OUT ?? "apps/app/e2e/harness/out";
+/**
+ * Resolved from this module, not the cwd. Playwright runs from `apps/app` and
+ * `generate.ts` runs from the repo root, so a cwd-relative default is wrong for
+ * one of them whichever way it is written.
+ */
+const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+
+const IN = process.env.HARNESS_IN ?? here("out/generated.json");
+const OUT_DIR = process.env.HARNESS_OUT ?? here("out");
 const SHOTS = `${OUT_DIR}/shots`;
 /** Screenshotting all 261 x arms is slow and mostly redundant. */
 const SHOT_LIMIT = Number(process.env.HARNESS_SHOT_LIMIT ?? "60");
