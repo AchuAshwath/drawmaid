@@ -83,6 +83,22 @@ cd apps/app && HARNESS_IN=e2e/harness/smoke-generated.json \
   bunx playwright test e2e/harness/render.playwright.ts
 ```
 
+### Watching it render
+
+`--headed` opens a real Chrome window. Add a dwell, because fourteen diagrams
+otherwise go past in two seconds:
+
+```bash
+cd apps/app && HARNESS_IN=e2e/harness/demo-generated.json \
+  HARNESS_OUT=e2e/harness/out-demo HARNESS_DWELL_MS=2500 \
+  bunx playwright test e2e/harness/render.playwright.ts --headed
+```
+
+`demo-generated.json` is fourteen hand-written diagrams chosen to hit every
+verdict: all five editable types, a subgraph, an `alt`/`else` block, a
+self-transition, a requested gantt and pie, an unrequested gantt, two that fail
+to parse, and one correct refusal.
+
 Unit tests, including #56's acceptance checks:
 
 ```bash

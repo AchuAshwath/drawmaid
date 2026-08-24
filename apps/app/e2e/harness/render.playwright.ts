@@ -31,6 +31,13 @@ const OUT_DIR = process.env.HARNESS_OUT ?? here("out");
 const SHOTS = `${OUT_DIR}/shots`;
 /** Screenshotting all 261 x arms is slow and mostly redundant. */
 const SHOT_LIMIT = Number(process.env.HARNESS_SHOT_LIMIT ?? "60");
+/**
+ * Pause after drawing each diagram. Zero for a normal run; set it when watching
+ * a headed browser, because eight diagrams otherwise go past in two seconds.
+ *   bunx playwright test e2e/harness/render.playwright.ts --headed
+ *   HARNESS_DWELL_MS=2500
+ */
+const DWELL_MS = Number(process.env.HARNESS_DWELL_MS ?? "0");
 
 interface RunResult {
   status: "ok" | "throw";
@@ -117,6 +124,13 @@ test("render and score", async ({ page }) => {
         .locator(".excalidraw")
         .screenshot({ path: `${SHOTS}/${shot}` });
       shots++;
+      if (DWELL_MS > 0) {
+        console.log(
+          `  ${rec.id.padEnd(28)} ${String(rec.producedType).padEnd(16)} ` +
+            `${render.elementCount} els  ${verdict}`,
+        );
+        await page.waitForTimeout(DWELL_MS);
+      }
       await page.evaluate(() => window.__harness!.clear());
     }
 

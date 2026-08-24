@@ -1,0 +1,3 @@
+# Run output from generate.ts and render.playwright.ts. Regenerated, never committed.
+out/
+out-*/
