@@ -71,3 +71,4 @@ srcpack.config.ts
 # https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
 .DS_Store
 
+apps/app/e2e/conformance/out/

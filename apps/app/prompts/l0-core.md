@@ -67,5 +67,5 @@ Both cost a repair pass. Neither is style.
 
 - **Quote any label holding punctuation**, `A["Call (sync)"]`. One unquoted `(`
   kills the whole diagram, not one node.
-- **Use only `[box]` `(round)` `((circle))` `{diamond}` `[[subroutine]]`.**
-  Every other shape becomes a plain box and distorts the layout.
+- **Use only `[box]` `(round)` `((circle))` `{diamond}`.** Every other shape
+  becomes a plain box and distorts the layout.
