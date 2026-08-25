@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "model": "HAND-WRITTEN-multi-placement",
+    "note": "Ticket #58 layout probe. Twelve entries hand-picked from MULTI_TRANSCRIPTS for their LAYOUT shape, not their language: very different sizes, odd counts, same-type pairs, wide-beside-tall, and a flat image beside editable shapes. The mermaid is hand-written the way smoke-generated.json and demo-generated.json are, because #58 asks about placement and does not need an LLM to ask it.",
+    "corpusSize": 12
+  },
+  "records": [
+    {
+      "id": "multi-note-and-flow",
+      "useCase": "solo",
+      "shape": "tiny beside large",
+      "expectedTypes": ["flowchart", "flowchart"],
+      "docs": [
+        "flowchart TD\nNote[Never run this during business hours]",
+        "flowchart TD\nDrain[Drain the node] --> Wait[Wait for connections to close]\nWait --> Patch[Apply the patch]\nPatch --> Pool[Return to the pool]"
+      ]
+    },
+    {
+      "id": "multi-warning-and-schema",
+      "useCase": "meeting",
+      "shape": "tiny beside wide",
+      "expectedTypes": ["flowchart", "erDiagram"],
+      "docs": [
+        "flowchart TD\nWarn[Schema frozen until the migration lands. Do not add columns.]",
+        "erDiagram\n  ACCOUNT ||--o{ SUBSCRIPTION : has\n  SUBSCRIPTION ||--|| PLAN : on\n  SUBSCRIPTION ||--o{ ITEM : contains\n  ITEM ||--|| PRICE : priced_at"
+      ]
+    },
+    {
+      "id": "multi-er-then-call-order",
+      "useCase": "meeting",
+      "shape": "wide beside tall",
+      "expectedTypes": ["erDiagram", "sequenceDiagram"],
+      "docs": [
+        "erDiagram\n  BOOKING ||--|| GUEST : for\n  BOOKING ||--|| ROOM : occupies\n  BOOKING ||--|| RATE : priced_by\n  RATE ||--|| ROOM_TYPE : applies_to",
+        "sequenceDiagram\n  participant Site\n  participant Availability\n  participant Calendar\n  participant Pricing\n  participant Booking\n  Site->>Availability: check dates\n  Availability->>Calendar: free rooms?\n  Calendar-->>Availability: rooms\n  Availability->>Pricing: quote\n  Pricing-->>Availability: rate\n  Availability-->>Site: options\n  Site->>Booking: write booking"
+      ]
+    },
+    {
+      "id": "multi-schema-and-read-path",
+      "useCase": "interview",
+      "shape": "wide beside tall",
+      "expectedTypes": ["erDiagram", "sequenceDiagram"],
+      "docs": [
+        "erDiagram\n  USER ||--o{ PARTICIPANT : joins\n  CONVERSATION ||--o{ PARTICIPANT : has\n  CONVERSATION ||--o{ MESSAGE : contains\n  USER ||--o{ MESSAGE : sends",
+        "sequenceDiagram\n  participant Client\n  participant API\n  participant MessageStore\n  participant UserService\n  Client->>API: get conversation\n  API->>MessageStore: page of messages\n  MessageStore-->>API: rows\n  API->>UserService: hydrate senders\n  UserService-->>API: users\n  API-->>Client: page"
+      ]
+    },
+    {
+      "id": "multi-er-and-lifecycle",
+      "useCase": "meeting",
+      "shape": "wide beside tall",
+      "expectedTypes": ["erDiagram", "stateDiagram-v2"],
+      "docs": [
+        "erDiagram\n  ORDER ||--o{ ORDER_ITEM : contains\n  ORDER ||--|| CUSTOMER : placed_by\n  ORDER_ITEM ||--|| PRODUCT : refers_to",
+        "stateDiagram-v2\n  [*] --> Draft\n  Draft --> Pending\n  Pending --> Paid\n  Paid --> Shipped\n  Shipped --> Delivered\n  Paid --> Refunded\n  Shipped --> Refunded\n  Delivered --> [*]"
+      ]
+    },
+    {
+      "id": "multi-two-state-machines-independent",
+      "useCase": "solo",
+      "shape": "two of the same type, near-identical size",
+      "expectedTypes": ["stateDiagram-v2", "stateDiagram-v2"],
+      "docs": [
+        "stateDiagram-v2\n  [*] --> Queued\n  Queued --> Uploading\n  Uploading --> Verifying\n  Verifying --> Done\n  Done --> [*]",
+        "stateDiagram-v2\n  [*] --> Offline\n  Offline --> Connecting\n  Connecting --> Online\n  Online --> Offline"
+      ]
+    },
+    {
+      "id": "multi-two-schemas-unrelated",
+      "useCase": "meeting",
+      "shape": "two of the same type, near-identical size",
+      "expectedTypes": ["erDiagram", "erDiagram"],
+      "docs": [
+        "erDiagram\n  ACCOUNT ||--o{ INVOICE : billed\n  INVOICE ||--o{ LINE : has",
+        "erDiagram\n  PAGE ||--o{ BLOCK : contains\n  BLOCK ||--|| TEMPLATE : rendered_by"
+      ]
+    },
+    {
+      "id": "multi-gantt-and-phase-flow",
+      "useCase": "meeting",
+      "shape": "flat image beside editable shapes",
+      "expectedTypes": ["gantt", "flowchart"],
+      "docs": [
+        "gantt\n  title Delivery plan\n  dateFormat YYYY-MM-DD\n  section Plan\n  Discovery :d1, 2026-09-01, 14d\n  Design    :d2, 2026-09-10, 15d\n  Build     :d3, 2026-10-01, 31d\n  Testing   :d4, 2026-11-01, 10d",
+        "flowchart LR\n  Discovery --> Design\n  Design --> Build\n  Build --> Testing"
+      ]
+    },
+    {
+      "id": "multi-pie-and-breakdown-flow",
+      "useCase": "meeting",
+      "shape": "flat image beside editable shapes",
+      "expectedTypes": ["pie", "flowchart"],
+      "docs": [
+        "pie title Error budget\n  \"Checkout\" : 40\n  \"Slow queries\" : 30\n  \"Deploy failures\" : 20\n  \"Everything else\" : 10",
+        "flowchart LR\n  Deploy[Bad deploy] --> Rollback\n  Rollback --> Backfill"
+      ]
+    },
+    {
+      "id": "multi-paste-mermaid-and-ask-second",
+      "useCase": "chat",
+      "shape": "echoed paste beside a new diagram",
+      "expectedTypes": ["flowchart", "stateDiagram-v2"],
+      "docs": [
+        "flowchart TD\nA[Ingest] --> B[Validate]\nB --> C[Load]",
+        "stateDiagram-v2\n  [*] --> Pending\n  Pending --> Valid\n  Pending --> Quarantined\n  Valid --> Loaded\n  Loaded --> [*]"
+      ]
+    },
+    {
+      "id": "multi-typed-three-asks",
+      "useCase": "chat",
+      "shape": "three, one of them a single box",
+      "expectedTypes": ["erDiagram", "flowchart", "flowchart"],
+      "docs": [
+        "erDiagram\n  USER ||--o{ ORDER : places\n  ORDER ||--o{ ORDER_ITEM : contains\n  ORDER_ITEM ||--|| PRODUCT : refers_to",
+        "flowchart TD\n  Cart[Cart] --> Address[Address]\n  Address --> Payment[Payment]\n  Payment --> Confirm{Authorised?}\n  Confirm -->|yes| Placed[Order placed]\n  Confirm -->|no| Payment",
+        "flowchart TD\n  Note[Prices are in minor units]"
+      ]
+    },
+    {
+      "id": "multi-teaching-long-three-parts",
+      "useCase": "teaching",
+      "shape": "three, mixed types",
+      "expectedTypes": ["flowchart", "stateDiagram-v2", "flowchart"],
+      "docs": [
+        "flowchart TD\n  Cell[Cell] --> Membrane[Membrane]\n  Cell --> Nucleus[Nucleus]\n  Cell --> Mito[Mitochondria]",
+        "stateDiagram-v2\n  [*] --> G1\n  G1 --> S\n  S --> G2\n  G2 --> Mitosis\n  Mitosis --> G1",
+        "flowchart TD\n  Check{Conditions good?} -->|yes| Continue[Continue the cycle]\n  Check -->|no| G0[Drop to G0 and wait]\n  G0 --> Check"
+      ]
+    }
+  ],
+  "autoMode": {
+    "id": "auto-standup",
+    "note": "One standup, three transcript updates, three regenerations. Diagram 1 (the ER schema) is stable, diagram 2 (the deploy flow) grows a step each time, diagram 3 appears only at generation 3. This is the case the strategies have to survive: the same diagrams in the same order, one of them a little bigger.",
+    "generations": [
+      [
+        "erDiagram\n  SERVICE ||--o{ DEPLOY : has\n  DEPLOY ||--|| BUILD : from",
+        "flowchart TD\n  Build[Build] --> Test[Test]\n  Test --> Ship[Ship]"
+      ],
+      [
+        "erDiagram\n  SERVICE ||--o{ DEPLOY : has\n  DEPLOY ||--|| BUILD : from",
+        "flowchart TD\n  Build[Build] --> Test[Test]\n  Test --> Canary[Canary]\n  Canary --> Ship[Ship]\n  Canary --> Rollback[Rollback]"
+      ],
+      [
+        "erDiagram\n  SERVICE ||--o{ DEPLOY : has\n  DEPLOY ||--|| BUILD : from",
+        "flowchart TD\n  Build[Build] --> Test[Test]\n  Test --> Canary[Canary]\n  Canary --> Soak[Soak for an hour]\n  Soak --> Ship[Ship]\n  Canary --> Rollback[Rollback]\n  Rollback --> Build",
+        "stateDiagram-v2\n  [*] --> Green\n  Green --> Degraded\n  Degraded --> Green\n  Degraded --> Down\n  Down --> Green"
+      ]
+    ]
+  }
+}

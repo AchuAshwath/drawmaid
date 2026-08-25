@@ -48,6 +48,19 @@ interface ExcalidrawApi {
   addFiles: (files: unknown[]) => void;
   scrollToContent: (target?: unknown, opts?: Json) => void;
   getSceneElements: () => Json[];
+  getAppState: () => Json;
+  refresh: () => void;
+}
+
+/** #58: one converted mermaid document, and where it currently sits. */
+interface PreparedSet {
+  elementCount: number;
+  isSingleImage: boolean;
+  /** Bounding box of the converted elements, in the converter's own frame. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 async function convert(mermaid: string) {
@@ -67,6 +80,26 @@ declare global {
       /** Convert and PUT IT ON THE CANVAS, so Playwright can screenshot it. */
       draw: (mermaid: string) => Promise<RunResult>;
       clear: () => void;
+      /** #58 layout probe. Several documents, placed by a strategy Node picks. */
+      multi: {
+        /** Where production would have put a single diagram. */
+        viewport: () => { w: number; h: number; cx: number; cy: number };
+        /** Convert every document, stash it, report each bounding box. */
+        prepare: (docs: string[]) => Promise<PreparedSet[]>;
+        /**
+         * Move each stashed set so its bounding box top-left lands on the
+         * matching rect, then draw. `replace` swaps the ids from the previous
+         * `place` call across ALL sets, which is #58's tracking requirement.
+         */
+        place: (
+          rects: { x: number; y: number }[],
+          opts?: { replace?: boolean; fit?: boolean },
+        ) => void;
+        /** How many elements are on the canvas. The `replace` tracking check. */
+        sceneCount: () => number;
+        /** Scroll 0,0 at zoom 1, so successive generations share one camera. */
+        resetView: () => void;
+      };
     };
   }
 }
@@ -107,9 +140,119 @@ function Harness() {
       }
     };
 
+    // #58 layout probe. Plain closure variables: the effect runs once, and
+    // nothing outside it reads them.
+    let sets: { elements: Json[]; files: unknown[] }[] = [];
+    /**
+     * Every id the last `place` call drew, flattened across all sets. Production
+     * tracks one set (`lastAutoModeElementIds`); the whole point of the probe is
+     * that with several diagrams the tracked set has to be the union.
+     */
+    let lastIds = new Set<string>();
+
+    const bboxOf = (els: Json[]) => {
+      const xs = els.map((e) => Number(e.x));
+      const ys = els.map((e) => Number(e.y));
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      return {
+        x,
+        y,
+        w: Math.max(...els.map((e, i) => xs[i] + Number(e.width ?? 0))) - x,
+        h: Math.max(...els.map((e, i) => ys[i] + Number(e.height ?? 0))) - y,
+      };
+    };
+
     window.__harness = {
       ready: true,
       run,
+      multi: {
+        viewport: () => {
+          const container = document.querySelector(".excalidraw-container");
+          const w = container?.clientWidth ?? 800;
+          const h = container?.clientHeight ?? 600;
+          const st = (apiRef.current?.getAppState() ?? {}) as {
+            scrollX?: number;
+            scrollY?: number;
+            zoom?: number | { value: number };
+          };
+          const zoom =
+            typeof st.zoom === "object" ? st.zoom.value : (st.zoom ?? 1);
+          return {
+            w: w / zoom,
+            h: h / zoom,
+            cx: -(st.scrollX ?? 0) + w / 2 / zoom,
+            cy: -(st.scrollY ?? 0) + h / 2 / zoom,
+          };
+        },
+
+        prepare: async (docs: string[]) => {
+          sets = [];
+          const out: PreparedSet[] = [];
+          for (const doc of docs) {
+            const { converted, files } = await convert(doc);
+            sets.push({
+              elements: converted,
+              files: files ? Object.values(files) : [],
+            });
+            out.push({
+              elementCount: converted.length,
+              isSingleImage:
+                converted.length === 1 && converted[0]?.type === "image",
+              ...bboxOf(converted),
+            });
+          }
+          return out;
+        },
+
+        place: (rects, opts) => {
+          const api = apiRef.current;
+          if (!api) throw new Error("no canvas api");
+          if (rects.length !== sets.length) {
+            throw new Error(`${rects.length} rects for ${sets.length} sets`);
+          }
+          const positioned: Json[] = sets.flatMap((set, i) => {
+            const b = bboxOf(set.elements);
+            const dx = rects[i].x - b.x;
+            const dy = rects[i].y - b.y;
+            return set.elements.map((el) => ({
+              ...el,
+              x: Number(el.x) + dx,
+              y: Number(el.y) + dy,
+            }));
+          });
+
+          const kept = opts?.replace
+            ? api.getSceneElements().filter((el) => !lastIds.has(String(el.id)))
+            : api.getSceneElements();
+
+          const files = sets.flatMap((s) => s.files);
+          if (files.length > 0) api.addFiles(files);
+          api.updateScene({ elements: [...kept, ...positioned] });
+          lastIds = new Set(positioned.map((el) => String(el.id)));
+          api.refresh();
+          if (opts?.fit !== false) {
+            // `fitToContent` only zooms when the content overflows, so a layout
+            // that just fits ends up flush against the toolbar and screenshots
+            // clipped. `fitToViewport` with a factor always leaves a margin,
+            // and the screenshots are the deliverable here (#47).
+            api.scrollToContent(positioned, {
+              fitToViewport: true,
+              viewportZoomFactor: 0.8,
+            });
+          }
+        },
+
+        sceneCount: () =>
+          (apiRef.current?.getSceneElements() ?? []).filter(
+            (el) => el.isDeleted !== true,
+          ).length,
+
+        resetView: () =>
+          apiRef.current?.updateScene({
+            appState: { scrollX: 0, scrollY: 0, zoom: { value: 1 } },
+          }),
+      },
       draw: async (mermaid: string) => {
         const result = await run(mermaid);
         const api = apiRef.current;
@@ -125,6 +268,8 @@ function Harness() {
       },
       clear: () => {
         apiRef.current?.updateScene({ elements: [] });
+        sets = [];
+        lastIds = new Set();
       },
     };
     return () => {

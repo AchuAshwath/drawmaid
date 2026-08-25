@@ -171,3 +171,31 @@ no `Visuals` control, so it needs to not regress rather than improve. The likely
 handling is to keep the `keyword` arm for it and give frontier models the `model`
 arm — one branch at `useLocalServer`, which is already threaded through
 `generate()` at `mermaid-llm.ts:19`. Not measured yet.
+
+## Multi-diagram placement — ticket #58
+
+A separate probe with one question: where do several converted diagrams go, and
+does that survive auto mode? No prompts, no LLM, no corpus run.
+
+| file                      | what                                                                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `multi-placement.json`    | twelve hand-written multi-diagram cases, picked from `MULTI_TRANSCRIPTS` for their layout shape, plus one three-generation auto-mode sequence |
+| `layout.ts`               | four strategies and the metrics: overlap, wasted space, fit zoom, stability                                                                   |
+| `placement.playwright.ts` | browser converts and measures, Node lays out and reports                                                                                      |
+
+```bash
+cd apps/app && HARNESS_IN=e2e/harness/multi-placement.json \
+  bunx playwright test e2e/harness/placement.playwright.ts
+```
+
+`out-multi/report.md` and `out-multi/shots/`. `HARNESS_DWELL_MS` and `--headed`
+work the same way as the render stage.
+
+**The anchor matters more than the strategy.** `positionElementsAtViewportCenter`
+centres what it inserts, which is obviously right for one diagram and wrong for
+several: every diagram moves whenever any diagram changes size, and auto mode
+changes sizes on every regeneration. Anchoring the first diagram instead and
+letting the row grow right and down is a two-line change and takes movement of
+unchanged diagrams from 91px mean to 0px. Sorting by size — which is what makes
+a pack tight and what picks a satellite layout's primary — makes diagrams swap
+places between regenerations, and no amount of saved space is worth that.
