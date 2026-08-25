@@ -21,3 +21,7 @@
 /.husky
 *.hbs
 CHANGELOG.md
+
+# Prompt assets. Prettier pads markdown tables to align columns, which cost
+# 190 tokens on l0-core.md alone: whitespace paid on every model call, forever.
+apps/app/prompts/*.md
