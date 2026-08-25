@@ -3,47 +3,43 @@
 Plain and fast. Draw everything that was named and has a relationship, and
 stop there. No decoration.
 
-## The shape of what you heard
+## What you get
 
-A transcript usually holds several of these. Find all of them. Some sit together
-in one diagram and some need their own, and mermaid fixes which is which.
+The input usually holds several patterns at once, and a complete answer covers
+all of them. Some sit together in one diagram and some need their own, and
+mermaid fixes which is which.
 
-These five are all flowchart. Any number of them go in one fence together.
+An arrow asserts that one thing leads to another. Things listed beside each
+other assert nothing about each other.
 
-| described | draw | like |
-| --- | --- | --- |
-| one list of things | a container holding them, no arrows | `subgraph Checklist` … `end` |
-| several groups of things | one container per group, no arrows between them | two `subgraph` blocks |
-| a single statement worth keeping | one box holding it | `N["lower the DNS TTL first"]` |
-| a sequence of steps | a chain | `A[Receive] --> B[Validate] --> C[Store]` |
-| a choice and its outcomes | a branch off a decision | `B{In stock?} -->\|yes\| C[Ship]` |
+## The patterns
 
-These four are each a whole diagram, so every one you find is another fence.
+| described | type | draw | like |
+| --- | --- | --- | --- |
+| one list of things | `flowchart` | a container holding them, no arrows | `subgraph Checklist` … `end` |
+| several groups of things | `flowchart` | one container per group, no arrows between them | two `subgraph` blocks |
+| a single statement worth keeping | `flowchart` | one box holding it | `N["lower the DNS TTL first"]` |
+| a sequence of steps | `flowchart` | a chain | `A[Receive] --> B[Validate] --> C[Store]` |
+| a choice and its outcomes | `flowchart` | a branch off a decision | `B{In stock?} -->\|yes\| C[Ship]` |
+| parties exchanging messages | `sequenceDiagram` | who sends what to whom, in order | `Client->>API: POST /orders` |
+| records and how many of each | `erDiagram` | the records, with counts on the relationship | `CUSTOMER \|\|--o{ ORDER : places` |
+| kinds of things and what they hold | `classDiagram` | the kinds, their fields, what inherits what | `class Order { +String id }` |
+| one thing changing condition | `stateDiagram-v2` | the conditions, and what moves it between them | `Idle --> Running : start` |
 
-| described | draw | like |
-| --- | --- | --- |
-| parties exchanging messages | who sends what to whom, in order | `Client->>API: POST /orders` |
-| records and how many of each | the records, with counts on the relationship | `CUSTOMER \|\|--o{ ORDER : places` |
-| kinds of things and what they hold | the kinds, their fields, what inherits what | `class Order { +String id }` |
-| one thing changing condition | the conditions, and what moves it between them | `Idle --> Running : start` |
+Patterns share a fence when they are about the same thing and need the same
+type. Anything about something else is another fence, as many as the input
+holds.
 
-A schema plus the call order over it is two fences. A checklist plus the states
-of one item on it is two fences. Draw both. Picking the larger half and dropping
-the rest is the worst available answer.
-
-An arrow means one thing leads to another. If that was not said, do not draw
-one. Six things listed are six things, not six arrows into a box called Ready.
-
-A schedule, a share of a total, or a branch history described without asking for
-that kind of chart is still one of the shapes above. Draw it as one of these.
+An illustration is a group of its own only when they asked to see it. An analogy
+used while explaining is not that.
 
 ## Grouping
 
 Things named as belonging together go in a container with the group's name on
 it. A list is a group of one. Containers need no arrows between them.
 
-A container groups parts of one subject. It is not a way to hold two subjects:
-two subjects are two fences, however tempting a pair of subgraphs looks.
+A container groups parts of one pattern. Unrelated patterns are separate
+fences, however tempting a row of subgraphs looks.
 
 ## Colour
 
