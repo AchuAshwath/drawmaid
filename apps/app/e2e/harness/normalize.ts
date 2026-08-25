@@ -39,6 +39,8 @@ export interface NormalizeResult {
     | "generic-fence"
     | "bare-keyword"
     | "whole-output"
+    /** The model declined, via the `model-refusable` arm's sentinel. */
+    | "refused"
     | "none";
   /**
    * Set when the output declared a type the registry does not know, e.g. the
@@ -85,6 +87,15 @@ function build(
 export function normalize(raw: string): NormalizeResult {
   if (!raw || !raw.trim()) return NONE;
   const trimmed = raw.trim();
+
+  // 0. The refusal sentinel. Checked before extraction, and NOT anchored to the
+  //    whole string: a model that declines often adds a sentence explaining
+  //    why, and the arm is measuring whether it declines, not whether it can
+  //    stay silent about declining. Requires it on a line of its own so the
+  //    word appearing inside a node label cannot trigger it.
+  if (/^NO_DIAGRAM\W*$/m.test(trimmed) && !/```/.test(trimmed)) {
+    return { code: null, type: null, via: "refused" };
+  }
 
   // 1. An explicit ```mermaid fence. Take the LAST one: when the user pasted a
   //    diagram and the model echoed it before writing its own, the model's is

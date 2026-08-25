@@ -29,7 +29,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import CONFIGS from "./diagram-configs.harness.json" with { type: "json" };
 import { EDITABLE_TYPES, type DiagramType } from "./type-registry";
-import type { PreviousDiagram, Selection } from "./type-selection";
+import type { ArmId, PreviousDiagram, Selection } from "./type-selection";
 
 const read = (rel: string) =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -77,8 +77,35 @@ export interface BuiltPrompt {
   userChars: number;
 }
 
+/**
+ * The escape hatch, for the `model-refusable` arm only.
+ *
+ * The full corpus run scored `ok-no-diagram` at 0 of 34 on both shipped arms.
+ * Nothing in the prompt permits a refusal, and `system-prompt.md:20` orders the
+ * opposite: "If unclear, create nodes from key terms only". So the pipeline
+ * draws a flowchart of a lunch order and calls it a success.
+ *
+ * Deliberately one clause and no examples. If it needs a worked example to
+ * work, the finding is that the sentinel is not the cheap fix, and #54 should
+ * hear that rather than a number obtained by padding the prompt until it
+ * passed.
+ */
+const REFUSAL_CLAUSE = [
+  "## When not to draw",
+  "",
+  "If the input does not describe anything with structure — small talk, an",
+  "opinion, a question about this tool, an unrelated aside, or nothing at all —",
+  "output exactly:",
+  "",
+  "NO_DIAGRAM",
+  "",
+  "and nothing else. An empty answer is right more often than a diagram of",
+  "nothing. Do not build a diagram out of whatever nouns are present.",
+  "",
+];
+
 export function buildPrompt(
-  arm: "keyword" | "model" | "model-with-previous",
+  arm: ArmId,
   transcript: string,
   selection: Selection,
   previous?: PreviousDiagram,
@@ -144,6 +171,7 @@ export function buildPrompt(
     "gitGraph, journey, timeline), emit that type. It renders as a flat image",
     "rather than editable shapes, which is expected when they asked for it.",
     "",
+    ...(arm === "model-refusable" ? REFUSAL_CLAUSE : []),
     "## Syntax for each type",
     "",
     ...EDITABLE_TYPES.map((t) => typeCard(CONFIG_MAP[t])),

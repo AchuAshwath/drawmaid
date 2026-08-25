@@ -1,0 +1,69 @@
+{
+  "note": "Arm 3a for #47. Nine of the twenty `refinement` corpus entries refer to a canvas the transcript never shows. The other ten paste their history inline and need nothing. `chat-refine-nothing-to-refine` is excluded on purpose: #55 describes it as 'a refinement turn arriving with no previous diagram', so giving it one destroys the case. It stays as the control that must still refuse.",
+  "expectationsChange": "Supplying history changes the right answer. Four of these are `outcome: no-diagram` in #55 because, with nothing on the canvas, refusing is correct. With a diagram supplied, editing it is correct. `expectedType` and `expectedOutcome` here OVERRIDE the corpus for this arm only, and every override is stated below with its reason.",
+  "entries": {
+    "refine-2-add-a-branch": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    Signup[User signs up] --> Send[Send verification email]\n    Send --> Click[User clicks link]\n    Click --> Verified[Account verified]",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "Turn 2 of the refine-N chain. The branch to add is the expiry path off Click."
+    },
+    "refine-3-change-a-shape": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    Signup[User signs up] --> Send[Send verification email]\n    Send --> Click[User clicks link]\n    Click --> Verified[Account verified]\n    Click --> Expired[Link expired]\n    Expired --> Send",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "Turn 3, so the canvas is turn 2's output. 'The third box' is Click, which needs four boxes present to be resolvable at all."
+    },
+    "refine-5-change-type": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    Signup[User signs up] --> Send[Send verification email]\n    Send --> Click{Link still valid?}\n    Click -->|yes| Verified[Account verified]\n    Click -->|no| Expired[Link expired]\n    Expired --> Send",
+      "expectedType": "sequenceDiagram",
+      "expectedOutcome": "diagram",
+      "why": "THE sticking test. Four turns of flowchart on the canvas and seven words throwing the type away. If passing history makes the model stick, it shows here first."
+    },
+    "chat-refine-direction": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    Ingest[Ingest] --> Validate[Validate]\n    Validate --> Transform[Transform]\n    Transform --> Load[Load]",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "OVERRIDE: #55 says no-diagram because 'same diagram, just make it left to right' is unanswerable with no diagram. With one, redrawing it LR is the whole job."
+    },
+    "chat-refine-spoken": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    DB[(Postgres)] --> AuthSvc[Auth Service]\n    DB --> BillingSvc[Billing Service]",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "The arrows point the wrong way and the database is on top, which is what 'no not like that' is objecting to."
+    },
+    "chat-refine-vague-improve": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    A[start] --> B[thing happens]\n    B --> C[other thing]\n    A --> C\n    C --> D[done]\n    B --> D",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "OVERRIDE: #55 says no-diagram because 'make it cleaner' names nothing. With a diagram present and genuinely untidy labels plus crossing edges, redrawing it is answerable."
+    },
+    "chat-refine-deictic-chain": {
+      "type": "flowchart",
+      "code": "flowchart TD\n    Queue[Queue] --> Worker[Worker]\n    Worker --> Store[Store]",
+      "expectedType": "flowchart",
+      "expectedOutcome": "diagram",
+      "why": "OVERRIDE, and the weakest of the four. #55 notes mermaid cannot express position, so 'move that one under this one' stays undeliverable even with perfect history. 'Connect it to the last one' is deliverable, so a redraw with one added edge is the pass. If this one fails it is not evidence against passing history."
+    },
+    "class-refine-add-method": {
+      "type": "classDiagram",
+      "code": "classDiagram\n    class Order {\n        +String id\n        +Date placedAt\n        +place() void\n    }\n    class Customer {\n        +String name\n    }\n    Customer \"1\" --> \"*\" Order : places",
+      "expectedType": "classDiagram",
+      "expectedOutcome": "diagram",
+      "why": "Order must already exist for 'add a cancel() method to Order' to be an edit rather than a new diagram."
+    },
+    "cov-sequence-refine-add-participant": {
+      "type": "sequenceDiagram",
+      "code": "sequenceDiagram\n    participant Client\n    participant API\n    participant DB\n    Client->>API: POST /orders\n    API->>DB: INSERT order\n    DB-->>API: ok\n    API-->>Client: 201 Created",
+      "expectedType": "sequenceDiagram",
+      "expectedOutcome": "diagram",
+      "why": "One write to hang the audit notification off, so 'after every write' has exactly one correct answer."
+    }
+  }
+}

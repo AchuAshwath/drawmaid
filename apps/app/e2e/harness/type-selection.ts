@@ -29,7 +29,16 @@ export type ArmId =
   /** No guess. The prompt carries all five types and the model declares one. */
   | "model"
   /** As `model`, plus the previous diagram's type. #47's third arm. */
-  | "model-with-previous";
+  | "model-with-previous"
+  /**
+   * As `model`, plus permission to decline. The full corpus run scored
+   * `ok-no-diagram` at 0/34 on BOTH shipped arms: nothing in the prompt lets
+   * the model say no, and `system-prompt.md:20` actively instructs it to
+   * "create nodes from key terms only" when the input is unclear. This arm
+   * measures whether one sentinel line recovers the 34, and what it costs in
+   * over-refusal on the 56 `very-short` entries.
+   */
+  | "model-refusable";
 
 export interface Selection {
   /** Null means "do not tell the model", which only `model` arms produce. */
@@ -93,6 +102,11 @@ export interface PreviousDiagram {
   code: string;
 }
 
-export const ALL_ARMS: ArmId[] = ["keyword", "model", "model-with-previous"];
+export const ALL_ARMS: ArmId[] = [
+  "keyword",
+  "model",
+  "model-with-previous",
+  "model-refusable",
+];
 
 export const EDITABLE_LIST = EDITABLE_TYPES.join(", ");

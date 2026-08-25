@@ -21,16 +21,32 @@
  *   --filter <sub>   only ids containing <sub>
  *   --out <path>     default e2e/harness/out/generated.json
  *   --concurrency    default 4
+ *   --previous <p>   a previous-diagram file. RESTRICTS the corpus to the ids
+ *                    it names, because an arm about canvas state is only
+ *                    meaningful on entries that have one.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { TRANSCRIPTS, type Transcript } from "../../fixtures/transcripts";
 import { callCpa, preflight, type Usage } from "./cpa-client";
 import { normalize } from "./normalize";
 import { buildPrompt } from "./prompt";
-import { selectType, type ArmId } from "./type-selection";
+import { selectType, type ArmId, type PreviousDiagram } from "./type-selection";
 import type { DiagramType } from "./type-registry";
+
+/**
+ * One entry of a previous-diagram file. `expectedType` and `expectedOutcome`
+ * override the corpus for this arm only: on four of the refinement entries #55
+ * says refusing is correct BECAUSE there is nothing on the canvas, and once
+ * something is on it the right answer changes. Overriding is honest; silently
+ * scoring against the no-history expectation would not be.
+ */
+interface PreviousEntry extends PreviousDiagram {
+  expectedType: DiagramType | null;
+  expectedOutcome: Transcript["outcome"];
+  why: string;
+}
 
 export interface GeneratedRecord {
   id: string;
@@ -55,6 +71,8 @@ export interface GeneratedRecord {
   ttftMs: number | null;
   totalMs: number;
   error?: string;
+  /** Set when a previous-diagram file supplied canvas state for this entry. */
+  previousType?: DiagramType;
 }
 
 export interface GeneratedFile {
@@ -65,6 +83,7 @@ export interface GeneratedFile {
     finishedAt: string;
     corpusSize: number;
     recordCount: number;
+    previousFile?: string;
   };
   records: GeneratedRecord[];
 }
@@ -109,10 +128,35 @@ async function main() {
     fileURLToPath(new URL("out/generated.json", import.meta.url)),
   ) as string;
   const concurrency = Number(arg("concurrency", "4"));
+  const previousPath = arg("previous");
 
   let corpus = TRANSCRIPTS;
   if (filter) corpus = corpus.filter((t) => t.id.includes(filter));
   if (limit > 0) corpus = corpus.slice(0, limit);
+
+  // A previous-diagram file both supplies canvas state AND narrows the run.
+  // Handing history to an entry that never had any is not a control, it is a
+  // different question, so the arm only sees the ids the file names.
+  let previous: Record<string, PreviousEntry> = {};
+  if (previousPath) {
+    const file = JSON.parse(readFileSync(previousPath, "utf8")) as {
+      entries: Record<string, PreviousEntry>;
+    };
+    previous = file.entries;
+    const ids = new Set(Object.keys(previous));
+    const missing = [...ids].filter((id) => !corpus.some((t) => t.id === id));
+    if (missing.length) {
+      // Loudly, per the repo's design rules. A typo'd id would otherwise
+      // silently shrink the arm and quietly change the number it reports.
+      throw new Error(
+        `previous file names ids not in the corpus: ${missing.join(", ")}`,
+      );
+    }
+    corpus = corpus.filter((t) => ids.has(t.id));
+    console.log(
+      `previous diagrams from ${previousPath}: ${corpus.length} entries`,
+    );
+  }
 
   await preflight({ model });
 
@@ -126,8 +170,9 @@ async function main() {
   let done = 0;
 
   await pool(jobs, concurrency, async ({ arm, t }) => {
+    const prev = previous[t.id];
     const selection = selectType(arm, t.text);
-    const built = buildPrompt(arm, t.text, selection);
+    const built = buildPrompt(arm, t.text, selection, prev);
     const r = await callCpa(built.system, built.user, { model });
     const n = normalize(r.text);
 
@@ -136,8 +181,10 @@ async function main() {
       arm,
       useCase: t.useCase,
       inputMode: t.inputMode,
-      expectedType: t.expectedType as DiagramType | null,
-      expectedOutcome: t.outcome,
+      expectedType: prev
+        ? prev.expectedType
+        : (t.expectedType as DiagramType | null),
+      expectedOutcome: prev ? prev.expectedOutcome : t.outcome,
       phenomena: t.phenomena,
       selectedType: selection.diagramType,
       selectedDirection: selection.direction,
@@ -154,6 +201,7 @@ async function main() {
       ttftMs: r.ttftMs,
       totalMs: r.totalMs,
       ...(r.error ? { error: r.error } : {}),
+      ...(prev ? { previousType: prev.type } : {}),
     });
 
     done++;
@@ -175,6 +223,7 @@ async function main() {
       finishedAt: new Date().toISOString(),
       corpusSize: corpus.length,
       recordCount: records.length,
+      ...(previousPath ? { previousFile: previousPath } : {}),
     },
     records,
   };
