@@ -194,7 +194,9 @@ export type Phenomenon =
   | "grouping"
   | "list-content"
   | "analogy"
-  | "on-request-type";
+  | "on-request-type"
+  // ── added by #59, for the multi-diagram capability in #58
+  | "multi-diagram";
 
 export interface Transcript {
   id: string;
@@ -210,6 +212,22 @@ export interface Transcript {
    * itself a case worth measuring rather than a gap.
    */
   expectedType: DiagramType | null;
+  /**
+   * Every type a correct answer draws, when one diagram cannot serve the
+   * request. Omitted on the ~244 entries that want exactly one, so they are
+   * untouched by #59 and every existing harness number reproduces on them.
+   *
+   * `expectedType` stays the primary of these, so a scorer that knows nothing
+   * about #58 still reads something sensible rather than null.
+   */
+  expectedTypes?: DiagramType[];
+  /**
+   * When `expectedTypes` is only correct at higher effort. `teach-analogy-dns`
+   * drawing the valet key beside the real sequence is better teaching and
+   * worse at Low, where one diagram fast is the whole point. Without this a
+   * correct Low answer scores as a miss.
+   */
+  multiFrom?: "low" | "medium" | "high";
   /** Omitted means `"diagram"`. Only stated where it is not. */
   outcome?: Outcome;
   phenomena: Phenomenon[];
@@ -1010,12 +1028,16 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "two unrelated topics in one uninterrupted stream",
     text: "so the ingest thing reads from the bucket validates and loads and that is basically it any questions no ok next thing on the agenda is the on call rota we want two people per week one primary one secondary and the handover is Thursday morning",
     expectedType: null,
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "low",
     phenomena: [
       "multi-speaker",
       "no-punctuation",
       "run-on",
       "changes-mind",
       "crosstalk",
+
+      "multi-diagram",
     ],
     notes:
       "Two diagrams' worth of content and no signal about which one is wanted. #43 made the transcript append-only, so in auto mode this arrives as one blob. There is no correct single answer, which is the finding.",
@@ -1541,11 +1563,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "one turn requesting two separate diagrams",
     text: "Give me both: an ER diagram of the tables, and a sequence diagram of the checkout call order.",
     expectedType: null,
+    expectedTypes: ["erDiagram", "sequenceDiagram"],
+    multiFrom: "low",
     phenomena: [
       "changes-mind",
       "strong-keyword",
       "real-punctuation",
       "very-short",
+
+      "multi-diagram",
     ],
     notes:
       "Two strong keywords, both meant. The pipeline emits one diagram per generation, so there is no correct single answer. Whichever it picks, half the request is dropped silently, and #45 has no path for partial success.",
@@ -1610,7 +1636,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy that must not become nodes",
     text: "think of the message queue like the ticket spike in a kitchen the waiter puts an order on the spike and the chef takes the oldest one off so in our system the api puts a job on the queue and the worker pulls the oldest job off and processes it",
     expectedType: "flowchart",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
     notes:
       "Waiter, chef and ticket spike are the wrong nodes. API, queue and worker are the right ones. The wrong ones are more vivid and come first.",
   },
@@ -1622,12 +1656,16 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy and system described in parallel",
     text: "a handshake is like introducing yourself at a party you say hi they say hi back and then you actually start talking with tls the client says hello with the ciphers it supports the server picks one and sends its certificate the client checks it and they agree a key and only then does any real data move",
     expectedType: "sequenceDiagram",
+    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
+    multiFrom: "high",
     phenomena: [
       "analogy",
       "no-punctuation",
       "run-on",
       "no-type-keyword",
       "long",
+
+      "multi-diagram",
     ],
   },
   {
@@ -1713,7 +1751,9 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "database class, showing the fixed schema",
     text: "so instead of one big orders table with the customer name and address repeated on every row we pull customer out into its own table with an id and orders just holds the customer id and that is the relationship one customer many orders",
     expectedType: "erDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["erDiagram", "erDiagram"],
+    multiFrom: "high",
+    phenomena: ["no-punctuation", "run-on", "no-type-keyword", "multi-diagram"],
     notes:
       "Describes both the bad shape and the good one. Only the second should be drawn, and nothing marks which is which except the word `instead`.",
   },
@@ -1752,7 +1792,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "finance concept with paired effects",
     text: "every transaction hits two accounts if you buy a laptop for cash then equipment goes up and cash goes down and the two amounts are always equal that is the whole idea if they do not balance you have made a mistake somewhere",
     expectedType: "flowchart",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword", "analogy"],
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "medium",
+    phenomena: [
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "analogy",
+      "multi-diagram",
+    ],
   },
   {
     id: "teach-presentation-slide-summary",
@@ -1841,12 +1889,16 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "second analogy replaces the first",
     text: "a load balancer is like a receptionist actually no that is a bad one it is more like the person at the front of the queue in a bank telling you which till is free so requests come in the balancer picks a free server and sends it there and if a server stops answering it stops sending to it",
     expectedType: "flowchart",
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "high",
     phenomena: [
       "analogy",
       "self-correction",
       "no-punctuation",
       "run-on",
       "no-type-keyword",
+
+      "multi-diagram",
     ],
     notes:
       "The abandoned analogy still leaves `receptionist` in the transcript, and the accepted one leaves a bank and a till. Three vivid nouns, none of them nodes.",
@@ -1974,7 +2026,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "schema, then sharding, in one breath",
     text: "so we have listing host booking and review a host has many listings a listing has many bookings a booking has one review and then for scale I would shard on listing id because most queries are by listing",
     expectedType: "erDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword", "changes-mind"],
+    expectedTypes: ["erDiagram", "flowchart"],
+    multiFrom: "medium",
+    phenomena: [
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "changes-mind",
+      "multi-diagram",
+    ],
     notes:
       "The last clause is about physical layout, not the model. It should not add a node called shard.",
   },
@@ -2840,12 +2900,16 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy carried through the whole explanation",
     text: "think of the origin as the warehouse and the edge nodes as corner shops the shop keeps the popular stuff and when someone asks for something rare the shop phones the warehouse and gets it in so the browser asks the edge the edge either has it or fetches from origin and keeps a copy",
     expectedType: "flowchart",
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "high",
     phenomena: [
       "analogy",
       "no-punctuation",
       "run-on",
       "no-type-keyword",
       "long",
+
+      "multi-diagram",
     ],
     notes:
       "Warehouse, corner shop and phoning are all sustained for forty words before the real nouns arrive. Longer analogy than teach-analogy-buffer on purpose.",
@@ -2858,7 +2922,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "short analogy, real system immediately after",
     text: "a mutex is the key to the toilet on a train only one person can hold it so thread one takes the lock does its work and releases it and thread two waits the whole time and then takes it",
     expectedType: "sequenceDiagram",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
   },
   {
     id: "teach-analogy-dns",
@@ -2868,7 +2940,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy where the vehicle and the system share a word",
     text: "dns is a phone book you look up a name and you get a number so the resolver checks its own cache first then asks the root then the top level domain server then the authoritative one and caches the answer on the way back",
     expectedType: "sequenceDiagram",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
     notes:
       "`look up a name and get a number` is true of both the phone book and DNS, so there is no clean boundary between the analogy and the system.",
   },
@@ -3103,7 +3183,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy for garbage collection",
     text: "garbage collection is like a cleaner who only throws out what nobody is holding so the collector walks from the roots marks everything reachable and then sweeps whatever it did not mark and the generational bit just means it checks the new stuff more often",
     expectedType: "flowchart",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
   },
   {
     id: "residual-analogy-oauth-valet",
@@ -3113,7 +3201,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "the valet key analogy, then the real sequence",
     text: "a scoped token is a valet key it starts the car and does not open the boot so the app asks for read only access the user approves that scope the provider issues a token limited to reads and the app can never write with it",
     expectedType: "sequenceDiagram",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
   },
   {
     id: "residual-analogy-index",
@@ -3123,12 +3219,16 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "analogy where the vehicle is also the real word",
     text: "a database index is the index at the back of a book you look up the word and it tells you the pages so the query planner checks whether an index covers the columns and if it does it seeks and if it does not it scans the whole table",
     expectedType: "flowchart",
+    expectedTypes: ["flowchart", "flowchart"],
+    multiFrom: "high",
     phenomena: [
       "analogy",
       "weak-keyword-misuse",
       "no-punctuation",
       "run-on",
       "no-type-keyword",
+
+      "multi-diagram",
     ],
     notes:
       "`index` means both things in the same sentence and neither is a diagram type. Paired with teach-analogy-dns, where the shared word was harmless.",
@@ -3595,7 +3695,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "two independent state machines running at once",
     text: "there are two things going on at the same time the network side is either connected or disconnected and separately the sync side is either idle syncing or conflicted and those two do not affect each other directly",
     expectedType: "stateDiagram-v2",
-    phenomena: ["grouping", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["stateDiagram-v2", "stateDiagram-v2"],
+    multiFrom: "low",
+    phenomena: [
+      "grouping",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
     notes:
       "Concurrent regions, which mermaid writes with a `--` divider inside a composite state. Two disconnected machines is also what a naive reading produces, and that is nearly right.",
   },
@@ -3626,7 +3734,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "postal analogy before a real exchange",
     text: "think of a webhook as them posting you a letter rather than you ringing them every hour so stripe posts to our endpoint we return two hundred straight away and process it later and if we do not return two hundred they post it again",
     expectedType: "sequenceDiagram",
-    phenomena: ["analogy", "no-punctuation", "run-on", "no-type-keyword"],
+    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "no-punctuation",
+      "run-on",
+      "no-type-keyword",
+      "multi-diagram",
+    ],
   },
   {
     id: "cov-class-analogy-blueprint",
@@ -3636,7 +3752,15 @@ export const TRANSCRIPTS: Transcript[] = [
     scenario: "the blueprint analogy for classes",
     text: "a class is the blueprint and an object is the house you build from it so we have a House Plan with rooms and floors and every actual House knows which plan it came from and has its own address",
     expectedType: "classDiagram",
-    phenomena: ["analogy", "weak-keyword-misuse", "no-punctuation", "run-on"],
+    expectedTypes: ["classDiagram", "classDiagram"],
+    multiFrom: "high",
+    phenomena: [
+      "analogy",
+      "weak-keyword-misuse",
+      "no-punctuation",
+      "run-on",
+      "multi-diagram",
+    ],
     notes:
       "The analogy and the example are the same nouns, so there is no vehicle to discard, which is the opposite problem to teach-analogy-buffer.",
   },
@@ -3997,3 +4121,8 @@ export const TRANSCRIPTS: Transcript[] = [
 
 /** Convenience: every id, for a consumer that wants to iterate deterministically. */
 export const TRANSCRIPT_IDS = TRANSCRIPTS.map((t) => t.id);
+
+/** Entries where one mermaid document cannot serve the request. #59. */
+export const MULTI_DIAGRAM = TRANSCRIPTS.filter((t) =>
+  t.phenomena.includes("multi-diagram"),
+);
