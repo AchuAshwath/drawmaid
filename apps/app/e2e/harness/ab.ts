@@ -19,6 +19,7 @@ import { dirname } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { ALL_TRANSCRIPTS } from "../../fixtures/transcripts-multi";
 import { LONG_TRANSCRIPTS } from "../../fixtures/transcripts-long";
+import { DIRECT_TRANSCRIPTS } from "../../fixtures/transcripts-direct";
 import type { Transcript } from "../../fixtures/transcripts";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -125,11 +126,14 @@ async function call(system: string, user: string, model: string) {
 }
 
 async function main() {
-  const model = arg("model");
-  if (!model) {
+  const modelArg = arg("model");
+  if (!modelArg) {
     console.error("--model is required");
     process.exit(1);
   }
+  // Bound after the guard so `run`, which is a hoisted function declaration and
+  // therefore outside the narrowing, still sees a plain `string`.
+  const model: string = modelArg;
   const out = arg("out", here("out-ab/pairs.json")) as string;
 
   // `--corpus long` swaps the eight hand-picked short entries for the ten
@@ -142,6 +146,8 @@ async function main() {
   let picked: Transcript[];
   if (corpus === "long") {
     picked = LONG_TRANSCRIPTS;
+  } else if (corpus === "direct") {
+    picked = DIRECT_TRANSCRIPTS;
   } else if (corpus === "all") {
     // Plain random over the whole corpus, seeded so the same --seed replays the
     // same entries. Deliberately not balanced: the point is to see what an
@@ -168,8 +174,37 @@ async function main() {
     `${picked.length} transcripts x ${LEVELS.length} levels = ${jobs.length} jobs`,
   );
 
-  const pairs: Pair[] = await Promise.all(
-    jobs.map(async ({ t, level }) => {
+  /**
+   * Bounded. An unbounded `Promise.all` over 55 transcripts x 3 levels fired
+   * ~220 simultaneous requests at the proxy and 33 of them came back with an
+   * empty body, no error and `finish_reason: "stop"` — which reads exactly
+   * like a refusal and is not one. The same prompts called one at a time
+   * answer correctly in 33 completion tokens.
+   */
+  const pairs: Pair[] = [];
+  const CONC = Number(arg("concurrency", "8"));
+  let cursor = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONC, jobs.length) }, async () => {
+      for (;;) {
+        const i = cursor++;
+        if (i >= jobs.length) return;
+        pairs.push(await run(jobs[i]));
+      }
+    }),
+  );
+  pairs.sort(
+    (a, b) => a.id.localeCompare(b.id) || a.level.localeCompare(b.level),
+  );
+
+  async function run({
+    t,
+    level,
+  }: {
+    t: Transcript;
+    level: Level;
+  }): Promise<Pair> {
+    {
       let plan: string | undefined;
       let r: { text: string; ms: number; error?: string };
       if (level === "high") {
@@ -220,8 +255,8 @@ async function main() {
         ...(plan !== undefined ? { plan } : {}),
         ...(r.error ? { error: r.error } : {}),
       };
-    }),
-  );
+    }
+  }
 
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify({ meta: { model }, pairs }, null, 2));

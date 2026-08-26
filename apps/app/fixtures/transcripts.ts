@@ -250,16 +250,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "The trivial baseline #47 needs. No type keyword, so #42's call-1 path applies.",
   },
   {
-    id: "swe-oauth-sequence-explicit",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "OAuth handshake, explicitly asked for as a sequence diagram",
-    text: "draw a sequence diagram for the OAuth flow so the browser hits our login endpoint we redirect to Google Google sends back a code we exchange the code for a token and then we set the session cookie",
-    expectedType: "sequenceDiagram",
-    phenomena: ["strong-keyword", "no-punctuation", "run-on"],
-  },
-  {
     id: "swe-domain-class-explicit",
     category: "swe",
     inputMode: "dictated",
@@ -487,30 +477,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "Relabelled by #55. #52 called this ambiguous; it is a state machine, and #53's model drew stateDiagram-v2 for it. The model was right and the label was wrong.",
   },
   {
-    id: "swe-monorepo-graph",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "build dependency graph",
-    text: "the ui package depends on core and core depends on nothing the api package depends on core and on db and the web app depends on ui and api",
-    expectedType: "flowchart",
-    phenomena: ["no-punctuation", "no-type-keyword"],
-    notes:
-      "A pure dependency graph. Arguably a flowchart, arguably a class diagram. Ambiguity is the point.",
-  },
-  {
-    id: "swe-microservice-sequence",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "message passing, no explicit keyword",
-    text: "the front end asks the order service to place an order the order service asks inventory to reserve stock inventory says yes then order service asks payments to charge and payments comes back with a confirmation which order service passes back to the front end",
-    expectedType: "sequenceDiagram",
-    phenomena: ["no-type-keyword", "no-punctuation", "run-on"],
-    notes:
-      "Clearly a sequence to a human, but contains no sequence keyword at all. Current code returns flowchart by default.",
-  },
-  {
     id: "swe-inheritance-no-keyword",
     category: "swe",
     inputMode: "dictated",
@@ -545,18 +511,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "extractDirection also returns the LAST match, which here happens to be correct. #53 should note where last-wins helps.",
   },
   {
-    id: "gen-org-chart",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "reporting structure",
-    text: "the ceo has three direct reports the cto the cfo and the head of sales and the cto has the platform lead and the product lead under them",
-    expectedType: "flowchart",
-    phenomena: ["no-punctuation", "no-type-keyword"],
-    notes:
-      "A tree. Flowchart works; a human might also accept a class diagram. Ambiguous on purpose.",
-  },
-  {
     id: "gen-house-move",
     category: "general",
     inputMode: "dictated",
@@ -586,16 +540,6 @@ export const TRANSCRIPTS: Transcript[] = [
     phenomena: ["very-short", "no-type-keyword", "trails-off"],
     notes:
       "There is no diagram here. Tests what happens when the transcript is too vague to act on. #45 decided what the user sees when generation fails; this may be that path.",
-  },
-  {
-    id: "swe-payment-webhook-sequence",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "webhook round trip",
-    text: "stripe sends us a webhook our handler verifies the signature then it asks the order service to mark the order paid the order service writes to the database and replies ok and then we return two hundred to stripe",
-    expectedType: "sequenceDiagram",
-    phenomena: ["no-type-keyword", "no-punctuation", "run-on"],
   },
   {
     id: "swe-sso-sequence-explicit",
@@ -635,16 +579,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "General-purpose sequence. No technical vocabulary, so it isolates type detection from ASR corruption.",
   },
   {
-    id: "swe-repository-pattern-class",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "interfaces and implementations",
-    text: "there is a Repository interface with find and save and then PostgresRepository and InMemoryRepository both implement it the service takes a Repository in its constructor so we can swap them in tests",
-    expectedType: "classDiagram",
-    phenomena: ["no-type-keyword", "no-punctuation", "run-on"],
-  },
-  {
     id: "swe-ecommerce-model-explicit",
     category: "swe",
     inputMode: "dictated",
@@ -653,16 +587,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "class diagram for the shop Product has a name and a price Category has a name and holds many Products Cart holds many Cart Items and each Cart Item points at one Product and has a quantity",
     expectedType: "classDiagram",
     phenomena: ["strong-keyword", "no-punctuation", "run-on"],
-  },
-  {
-    id: "swe-event-hierarchy-class",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "type hierarchy with corruption",
-    text: "we have an abstract Event with a timestamp and then OrderPlaced OrderShipped and OrderCancelled all inherit from it and each one has its own payload the handler dispatches on the type",
-    expectedType: "classDiagram",
-    phenomena: ["no-type-keyword", "no-punctuation", "run-on"],
   },
   {
     id: "gen-library-model-class",
@@ -752,23 +676,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "The word `class` appears four times, so keyword detection gets this right for entirely the wrong reason.",
   },
   {
-    id: "paste-sql-schema",
-    category: "swe",
-    inputMode: "pasted",
-    useCase: "chat",
-    scenario: "pastes DDL",
-    text: "CREATE TABLE users (\n  id UUID PRIMARY KEY,\n  email TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id UUID PRIMARY KEY,\n  user_id UUID REFERENCES users(id),\n  total NUMERIC\n);\n\nER diagram for these two tables.",
-    expectedType: "erDiagram",
-    phenomena: [
-      "code-paste",
-      "real-punctuation",
-      "fragile-chars",
-      "strong-keyword",
-    ],
-    notes:
-      "Asks for an erDiagram in words, so there is nothing ambiguous to label null. #46 measured erDiagram converting at 2.2.2, but `diagram-configs.json` does not offer it and `normalize-mermaid.ts:4-8` rejects it, so this fails today for a reason that is not the model's.",
-  },
-  {
     id: "paste-readme-section",
     category: "general",
     inputMode: "pasted",
@@ -842,16 +749,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "Nobody says the word entity or relationship. The give-away is `belongs to one` and `hang off`, which are cardinality words. The `no wait` is a second person asking, not the first correcting.",
   },
   {
-    id: "meet-er-many-to-many",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "working out a join table live",
-    text: "so a student can be on many courses and a course obviously has many students so we need the join table in between call it enrolment and enrolment has the grade on it and the enrolled date does it need anything else no I think that is it",
-    expectedType: "erDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-  },
-  {
     id: "meet-er-explicit-request",
     category: "swe",
     inputMode: "dictated",
@@ -862,23 +759,6 @@ export const TRANSCRIPTS: Transcript[] = [
     phenomena: ["strong-keyword", "no-punctuation", "run-on"],
     notes:
       "`ER diagram` spoken aloud survives dictation intact. This is the clean case that proves the type is reachable at all, before the harder ones below.",
-  },
-  {
-    id: "meet-er-corrupted-names",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "schema discussion with ASR damage on the table names",
-    text: "the off table has the user id and the email and then sessions references off by user id and we also have a separate profiles table one to one with off which honestly should just be columns on off but it is too late now",
-    expectedType: "erDiagram",
-    phenomena: [
-      "asr-corruption",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-    ],
-    notes:
-      "auth->off, three times. Consistent, so the schema is coherent and every entity is named wrong. Tests whether the model recovers `auth` from `user id and email`.",
   },
   {
     id: "meet-er-audit-columns",
@@ -933,16 +813,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "The interruption changes an inheritance edge into a composition edge. Both are valid classDiagram relations, so the model has to get the relation kind right, not just the nodes.",
-  },
-  {
-    id: "meet-class-service-layer",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "layering discussion",
-    text: "the controller depends on the service the service depends on two repositories one for orders one for stock and both repositories implement the same base repository interface which has find by id and save nothing else goes in the base one",
-    expectedType: "classDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
   },
   {
     id: "meet-sequence-who-calls-who",
@@ -1218,18 +1088,6 @@ export const TRANSCRIPTS: Transcript[] = [
     phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
   },
   {
-    id: "creator-react-render-states",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "creator",
-    scenario: "component lifecycle as states",
-    text: "so the component is idle then when you call the thing it goes to loading and from loading you either land on success or on error and from error you can retry which puts you back in loading and success is terminal unless you refetch",
-    expectedType: "stateDiagram-v2",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "The most common state machine anyone actually draws. If stateDiagram-v2 works for nothing else it has to work for this.",
-  },
-  {
     id: "creator-git-states",
     category: "swe",
     inputMode: "dictated",
@@ -1348,24 +1206,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "Twenty five words of preamble that is not part of the diagram and does not announce itself as preamble.",
   },
   {
-    id: "refine-2-add-a-branch",
-    category: "swe",
-    inputMode: "typed",
-    useCase: "chat",
-    scenario: "second turn, adds a branch to what is on screen",
-    text: "Add a branch for when the verification link expires.",
-    expectedType: "flowchart",
-    phenomena: [
-      "refinement",
-      "deictic-reference",
-      "real-punctuation",
-      "very-short",
-      "no-type-keyword",
-    ],
-    notes:
-      "Eight words, and the whole diagram has to survive. Nothing in this turn names signup, email or activation.",
-  },
-  {
     id: "refine-3-change-a-shape",
     category: "swe",
     inputMode: "typed",
@@ -1421,44 +1261,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "`extractDirection` finds LR here and the rest of the pipeline has no diagram to apply it to. Tests whether direction extraction is useful on its own.",
   },
   {
-    id: "chat-refine-nothing-to-refine",
-    category: "swe",
-    inputMode: "typed",
-    useCase: "chat",
-    scenario: "a refinement turn arriving with no previous diagram",
-    text: "make that one red and move it up",
-    expectedType: null,
-    outcome: "no-diagram",
-    phenomena: [
-      "refinement",
-      "deictic-reference",
-      "not-a-request",
-      "very-short",
-      "no-type-keyword",
-    ],
-    notes:
-      "Must fail. There is no `that one`, and mermaid cannot express position anyway. #46 measured classDef applying nothing, so even the colour half is undeliverable. Drawing something here is worse than refusing.",
-  },
-  {
-    id: "chat-refine-vague-improve",
-    category: "swe",
-    inputMode: "typed",
-    useCase: "chat",
-    scenario: "asks for improvement without saying what",
-    text: "this is close but can you make it cleaner",
-    expectedType: null,
-    outcome: "no-diagram",
-    phenomena: [
-      "refinement",
-      "deictic-reference",
-      "not-a-request",
-      "very-short",
-      "no-type-keyword",
-    ],
-    notes:
-      "No instruction to act on. The honest outcome is to keep what is on the canvas, not to regenerate it differently and call that cleaner.",
-  },
-  {
     id: "chat-refine-spoken",
     category: "swe",
     inputMode: "dictated",
@@ -1502,18 +1304,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "Says `entities and relationships` without saying `ER diagram`. Underscores in field names, parens around every attribute list.",
-  },
-  {
-    id: "chat-state-first-turn",
-    category: "swe",
-    inputMode: "typed",
-    useCase: "chat",
-    scenario: "clean typed request for a state machine",
-    text: "State diagram for a traffic light: red -> green -> amber -> red, plus a flashing amber fault state reachable from any state.",
-    expectedType: "stateDiagram-v2",
-    phenomena: ["strong-keyword", "real-punctuation", "fragile-chars"],
-    notes:
-      "`reachable from any state` needs a transition from every node, which is where a model either writes four edges or gives up.",
   },
   {
     id: "chat-state-pr-lifecycle",
@@ -1706,18 +1496,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "One edge said four times and one edge said once. A model weighting by mention count draws four arrows between the same pair.",
   },
   {
-    id: "teach-water-cycle-states",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "a cycle described as states of one thing",
-    text: "water in the sea evaporates and becomes vapour the vapour rises and condenses into cloud the cloud precipitates as rain and the rain either runs off into rivers and back to the sea or it soaks into the ground and comes back much later",
-    expectedType: "stateDiagram-v2",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "The same substance changing state, with a branch and a cycle back to the start. A flowchart of this is not wrong so much as it loses that it is one thing throughout.",
-  },
-  {
     id: "teach-matter-states",
     category: "general",
     inputMode: "dictated",
@@ -1745,28 +1523,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "`G1` becomes `g one`. Node ids like `g one` need collapsing or quoting, and `s` on its own is a one-letter node.",
-  },
-  {
-    id: "teach-mvc-class",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "explaining a pattern to beginners",
-    text: "so the model holds the data and knows nothing about the screen the view draws things and knows nothing about the database and the controller is the bit in the middle it takes input from the view asks the model for what it needs and hands it back",
-    expectedType: "classDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "Genuinely borderline against flowchart. The `knows nothing about` phrasing is about dependency direction, which is a class diagram statement, but a beginner audience would accept boxes and arrows.",
-  },
-  {
-    id: "teach-inheritance-animals",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the textbook OOP example",
-    text: "Animal is the base and it has a name and a speak method then Dog and Cat and Bird all extend Animal and each one overrides speak and Bird additionally has a fly method that the others do not have",
-    expectedType: "classDiagram",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
   },
   {
     id: "teach-normalisation-er",
@@ -1808,24 +1564,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "you type the address and hit enter the browser asks the dns resolver for the ip the resolver answers then the browser opens a connection to that ip sends a get request the server sends back the html and then the browser asks for the css and the images separately",
     expectedType: "sequenceDiagram",
     phenomena: ["no-punctuation", "run-on", "no-type-keyword", "long"],
-  },
-  {
-    id: "teach-double-entry-accounting",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "finance concept with paired effects",
-    text: "every transaction hits two accounts if you buy a laptop for cash then equipment goes up and cash goes down and the two amounts are always equal that is the whole idea if they do not balance you have made a mistake somewhere",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "medium",
-    phenomena: [
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-      "analogy",
-      "multi-diagram",
-    ],
   },
   {
     id: "teach-presentation-slide-summary",
@@ -2060,24 +1798,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "The last clause is about physical layout, not the model. It should not add a node called shard.",
   },
   {
-    id: "misfire-lunch-order",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "misfire",
-    scenario: "the mic is on while people order food",
-    text: "are we doing lunch today I could do the noodle place or there is that sandwich shop on the corner yeah whatever you want I am not fussy",
-    expectedType: null,
-    outcome: "no-diagram",
-    phenomena: [
-      "not-a-request",
-      "crosstalk",
-      "multi-speaker",
-      "no-punctuation",
-    ],
-    notes:
-      "Contains `or` and two options, so it is one keyword away from looking like a decision node. It is not.",
-  },
-  {
     id: "misfire-mute-request",
     category: "general",
     inputMode: "dictated",
@@ -2123,17 +1843,6 @@ export const TRANSCRIPTS: Transcript[] = [
     phenomena: ["not-a-request", "no-punctuation"],
     notes:
       "The hardest kind. Cache, layer and numbers are all diagram-adjacent nouns, and there is not one relationship in the sentence.",
-  },
-  {
-    id: "misfire-reading-aloud",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "misfire",
-    scenario: "someone reads a ticket title out",
-    text: "ticket four one two flaky test in the billing suite assigned to me priority three opened last Tuesday",
-    expectedType: null,
-    outcome: "no-diagram",
-    phenomena: ["not-a-request", "no-punctuation", "very-short"],
   },
   {
     id: "misfire-single-word",
@@ -2356,16 +2065,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "`state` here is a column. The right answer is erDiagram and the keyword points at stateDiagram-v2, so both the trap and the target are types #52 could not express.",
   },
   {
-    id: "trap-state-real-but-buried",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "a real state machine that never says the word",
-    text: "a document is a draft until someone sends it for review then it is in review and the reviewer either sends it back to draft with comments or approves it once approved it can be published and a published one can be archived but never goes back",
-    expectedType: "stateDiagram-v2",
-    phenomena: ["no-type-keyword", "no-punctuation", "run-on"],
-  },
-  {
     id: "trap-sequence-meaning-dna",
     category: "general",
     inputMode: "dictated",
@@ -2374,23 +2073,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "a sample belongs to one patient and has many sequence reads each read points at one reference genome and a variant call links a read to a position on the genome",
     expectedType: "erDiagram",
     phenomena: ["weak-keyword-misuse", "no-punctuation", "no-type-keyword"],
-  },
-  {
-    id: "trap-class-meaning-ticket-class",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "class meaning economy or business",
-    text: "a booking has one passenger one flight and a fare class and a flight has many bookings and belongs to one aircraft and an aircraft has a seat map per class",
-    expectedType: "erDiagram",
-    phenomena: [
-      "weak-keyword-misuse",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-    ],
-    notes:
-      "`class` twice, meaning a fare band. Current detection returns classDiagram; a human returns erDiagram, and the two are close enough that the wrong one looks nearly right.",
   },
   {
     id: "trap-negated-flowchart",
@@ -2560,18 +2242,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
   },
   {
-    id: "er-vs-class-both-defensible",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "genuinely either",
-    text: "an Invoice has a number a date and a total and it has many Line Items and each Line Item has a description a quantity and a unit price",
-    expectedType: null,
-    phenomena: ["no-punctuation", "no-type-keyword"],
-    notes:
-      "Attributes and a composition, no methods and no storage words. Every human answer here is right. Scoring must accept erDiagram and classDiagram both, or this entry punishes a correct model.",
-  },
-  {
     id: "state-nested-composite",
     category: "swe",
     inputMode: "dictated",
@@ -2592,18 +2262,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "from pending you go to approved if the amount is under a thousand or to review if it is over and from review you go to approved or rejected and from approved you go to paid once the run happens",
     expectedType: "stateDiagram-v2",
     phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-  },
-  {
-    id: "state-terminal-and-start",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "explicit start and end markers",
-    text: "it starts in created and the two ways it can finish are completed or abandoned and nothing comes out of either of those in between it can be active or paused and you can go back and forth between those as many times as you like",
-    expectedType: "stateDiagram-v2",
-    phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "Needs `[*]` at both ends. That token looks exactly like a malformed node label to anything doing bracket repair.",
   },
   {
     id: "state-corrupted-names",
@@ -2760,18 +2418,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "a Vehicle has wheels and a top speed and then Car and Motorbike and Lorry all are vehicles and a Lorry additionally has a payload capacity and a Motorbike has neither doors nor a boot",
     expectedType: "classDiagram",
     phenomena: ["no-punctuation", "run-on", "no-type-keyword"],
-  },
-  {
-    id: "class-corrupted-glass",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "class heard as glass",
-    text: "make me a glass diagram there is a base Handler with a handle method and Http Handler and Queue Handler both extend it and each one has its own decode step",
-    expectedType: "classDiagram",
-    phenomena: ["asr-corruption", "no-punctuation", "no-type-keyword"],
-    notes:
-      "class->glass. The explicit request is destroyed and the content still says inheritance.",
   },
   {
     id: "class-paste-java",
@@ -2937,44 +2583,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "Warehouse, corner shop and phoning are all sustained for forty words before the real nouns arrive. Longer analogy than teach-analogy-buffer on purpose.",
   },
   {
-    id: "teach-analogy-mutex",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "short analogy, real system immediately after",
-    text: "a mutex is the key to the toilet on a train only one person can hold it so thread one takes the lock does its work and releases it and thread two waits the whole time and then takes it",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
-    multiFrom: "high",
-    phenomena: [
-      "analogy",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-      "multi-diagram",
-    ],
-  },
-  {
-    id: "teach-analogy-dns",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "analogy where the vehicle and the system share a word",
-    text: "dns is a phone book you look up a name and you get a number so the resolver checks its own cache first then asks the root then the top level domain server then the authoritative one and caches the answer on the way back",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
-    multiFrom: "high",
-    phenomena: [
-      "analogy",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-      "multi-diagram",
-    ],
-    notes:
-      "`look up a name and get a number` is true of both the phone book and DNS, so there is no clean boundary between the analogy and the system.",
-  },
-  {
     id: "creator-checklist-list-content",
     category: "swe",
     inputMode: "dictated",
@@ -3050,23 +2658,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "Twenty four pipes. Mermaid uses `|` for edge labels, so a model that echoes any row produces a parse error, and `--- ` is also mermaid's edge syntax with a space in the wrong place.",
-  },
-  {
-    id: "paste-openapi-fragment",
-    category: "swe",
-    inputMode: "pasted",
-    useCase: "chat",
-    scenario: "pastes an api spec fragment",
-    text: "paths:\n  /orders/{orderId}:\n    get:\n      responses:\n        '200': { $ref: '#/components/schemas/Order' }\n        '404': { description: Not found }\n\nsequence diagram for the GET path including the 404.",
-    expectedType: "sequenceDiagram",
-    phenomena: [
-      "code-paste",
-      "strong-keyword",
-      "real-punctuation",
-      "fragile-chars",
-    ],
-    notes:
-      "Braces, a `$`, a `#`, single quotes and a `{orderId}` path parameter. `#` starts a comment in some mermaid contexts and is the visibility marker in classDiagram.",
   },
   {
     id: "chat-refine-deictic-chain",
@@ -3191,24 +2782,6 @@ export const TRANSCRIPTS: Transcript[] = [
     text: "garbage collection is like a cleaner who only throws out what nobody is holding so the collector walks from the roots marks everything reachable and then sweeps whatever it did not mark and the generational bit just means it checks the new stuff more often",
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "high",
-    phenomena: [
-      "analogy",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-      "multi-diagram",
-    ],
-  },
-  {
-    id: "residual-analogy-oauth-valet",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the valet key analogy, then the real sequence",
-    text: "a scoped token is a valet key it starts the car and does not open the boot so the app asks for read only access the user approves that scope the provider issues a token limited to reads and the app can never write with it",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
     multiFrom: "high",
     phenomena: [
       "analogy",
@@ -3429,23 +3002,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "JSON->Jason, write->right, inherit->in herit split into two words. A split word is worse than a homophone because it looks like two tokens.",
   },
   {
-    id: "cov-er-asr-cardinality",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "cardinality words damaged",
-    text: "a merchant has many pay outs and a pay out has many transfers and each transfer points at one bank a count and a bank a count belongs to one merchant",
-    expectedType: "erDiagram",
-    phenomena: [
-      "asr-corruption",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-    ],
-    notes:
-      "payouts->pay outs, account->a count. `a count` is the dangerous one because it is a grammatical noun phrase and reads as an attribute called count.",
-  },
-  {
     id: "cov-sequence-asr-http",
     category: "swe",
     inputMode: "dictated",
@@ -3461,23 +3017,6 @@ export const TRANSCRIPTS: Transcript[] = [
     ],
     notes:
       "TLS->tea ellis, auth->off, JWT->jot. Three of four message labels are wrong and the participants are still recoverable.",
-  },
-  {
-    id: "cov-state-asr-transitions",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "state names heard as unrelated words",
-    text: "the lease is granted then renewed on each heartbeat and if a heartbeat is missed it goes to suspect and from suspect either back to renewed or to expired and expired is final",
-    expectedType: "stateDiagram-v2",
-    phenomena: [
-      "asr-corruption",
-      "no-punctuation",
-      "run-on",
-      "no-type-keyword",
-    ],
-    notes:
-      "Nothing here is corrupted, which is the point of the pair with cov-state-asr-corrupted-hard below. Same shape, clean audio.",
   },
   {
     id: "cov-state-asr-corrupted-hard",
@@ -3967,16 +3506,6 @@ export const TRANSCRIPTS: Transcript[] = [
       "Two nodes and one edge. Tests whether Low produces something sane from almost nothing.",
   },
   {
-    id: "swe-ci-pipeline",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "CI pipeline",
-    text: "on every pull request we run lint and unit tests in parallel then if both pass we build the container and run the integration suite against it and only then do we allow the merge",
-    expectedType: "flowchart",
-    phenomena: ["no-punctuation", "run-on"],
-  },
-  {
     id: "swe-rate-limit-decision",
     category: "swe",
     inputMode: "dictated",
@@ -3987,18 +3516,6 @@ export const TRANSCRIPTS: Transcript[] = [
     phenomena: ["no-punctuation", "run-on", "long"],
     notes:
       "Several decision nodes. Tests whether Low produces diamonds where they belong.",
-  },
-  {
-    id: "typed-parens-in-names",
-    category: "swe",
-    inputMode: "typed",
-    useCase: "chat",
-    scenario: "literal parentheses in node labels",
-    text: "Show Payment (Stripe) calling Ledger (internal), and Ledger writing to Postgres (primary).",
-    expectedType: "flowchart",
-    phenomena: ["real-punctuation", "fragile-chars", "very-short"],
-    notes:
-      "#46 measured A[Call (sync)] throwing with `Parse error ... got 'PS'`. This is the only channel that can produce it. #44's R2 quoting repair is the fix.",
   },
   {
     id: "typed-braces-and-pipes",

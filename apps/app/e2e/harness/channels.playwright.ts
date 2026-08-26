@@ -40,6 +40,33 @@ const CASES: Record<string, string> = {
   classDef planned fill:#ffffff,stroke:#868e96,stroke-dasharray:5 5
   class A focus
   class B planned`,
+  "erDiagram, does it convert at all": `erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  CUSTOMER {
+    string id PK
+    string email
+    string name
+  }
+  ORDER {
+    string id PK
+    string customerId FK
+    int total
+  }`,
+  "cylinder shape [(DB)]": `flowchart LR
+  A[App] --> B[(Postgres)]
+  B --> C[[Subroutine]]
+  C --> D[/Input/]
+  D --> E{{Hexagon}}`,
+  "stateDiagram, does it convert": `stateDiagram-v2
+  [*] --> Idle
+  Idle --> Running : start
+  Running --> Done : finish
+  Done --> [*]`,
+  "classDiagram, does it convert": `classDiagram
+  class Order { +String id +total() }
+  class Refund
+  Order <|-- Refund`,
   "shape as meaning": `flowchart TD
   A((Start)) --> B{Decide}
   B -->|yes| C[[Expands elsewhere]]

@@ -40,7 +40,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath, URL } from "node:url";
-import { TRANSCRIPTS, type Transcript } from "../../fixtures/transcripts";
+import type { Transcript } from "../../fixtures/transcripts";
+// ALL_TRANSCRIPTS, not TRANSCRIPTS: the corpus grew from one file to five
+// (originals, multi-diagram, replacements, direct requests, long-form) and
+// reading only the first scored 224 of 437 entries.
+import { ALL_TRANSCRIPTS } from "../../fixtures/transcripts-multi";
 import { callCpa, preflight } from "./cpa-client";
 import { buildPrompt } from "./prompt";
 import {
@@ -210,7 +214,7 @@ async function main() {
   }
   system += PROBE;
 
-  let corpus = TRANSCRIPTS;
+  let corpus = ALL_TRANSCRIPTS;
   if (filter) corpus = corpus.filter((t) => t.id.includes(filter));
   if (limit > 0) corpus = corpus.slice(0, limit);
 

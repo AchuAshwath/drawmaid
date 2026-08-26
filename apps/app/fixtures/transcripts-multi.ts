@@ -49,23 +49,12 @@
  * single-diagram pipeline cannot produce at all, which is the point.
  */
 import { TRANSCRIPTS, type Transcript } from "./transcripts";
+import { DIRECT_TRANSCRIPTS } from "./transcripts-direct";
+import { LONG_TRANSCRIPTS } from "./transcripts-long";
+import { REPLACEMENT_TRANSCRIPTS } from "./transcripts-replacements";
 
 export const MULTI_TRANSCRIPTS: Transcript[] = [
   // ─────────────────────────────────────────── schema and the calls over it
-  {
-    id: "multi-er-then-call-order",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "the tables, then the request path across them",
-    text: "so booking has a guest id a room id and the dates and rate points at one room type and then separately can we see the call order the site asks availability availability checks the calendar service then we call pricing and only then do we write the booking",
-    expectedType: "erDiagram",
-    expectedTypes: ["erDiagram", "sequenceDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "`and then separately` is the seam. Neither half is a refinement of the other, so last-intent-wins would drop the schema.",
-  },
   {
     id: "multi-schema-and-read-path",
     category: "swe",
@@ -77,20 +66,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedTypes: ["erDiagram", "sequenceDiagram"],
     multiFrom: "low",
     phenomena: ["multi-diagram", "no-punctuation", "run-on", "long"],
-  },
-  {
-    id: "multi-er-and-lifecycle",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "the tables and the status values on one of them",
-    text: "orders has an id a customer id a total and a status and order items hang off it and points at product and the status itself goes draft pending paid shipped delivered and you can get to refunded from paid or shipped",
-    expectedType: "erDiagram",
-    expectedTypes: ["erDiagram", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "no-type-keyword"],
-    notes:
-      "The status column is a state machine. Cramming it into the ER diagram as an attribute loses the transitions; cramming the tables into the state diagram loses the schema.",
   },
   {
     id: "multi-er-plus-sharding-note",
@@ -176,20 +151,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     multiFrom: "low",
     phenomena: ["multi-diagram", "asr-corruption", "no-punctuation", "run-on"],
   },
-  {
-    id: "multi-two-schemas-compared",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the denormalised shape and the normalised one, side by side",
-    text: "show both the before is one orders table with customer name and address repeated on every row and the after is customer pulled out into its own table with an id and orders just holding the customer id",
-    expectedType: "erDiagram",
-    expectedTypes: ["erDiagram", "erDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-    notes:
-      "`show both` makes this required rather than a High nicety, unlike teach-normalisation-er which says instead.",
-  },
 
   // ──────────────────────────────────────── domain model and the flow over it
   {
@@ -248,18 +209,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     ],
   },
   {
-    id: "multi-class-and-state-of-one",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "the classes and the states one of them carries",
-    text: "Subscription has a plan a customer and a status and Plan has a price and an interval and the status itself is trialing then active then past due and past due goes back to active or on to cancelled",
-    expectedType: "classDiagram",
-    expectedTypes: ["classDiagram", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
     id: "multi-paste-types-and-ask-flow",
     category: "swe",
     inputMode: "pasted",
@@ -303,110 +252,8 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     multiFrom: "low",
     phenomena: ["multi-diagram", "no-punctuation", "run-on", "no-type-keyword"],
   },
-  {
-    id: "multi-checklist-and-deploy-states",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "creator",
-    scenario: "a checklist with no edges, then a real state machine",
-    text: "go live checklist backups verified rollback tested alerts routed on call confirmed none of them depend on each other and then the deploy itself is queued then running then either succeeded or failed and failed can go back to queued if there are retries",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "list-content",
-      "grouping",
-      "no-punctuation",
-      "run-on",
-    ],
-    notes:
-      "The checklist half is the one the model turns into a tree. creator-checklist-list-content scored ok while drawing twelve arrows into a box called Ready.",
-  },
-  {
-    id: "multi-incident-flow-and-states",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "what we did, and the states the incident was in",
-    text: "what happened was the alert fired we checked the dashboard rolled back the deploy and the error rate came down and then the incident status went from detected to acknowledged to mitigated to resolved and it can be reopened from resolved",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-ci-and-branching",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the branch model and the checks that run on it",
-    text: "you branch off main push and open a pr and when it is approved it squash merges back and separately on every pr we run lint and unit in parallel then build then integration and only then can it merge",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "medium",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-    notes:
-      "Two flowcharts rather than two types. One document could hold both as disconnected components, which is why this is medium and not low.",
-  },
-  {
-    id: "multi-request-flow-and-retry-states",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "the happy path and the circuit breaker beside it",
-    text: "request comes in check the cache if it is warm return it otherwise call upstream and cache the answer and the breaker in front of upstream is closed until the failure rate goes over the threshold then it opens then half open after thirty seconds",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-onboarding-flow-and-states",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "solo",
-    scenario: "the steps and the account status alongside",
-    text: "sign up then verify email then fill the profile then invite a team mate and the account status through all that is pending until the email is verified then active and it goes to suspended if they never fill the profile in thirty days",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-support-flow-and-ticket-states",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "how a ticket is handled and what state it is in",
-    text: "intake triages it then either support answers it or it goes to engineering and engineering either fixes it or sends it back and the ticket state is new then open then pending then resolved and closed and resolved can reopen",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
 
   // ─────────────────────────────────────────── lists and groups plus a process
-  {
-    id: "multi-pros-cons-then-decision",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "creator",
-    scenario: "two groups of points, then the decision they feed",
-    text: "pros of a monorepo atomic commits one dependency version easier refactors cons are slow ci enormous history and tooling on day one and then the decision is if the team is under ten people go monorepo otherwise split and if you split you need a shared release process",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "list-content",
-      "grouping",
-      "no-punctuation",
-      "run-on",
-    ],
-    notes:
-      "The groups have no flow and the decision does. Drawing them as one diagram forces arrows onto the pros and cons, which is the exact failure creator-pros-cons-monorepo showed.",
-  },
   {
     id: "multi-retro-and-release-process",
     category: "general",
@@ -533,30 +380,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "The smallest multi case and the most likely in chat. A note is a one-box diagram; jamming it into the flow as a step makes it look like an action.",
   },
   {
-    id: "multi-warning-and-schema",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "a caveat everyone should see, then the tables",
-    text: "big caveat first this schema is frozen until the migration lands do not add columns and then the tables are account has many subscriptions a subscription has one plan and many items and each item points at a price",
-    expectedType: "erDiagram",
-    expectedTypes: ["flowchart", "erDiagram"],
-    multiFrom: "medium",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-definition-and-example",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the rule stated, then a worked example of it",
-    text: "the rule is every transaction hits two accounts and the two amounts are always equal and then the example if you buy a laptop for cash equipment goes up and cash goes down by the same number",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "medium",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
     id: "multi-note-and-states",
     category: "swe",
     inputMode: "typed",
@@ -587,62 +410,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     multiFrom: "low",
     phenomena: ["multi-diagram", "no-punctuation", "run-on", "changes-mind"],
   },
-  {
-    id: "multi-standup-two-updates",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "two people describing unrelated work",
-    text: "from my side the importer reads the csv validates each row and writes the good ones to the table and the bad ones to a quarantine bucket and from mine the search index rebuild is nightly it dumps the table builds the index and swaps the alias",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-two-services-one-call",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "two teams each describing their own unconnected service",
-    text: "ours publishes the event to the topic and then writes the ledger entry and theirs is completely separate it takes the nightly file validates it and loads it into the warehouse the two do not touch",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-    notes:
-      "`the two do not touch` is the signal. One document with two disconnected components implies they belong to one picture.",
-  },
-  {
-    id: "multi-drift-schema-then-rota",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "a schema, then something that is not a schema at all",
-    text: "so contact belongs to one company a company has many contacts a deal points at one company and one owner and moving on the escalation path is support then the duty engineer then the manager then the director",
-    expectedType: "erDiagram",
-    expectedTypes: ["erDiagram", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-topic-drift-with-crosstalk",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "two topics with a side conversation across the seam",
-    text: "the collector scrapes every fifteen seconds and writes to the time series database did you get my message about Friday yeah I will reply after this and the other thing is the alert routing rules evaluate then alertmanager groups them then it pages whoever is on call",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "crosstalk",
-      "multi-speaker",
-      "no-punctuation",
-      "run-on",
-    ],
-  },
 
   // ───────────────────────────────────────── analogy drawn beside the system
   {
@@ -658,30 +425,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     phenomena: ["multi-diagram", "analogy", "no-punctuation", "run-on"],
     notes:
       "`show me both` promotes this from the High-only analogy pattern to a required pair.",
-  },
-  {
-    id: "multi-analogy-valet-and-oauth",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "valet key beside the scoped token exchange",
-    text: "put the analogy next to the real one a valet key starts the car and does not open the boot and the real version is the app asks for read only access the user approves the scope the provider issues a limited token and the app can never write",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["flowchart", "sequenceDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "analogy", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-analogy-phonebook-and-dns",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the phone book and the resolver, both drawn",
-    text: "draw the phone book version and the dns version side by side you look up a name and get a number and the resolver checks its cache asks the root then the tld then the authoritative one and caches on the way back",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "analogy", "no-punctuation", "run-on"],
   },
   {
     id: "multi-analogy-warehouse-and-cdn",
@@ -746,18 +489,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     phenomena: ["multi-diagram", "no-punctuation", "run-on", "changes-mind"],
   },
   {
-    id: "multi-before-after-monolith-split",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "interview",
-    scenario: "the monolith, then the split",
-    text: "the before is one service doing auth orders and billing against one database and the after is three services each with its own database and a gateway in front routing by path",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
     id: "multi-v1-v2-api-sequence",
     category: "swe",
     inputMode: "dictated",
@@ -767,18 +498,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "sequenceDiagram",
     expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-naive-and-optimised-query",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the slow path and the fast one",
-    text: "the naive version is scan the whole table filter in the app and sort in memory and the better one is use the index seek to the range and let the database do the sort",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "medium",
     phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
 
@@ -818,18 +537,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     text: "the billing side is account has many invoices and an invoice has many lines and the completely unrelated thing is the cms where a page has many blocks and a block has one template",
     expectedType: "erDiagram",
     expectedTypes: ["erDiagram", "erDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
-  {
-    id: "multi-two-sequences-different-clients",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "interview",
-    scenario: "the web path and the mobile path, told separately",
-    text: "on web the browser calls the api the api calls the session store and returns and on mobile it is different the app calls the gateway the gateway swaps the refresh token and only then calls the api",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "sequenceDiagram"],
     multiFrom: "low",
     phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
@@ -996,27 +703,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "Three, not two. The layout has to cope with an odd count and with one of them being a single box.",
   },
   {
-    id: "multi-paste-mermaid-and-ask-second",
-    category: "swe",
-    inputMode: "pasted",
-    useCase: "chat",
-    scenario: "pastes one diagram and asks for a second alongside",
-    text: "```mermaid\nflowchart TD\nA[Ingest] --> B[Validate]\nB --> C[Load]\n```\n\nKeep that, and add a second diagram beside it showing the row states: pending, valid, quarantined, loaded.",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "stateDiagram-v2"],
-    multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "mermaid-paste",
-      "fence-in-input",
-      "real-punctuation",
-      "refinement",
-      "fragile-chars",
-    ],
-    notes:
-      "`keep that` means the pasted diagram is part of the answer, so a correct response echoes it and adds one. Tests that multi output does not lose the input.",
-  },
-  {
     id: "multi-paste-code-two-views",
     category: "swe",
     inputMode: "pasted",
@@ -1162,32 +848,8 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     multiFrom: "low",
     phenomena: ["multi-diagram", "long", "no-punctuation", "run-on"],
   },
-  {
-    id: "multi-repetition-across-halves",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the same relationship stated in both halves",
-    text: "the scheduler tells the worker what to do the worker never decides for itself and to be clear the scheduler is in charge and then the data side is job has many runs and a run points at one worker",
-    expectedType: "sequenceDiagram",
-    expectedTypes: ["sequenceDiagram", "erDiagram"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
 
   // ─────────────────────────────────────────────── teaching pairs
-  {
-    id: "multi-water-cycle-states-and-flow",
-    category: "general",
-    inputMode: "dictated",
-    useCase: "teaching",
-    scenario: "the states of water and the path it takes",
-    text: "two diagrams the states are liquid vapour cloud and rain going round in a circle and the path is sea then air then cloud then land then rivers then back to the sea",
-    expectedType: "stateDiagram-v2",
-    expectedTypes: ["stateDiagram-v2", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
   {
     id: "multi-animals-class-and-example",
     category: "general",
@@ -1250,18 +912,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
   },
 
   // ─────────────────────────────────────────────── creator and presentation pairs
-  {
-    id: "multi-slide-overview-and-detail",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "creator",
-    scenario: "the big picture, then one box of it expanded",
-    text: "first slide is the whole thing client edge api database and then zoom into the api box it is a router a handler layer a service layer and a repository layer",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
-  },
   {
     id: "multi-stream-two-questions",
     category: "swe",
@@ -1498,18 +1148,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     ],
   },
   {
-    id: "multi-direction-on-both",
-    category: "swe",
-    inputMode: "dictated",
-    useCase: "meeting",
-    scenario: "a layout hint that applies to both diagrams",
-    text: "both of these left to right the request path is client edge origin database and the deploy path is build test stage production",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "flowchart"],
-    multiFrom: "low",
-    phenomena: ["multi-diagram", "direction-hint", "no-punctuation", "run-on"],
-  },
-  {
     id: "multi-direction-differs-per-diagram",
     category: "swe",
     inputMode: "dictated",
@@ -1693,9 +1331,31 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
  * measured before this file existed still reproduces by importing
  * `TRANSCRIPTS` alone.
  */
+/**
+ * The whole corpus. Four files rather than one because they were built in
+ * layers and each layer answers a different question:
+ *
+ *   TRANSCRIPTS + MULTI_TRANSCRIPTS  the original set, minus 62 entries whose
+ *                                    (type, useCase, inputMode, phenomena)
+ *                                    signature made them redundant
+ *   REPLACEMENT_TRANSCRIPTS          those 62, rewritten longer and in new
+ *                                    domains. The corpus keeps its size and
+ *                                    gains the 150-1500 word range it had none
+ *                                    of: 75% of the old corpus sat in a single
+ *                                    25-59 word bucket.
+ *   DIRECT_TRANSCRIPTS               one-line requests naming a topic with no
+ *                                    description at all, which is the most
+ *                                    common real use and had zero entries.
+ *   LONG_TRANSCRIPTS                 10 entries of 339-481 words, written to
+ *                                    separate the effort levels, which the
+ *                                    short corpus cannot do.
+ */
 export const ALL_TRANSCRIPTS: Transcript[] = [
   ...TRANSCRIPTS,
   ...MULTI_TRANSCRIPTS,
+  ...REPLACEMENT_TRANSCRIPTS,
+  ...DIRECT_TRANSCRIPTS,
+  ...LONG_TRANSCRIPTS,
 ];
 
 /** Every entry where one mermaid document cannot serve the request. */
