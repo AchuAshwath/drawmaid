@@ -62,13 +62,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "erDiagram",
     expectedTypes: ["erDiagram", "sequenceDiagram"],
     multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "no-punctuation",
-      "run-on",
-      "multi-speaker",
-      "no-type-keyword",
-    ],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on", "no-type-keyword"],
     notes:
       "`and then separately` is the seam. Neither half is a refinement of the other, so last-intent-wins would drop the schema.",
   },
@@ -165,9 +159,9 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     phenomena: [
       "multi-diagram",
       "crosstalk",
-      "multi-speaker",
       "no-punctuation",
       "run-on",
+      "long",
     ],
   },
   {
@@ -220,7 +214,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "classDiagram",
     expectedTypes: ["classDiagram", "sequenceDiagram"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on", "long"],
   },
   {
     id: "multi-mvc-class-and-request",
@@ -339,7 +333,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "stateDiagram-v2"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "long"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
   {
     id: "multi-ci-and-branching",
@@ -389,7 +383,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "stateDiagram-v2"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "multi-speaker"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
 
   // ─────────────────────────────────────────── lists and groups plus a process
@@ -520,7 +514,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "list-content",
       "no-punctuation",
       "run-on",
-      "multi-speaker",
     ],
   },
 
@@ -535,7 +528,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
     multiFrom: "medium",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "very-short"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
     notes:
       "The smallest multi case and the most likely in chat. A note is a one-box diagram; jamming it into the flow as a step makes it look like an action.",
   },
@@ -592,13 +585,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
     multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "no-punctuation",
-      "run-on",
-      "multi-speaker",
-      "changes-mind",
-    ],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on", "changes-mind"],
   },
   {
     id: "multi-standup-two-updates",
@@ -610,7 +597,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "multi-speaker", "no-punctuation", "run-on"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
   {
     id: "multi-two-services-one-call",
@@ -622,7 +609,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "multi-speaker", "no-punctuation", "run-on"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
     notes:
       "`the two do not touch` is the signal. One document with two disconnected components implies they belong to one picture.",
   },
@@ -636,7 +623,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "erDiagram",
     expectedTypes: ["erDiagram", "flowchart"],
     multiFrom: "low",
-    phenomena: ["multi-diagram", "no-punctuation", "run-on", "multi-speaker"],
+    phenomena: ["multi-diagram", "no-punctuation", "run-on"],
   },
   {
     id: "multi-topic-drift-with-crosstalk",
@@ -1024,6 +1011,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "fence-in-input",
       "real-punctuation",
       "refinement",
+      "fragile-chars",
     ],
     notes:
       "`keep that` means the pasted diagram is part of the answer, so a correct response echoes it and adds one. Tests that multi output does not lose the input.",
@@ -1061,6 +1049,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "direction-hint",
       "real-punctuation",
       "strong-keyword",
+      "fragile-chars",
     ],
     notes:
       "`next to it` is a placement request. #58 deliberately gives the model no placement vocabulary, so the correct behaviour is to emit two and let the layout handle it.",
@@ -1373,7 +1362,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     scenario: "a real diagram and then pure housekeeping",
     text: "the reconciler compares the two ledgers and logs anything that differs and then separately can everyone fill in their timesheets by Friday and Priya is out next week",
     expectedType: "flowchart",
-    phenomena: ["no-punctuation", "run-on", "multi-speaker", "not-a-request"],
+    phenomena: ["no-punctuation", "run-on", "not-a-request"],
     notes:
       "Deliberately NOT multi. `and then separately` is the same seam as the positive entries, but the second half has no structure. Tests that the seam phrase alone does not trigger a second diagram.",
   },
@@ -1392,8 +1381,8 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "multi-diagram",
       "refinement",
       "real-punctuation",
-      "very-short",
       "deictic-reference",
+      "fragile-chars",
     ],
     notes:
       "The previous diagram is part of the answer and the new one is additive. A pipeline that replaces on every generation loses half of it.",
@@ -1413,7 +1402,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "refinement",
       "deictic-reference",
       "no-punctuation",
-      "very-short",
     ],
   },
   {
@@ -1431,7 +1419,6 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "refinement",
       "deictic-reference",
       "no-punctuation",
-      "very-short",
     ],
     notes:
       "`the left one` only means anything once two diagrams exist. Nothing in the corpus could express this before #58.",
@@ -1507,6 +1494,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "fence-in-input",
       "real-punctuation",
       "strong-keyword",
+      "fragile-chars",
     ],
   },
   {
@@ -1519,13 +1507,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "flowchart"],
     multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "direction-hint",
-      "no-punctuation",
-      "run-on",
-      "very-short",
-    ],
+    phenomena: ["multi-diagram", "direction-hint", "no-punctuation", "run-on"],
   },
   {
     id: "multi-direction-differs-per-diagram",
@@ -1653,6 +1635,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "fragile-chars",
       "real-punctuation",
       "strong-keyword",
+      "very-short",
     ],
     notes:
       "Unquoted parens in both halves. #56 measured that as two of the six broken outcomes, and here one bad label can take down half the answer instead of all of it.",
@@ -1673,6 +1656,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
       "fence-in-input",
       "refinement",
       "real-punctuation",
+      "fragile-chars",
     ],
     notes:
       "Two fences in, two fences out. The corrected normalizer takes the LAST fence to beat the paste-echo case, and that rule has to survive a legitimate two-diagram paste.",
@@ -1687,13 +1671,7 @@ export const MULTI_TRANSCRIPTS: Transcript[] = [
     expectedType: "flowchart",
     expectedTypes: ["flowchart", "stateDiagram-v2", "flowchart"],
     multiFrom: "low",
-    phenomena: [
-      "multi-diagram",
-      "list-content",
-      "long",
-      "no-punctuation",
-      "run-on",
-    ],
+    phenomena: ["multi-diagram", "list-content", "no-punctuation", "run-on"],
   },
   {
     id: "multi-negative-two-mentions-one-thing",
