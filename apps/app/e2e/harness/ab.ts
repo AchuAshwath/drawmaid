@@ -148,6 +148,57 @@ async function main() {
     picked = LONG_TRANSCRIPTS;
   } else if (corpus === "direct") {
     picked = DIRECT_TRANSCRIPTS;
+  } else if (corpus === "balanced") {
+    // Round-robin across expectedType FIRST, then useCase inside each type, so
+    // a 20-entry sample shows all five editable types rather than the mix the
+    // corpus happens to hold. A plain random draw is 34% flowchart and can
+    // easily return zero erDiagram entries, which is useless for looking at.
+    const TYPES = [
+      "flowchart",
+      "sequenceDiagram",
+      "erDiagram",
+      "classDiagram",
+      "stateDiagram-v2",
+    ];
+    let x = seed * 2654435761;
+    const rand = () => (x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+    const byType = new Map<string, Transcript[]>();
+    for (const t of ALL_TRANSCRIPTS) {
+      if (!t.expectedType || !TYPES.includes(t.expectedType)) continue;
+      if ((t.outcome ?? "diagram") !== "diagram") continue;
+      const k = t.expectedType;
+      if (!byType.has(k)) byType.set(k, []);
+      byType.get(k)!.push(t);
+    }
+    // Shuffle inside each type, then spread the use cases so one type's slots
+    // are not all `solo`.
+    for (const list of byType.values()) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+    }
+    // Diagonal traversal of the (type x useCase) grid: the type advances every
+    // pick and the use case advances every full lap, so both axes stay even.
+    // Nested loops with an early break do not — they filled types 1-3 and left
+    // `classDiagram` with 2 slots and `stateDiagram-v2` with none.
+    const cases = [...new Set(ALL_TRANSCRIPTS.map((t) => t.useCase))].sort();
+    picked = [];
+    const seen = new Set<string>();
+    const want = sample || 20;
+    for (let i = 0; picked.length < want && i < want * 12; i++) {
+      const ty = TYPES[i % TYPES.length];
+      const uc = cases[(i + Math.floor(i / TYPES.length)) % cases.length];
+      const pool = byType.get(ty) ?? [];
+      // Prefer the exact cell; fall back to any unused entry of this type so a
+      // thin cell never costs the type its slot.
+      const t =
+        pool.find((x) => x.useCase === uc && !seen.has(x.id)) ??
+        pool.find((x) => !seen.has(x.id));
+      if (!t) continue;
+      seen.add(t.id);
+      picked.push(t);
+    }
   } else if (corpus === "all") {
     // Plain random over the whole corpus, seeded so the same --seed replays the
     // same entries. Deliberately not balanced: the point is to see what an

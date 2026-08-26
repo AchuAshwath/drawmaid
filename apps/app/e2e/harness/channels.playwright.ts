@@ -67,6 +67,32 @@ const CASES: Record<string, string> = {
   class Order { +String id +total() }
   class Refund
   Order <|-- Refund`,
+  "flowchart: ::: with NO space": `flowchart TD
+  A["Alert: rate > 5%"]:::err --> B[Fixed]
+  classDef err fill:#ffc9c9,stroke:#e03131`,
+  "flowchart: ::: WITH a space": `flowchart TD
+  A["Alert: rate > 5%"] :::err --> B[Fixed]
+  classDef err fill:#ffc9c9,stroke:#e03131`,
+  "flowchart: class statement, the safe form": `flowchart TD
+  A["Alert: rate > 5%"] --> B[Fixed]
+  classDef err fill:#ffc9c9,stroke:#e03131
+  class A err`,
+  "erDiagram: entity named CLASS": `erDiagram
+  MEMBER ||--o{ BOOKING : makes
+  CLASS { int id PK string name }`,
+  "erDiagram: same entity renamed": `erDiagram
+  MEMBER ||--o{ BOOKING : makes
+  GYM_CLASS { int id PK string name }`,
+  "sequence: == Section == divider": `sequenceDiagram
+  participant App
+  participant Server
+  == Authorization Phase ==
+  App->>Server: code`,
+  "sequence: Note over instead": `sequenceDiagram
+  participant App
+  participant Server
+  Note over App,Server: Authorization Phase
+  App->>Server: code`,
   "shape as meaning": `flowchart TD
   A((Start)) --> B{Decide}
   B -->|yes| C[[Expands elsewhere]]
