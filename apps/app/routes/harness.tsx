@@ -19,6 +19,8 @@ import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import { remapCardinalityArrowheads } from "../e2e/harness/arrowheads";
+
 export const Route = createFileRoute("/harness")({
   component: Harness,
 });
@@ -68,6 +70,10 @@ async function convert(mermaid: string) {
   const converted = convertToExcalidrawElements(skeleton as never, {
     regenerateIds: true,
   }) as unknown as Json[];
+  // The converter asks for `cardinality_*` arrowheads that Excalidraw does not
+  // have, so every erDiagram relationship arrives as a plain line and the
+  // diagram reads as a class diagram. See arrowheads.ts.
+  remapCardinalityArrowheads(converted);
   return { converted, files };
 }
 
@@ -97,6 +103,8 @@ declare global {
         ) => void;
         /** How many elements are on the canvas. The `replace` tracking check. */
         sceneCount: () => number;
+        /** Arrowhead names the converter emits, before Excalidraw sees them. */
+        arrowheads: (mermaid: string) => Promise<string[]>;
         /** Scroll 0,0 at zoom 1, so successive generations share one camera. */
         resetView: () => void;
       };
@@ -247,6 +255,29 @@ function Harness() {
           (apiRef.current?.getSceneElements() ?? []).filter(
             (el) => el.isDeleted !== true,
           ).length,
+
+        /**
+         * Arrowhead names on every line the converter produced, before
+         * Excalidraw sees them. Added to answer one question: an erDiagram
+         * renders as boxes of typed rows joined by plain lines, which is
+         * visually a class diagram, and the crow's foot notation that makes an
+         * ER diagram an ER diagram is nowhere on the canvas.
+         */
+        arrowheads: async (mermaid: string) => {
+          const { converted } = await convert(mermaid);
+          return (
+            converted as unknown as {
+              type: string;
+              startArrowhead?: unknown;
+              endArrowhead?: unknown;
+            }[]
+          )
+            .filter((e) => e.type === "arrow" || e.type === "line")
+            .map(
+              (e) =>
+                `${e.type.padEnd(6)} start=${String(e.startArrowhead)}  end=${String(e.endArrowhead)}`,
+            );
+        },
 
         resetView: () =>
           apiRef.current?.updateScene({

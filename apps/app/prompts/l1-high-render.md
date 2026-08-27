@@ -42,6 +42,19 @@ stretch, a note against one participant, a divider between phases: whatever the
 type offers, it is available, and the brief said what the picture is for rather
 than which of them to use.
 
+## How much of it to draw
+
+Depth is not decoration. A diagram drawn at this level says things a plain
+chain cannot, in the vocabulary its own type provides.
+
+| type | drawn fully |
+| --- | --- |
+| `flowchart` | every branch followed to where it stops, the failure path beside the working one, and the loop back for what repeats |
+| `sequenceDiagram` | replies as well as requests, the stretches that repeat or branch, a note where a step needs one, and the messages numbered when order is the point |
+| `erDiagram` | every field with its type, which field identifies the record, and a join record wherever many meet many |
+| `classDiagram` | fields and methods with their visibility, what inherits and what merely holds a reference |
+| `stateDiagram-v2` | the trigger on every move, an explicit start and end, and conditions grouped where one thing is really two things at once |
+
 ## Grouping
 
 Things named as belonging together go in a container carrying the name of what

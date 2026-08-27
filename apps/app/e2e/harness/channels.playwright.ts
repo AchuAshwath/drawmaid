@@ -93,11 +93,50 @@ const CASES: Record<string, string> = {
   participant Server
   Note over App,Server: Authorization Phase
   App->>Server: code`,
+  "Chen notation drawn as a flowchart": `flowchart LR
+  STUDENT[STUDENT]
+  COURSE[COURSE]
+  ENROLS{enrols in}
+  STUDENT --- ENROLS
+  ENROLS --- COURSE
+  SID((student id))
+  SNAME((name))
+  CID((course code))
+  CTITLE((title))
+  GRADE((grade))
+  SID --- STUDENT
+  SNAME --- STUDENT
+  CID --- COURSE
+  CTITLE --- COURSE
+  GRADE --- ENROLS`,
   "shape as meaning": `flowchart TD
   A((Start)) --> B{Decide}
   B -->|yes| C[[Expands elsewhere]]
   B -->|no| D((Stop))`,
 };
+
+test("erDiagram arrowheads that reach the canvas", async ({ page }) => {
+  test.setTimeout(3 * 60 * 1000);
+  await page.goto("/#/harness");
+  await page.waitForSelector(".excalidraw", { timeout: 60_000 });
+  await page.waitForFunction(() => window.__harness?.ready === true, {
+    timeout: 60_000,
+  });
+  const heads = await page.evaluate(async () => {
+    const doc = [
+      "erDiagram",
+      "  CUSTOMER ||--o{ ORDER : places",
+      "  ORDER ||--|| INVOICE : has",
+      "  ORDER }o--o| COUPON : uses",
+    ].join("\n");
+    return window.__harness!.multi.arrowheads(doc);
+  });
+  console.log("\n## what the converter asks for");
+  for (const h of heads) console.log("   " + h);
+  console.log(
+    "\n## what Excalidraw 0.18.0 accepts: crowfoot_one, crowfoot_many, crowfoot_one_or_many",
+  );
+});
 
 test("which visual channels survive conversion", async ({ page }) => {
   test.setTimeout(5 * 60 * 1000);

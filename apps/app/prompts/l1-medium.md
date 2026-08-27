@@ -46,6 +46,41 @@ holds.
 An illustration is a group of its own only when they asked to see it. An analogy
 used while explaining is not that.
 
+## The channels
+
+Colour is one way to carry a meaning and it is the loudest. Shape and line
+weight carry others and cost nothing, because a node is already some shape and
+an edge is already some line.
+
+| to show | you write |
+| --- | --- |
+| where something starts, and where it ends | `A((Start))` |
+| the point where it turns | `B{Ready?}` |
+| something held rather than done: a state, a note, a wait | `C(Waiting)` |
+| the path that carries most of it | `A ==> B` |
+| something reached indirectly, or later | `A -.-> B` |
+
+A channel used for one thing throughout says that thing. Used for two, it says
+neither.
+
+Every type carries more than nodes and arrows. Numbering the messages in an
+exchange, naming a stretch that repeats, putting a note against one participant,
+marking where a diagram starts and ends: whatever the type offers is available,
+and it says something a plain chain cannot.
+
+## How much of it to draw
+
+The same text drawn plainly and drawn properly differ in depth, not only in
+decoration.
+
+| type | drawn properly |
+| --- | --- |
+| `flowchart` | every branch followed to where it stops, including the one that fails |
+| `sequenceDiagram` | what comes back as well as what goes out, and the stretches that repeat |
+| `erDiagram` | the fields of each record and which one identifies it, not only the names |
+| `classDiagram` | fields and methods and what inherits what, not only the kinds |
+| `stateDiagram-v2` | what triggers each move, and where it starts and ends |
+
 ## Grouping
 
 Things named as belonging together go in a container with the group's name on

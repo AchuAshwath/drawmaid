@@ -148,6 +148,36 @@ async function main() {
     picked = LONG_TRANSCRIPTS;
   } else if (corpus === "direct") {
     picked = DIRECT_TRANSCRIPTS;
+  } else if (corpus === "er") {
+    // One type only, spread across use cases and lengths. Added because the
+    // balanced sample still shows erDiagram four at a time among sixteen
+    // others, which is not enough to judge how ER actually looks.
+    let x = seed * 2654435761;
+    const rand = () => (x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+    const pool = ALL_TRANSCRIPTS.filter(
+      (t) =>
+        (t.expectedType === "erDiagram" ||
+          t.expectedTypes?.includes("erDiagram")) &&
+        (t.outcome ?? "diagram") === "diagram",
+    );
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    // Round-robin over use case so the sample is not all `solo`.
+    const cases = [...new Set(pool.map((t) => t.useCase))].sort();
+    picked = [];
+    const seen = new Set<string>();
+    const want = sample || 12;
+    for (let round = 0; picked.length < want && round < pool.length; round++) {
+      for (const uc of cases) {
+        const t = pool.find((x2) => x2.useCase === uc && !seen.has(x2.id));
+        if (!t) continue;
+        seen.add(t.id);
+        picked.push(t);
+        if (picked.length >= want) break;
+      }
+    }
   } else if (corpus === "balanced") {
     // Round-robin across expectedType FIRST, then useCase inside each type, so
     // a 20-entry sample shows all five editable types rather than the mix the
