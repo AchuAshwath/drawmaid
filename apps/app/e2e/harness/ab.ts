@@ -185,7 +185,10 @@ async function main() {
   const model: string = modelArg;
   const out = arg("out", here("out-ab/pairs.json")) as string;
   const onlyType = arg("type") as DiagramType | undefined;
-  const routing = arg("routing", "on");
+  // Routing remains implemented and can be enabled explicitly with
+  // `--routing on`, but the prototype's default path is the cheaper,
+  // directly-rendered one until the A/B evidence shows a reliable benefit.
+  const routing = arg("routing", "off");
   const shardIndex = Number(arg("shard-index", "0"));
   const shardCount = Number(arg("shard-count", "1"));
   if (
