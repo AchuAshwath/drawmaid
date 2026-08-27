@@ -55,8 +55,7 @@
           {
             "id": "reply-or-context",
             "label": "replies or context are visible",
-            "any": ["-->>", "Note\\s", "alt\\s", "loop\\s"],
-            "required": true
+            "any": ["-->>", "Note\\s", "alt\\s", "loop\\s"]
           }
         ],
         "high": [
@@ -67,16 +66,19 @@
               "Note\\s",
               "alt\\s",
               "loop\\s",
+              "opt\\s",
+              "par\\s",
+              "critical\\s",
+              "break\\s",
               "activate\\s",
-              "deactivate\\s"
-            ],
-            "required": true
+              "deactivate\\s",
+              "autonumber"
+            ]
           },
           {
             "id": "directional-detail",
             "label": "request/reply direction is explicit",
-            "any": ["->>", "-->>"],
-            "required": true
+            "any": ["(?=[\\s\\S]*->>)(?=[\\s\\S]*-->>)"]
           }
         ]
       }

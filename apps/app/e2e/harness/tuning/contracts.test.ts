@@ -166,4 +166,59 @@ describe("visual tuning contracts", () => {
       ).status,
     ).toBe("plain");
   });
+
+  it("keeps sequence depth observational when the source has no reply", () => {
+    const medium = scoreContracts(
+      "sequence-request-only",
+      "medium",
+      [
+        "sequenceDiagram",
+        "participant Client",
+        "participant API",
+        "Client ->> API: submit request",
+      ].join("\n"),
+      "sequenceDiagram",
+    );
+    const high = scoreContracts(
+      "sequence-request-only",
+      "high",
+      [
+        "sequenceDiagram",
+        "participant Client",
+        "participant API",
+        "Client ->> API: submit request",
+      ].join("\n"),
+      "sequenceDiagram",
+    );
+    expect(medium.passed).toBe(true);
+    expect(high.passed).toBe(true);
+    expect(
+      medium.features.find((f) => f.id === "reply-or-context")?.passed,
+    ).toBe(false);
+    expect(
+      high.features.find((f) => f.id === "directional-detail")?.passed,
+    ).toBe(false);
+  });
+
+  it("recognizes sequence replies as directional detail", () => {
+    const high = scoreContracts(
+      "sequence-round-trip",
+      "high",
+      [
+        "sequenceDiagram",
+        "participant Client",
+        "participant API",
+        "Client ->> API: submit request",
+        "API -->> Client: accepted",
+        "Note over Client,API: request completes",
+      ].join("\n"),
+      "sequenceDiagram",
+    );
+    expect(
+      high.features.find((f) => f.id === "directional-detail"),
+    ).toMatchObject({ passed: true });
+    expect(high.features.find((f) => f.id === "rich-sequence")).toMatchObject({
+      passed: true,
+    });
+  });
 });
