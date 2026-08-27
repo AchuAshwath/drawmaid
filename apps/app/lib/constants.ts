@@ -1,26 +1,29 @@
 // Diagram Type Keywords for backwards scan detection
 export const DIAGRAM_TYPE_KEYWORDS: Record<string, string[]> = {
-  flowchart: ["flowchart", "flow chart", "flow", "process", "decision tree"],
+  flowchart: ["flowchart", "flow chart", "decision tree"],
   sequenceDiagram: [
     "sequence diagram",
     "sequencing",
-    "sequence",
     "interactions",
     "message flow",
     "process order",
-    "timeline",
     "call flow",
     "request response",
   ],
   classDiagram: [
     "class diagram",
-    "class",
-    "classes",
     "oop",
     "object oriented",
     "uml class",
     "inheritance",
   ],
+  erDiagram: [
+    "er diagram",
+    "entity relationship diagram",
+    "database schema",
+    "data model",
+  ],
+  "stateDiagram-v2": ["state diagram", "state machine", "statechart"],
 };
 
 // Direction Keywords for backwards scan detection

@@ -212,9 +212,9 @@ interface ErrorPattern {
 const ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /got 'NEWLINE'/i,
-    title: "INCOMPLETE EDGE OR INDENTATION",
-    cause: "Edge has label but no target node, OR line has leading spaces",
-    fix: "If edge has |label|, the target must be on SAME line: A -->|label| B. Remove ALL indentation from every line.",
+    title: "INCOMPLETE EDGE",
+    cause: "Edge has a label but no target node",
+    fix: "If edge has |label|, the target must be on SAME line: A -->|label| B.",
     badExample: "D -->|Invalid|\\n  F[Error]",
     goodExample: "D -->|Invalid| F[Error]",
   },
@@ -270,7 +270,6 @@ Example:
 
 The mermaid code has a syntax error. Common issues:
 - Missing arrow connections between nodes (use --> )
-- Extra spaces at start of lines (remove all indentation)
 - Unclosed brackets [ ] or parentheses ( )
 - Reserved words used as node names (add _ suffix)
 

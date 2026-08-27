@@ -1,0 +1,5 @@
+{
+  "low": { "maxTokens": 1024, "temperature": 0.1, "timeoutMs": 30000 },
+  "medium": { "maxTokens": 2048, "temperature": 0.1, "timeoutMs": 30000 },
+  "high": { "maxTokens": 2048, "temperature": 0.1, "timeoutMs": 30000 }
+}

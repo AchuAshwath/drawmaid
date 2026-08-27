@@ -5,6 +5,7 @@ import { ModelSelector } from "@/components/ai-config/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
+import type { VisualLevel } from "@/lib/llm/visuals";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -28,6 +29,8 @@ export interface PromptFooterProps {
   currentModel?: string;
   onSelectModel?: (modelId: string) => void;
   localServerConfigured?: boolean;
+  visualLevel: VisualLevel;
+  onVisualLevelChange: (level: VisualLevel) => void;
 }
 
 export function PromptFooter({
@@ -50,6 +53,8 @@ export function PromptFooter({
   currentModel,
   onSelectModel,
   localServerConfigured = false,
+  visualLevel,
+  onVisualLevelChange,
 }: PromptFooterProps) {
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
@@ -168,6 +173,21 @@ export function PromptFooter({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span>Visuals</span>
+                <select
+                  value={visualLevel}
+                  onChange={(event) =>
+                    onVisualLevelChange(event.target.value as VisualLevel)
+                  }
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                  aria-label="Visual detail"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
               {webLLMModels?.length ||
               localModels?.length ||
               localServerConfigured ? (

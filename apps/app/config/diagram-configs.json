@@ -24,7 +24,7 @@
       "Node IDs must be single words without spaces",
       "Labels go INSIDE brackets: A[My Label]",
       "Use --> for arrows, -->|text| for labeled arrows",
-      "Shapes: [rectangle], (rounded), {decision}, [/parallelogram/]"
+      "Shapes: [rectangle], (rounded), ((circle)), {decision}"
     ]
   },
   "sequenceDiagram": {
@@ -80,5 +80,28 @@
       "Relationships: <|-- (inheritance), --> (association), ..> (dependency)",
       "Use <<interface>> for interfaces"
     ]
+  },
+  "erDiagram": {
+    "id": "erDiagram",
+    "name": "Entity Relationship Diagram",
+    "nodeSyntax": "CUSTOMER { string id PK string name }",
+    "edgeSyntax": "CUSTOMER ||--o{ ORDER : places",
+    "reservedWords": ["class", "end", "entity", "relationship"],
+    "examples": ["erDiagram\nCUSTOMER ||--o{ ORDER : places"],
+    "tips": [
+      "Use typed fields and PK/FK markers",
+      "Use crow's-foot cardinality"
+    ]
+  },
+  "stateDiagram-v2": {
+    "id": "stateDiagram-v2",
+    "name": "State Diagram",
+    "nodeSyntax": "Idle or state Waiting",
+    "edgeSyntax": "Idle --> Running : start",
+    "reservedWords": ["state", "direction", "classDef", "note", "end"],
+    "examples": [
+      "stateDiagram-v2\n[*] --> Idle\nIdle --> Running : start\nRunning --> [*]"
+    ],
+    "tips": ["Use [*] for start and end", "Put the trigger after a transition"]
   }
 }

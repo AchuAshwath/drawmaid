@@ -12,11 +12,14 @@ import {
   extractIntent,
   type Intent,
 } from "@/lib/llm/intent-extraction";
+import { buildSystemPrompt } from "@/lib/llm/prompt-assets";
 import {
-  isAbortError,
-  isTimeoutError,
-  SYSTEM_PROMPT,
-} from "@/lib/llm/mermaid-llm";
+  getVisualTier,
+  loadVisualLevel,
+  saveVisualLevel,
+  type VisualLevel,
+} from "@/lib/llm/visuals";
+import { isAbortError, isTimeoutError } from "@/lib/llm/mermaid-llm";
 import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import {
   createDrawmaidError,
@@ -61,6 +64,9 @@ function Home() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<"auto" | "normal">(() =>
     loadAutoModePreference() ? "auto" : "normal",
+  );
+  const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
+    loadVisualLevel(),
   );
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [apiReady, setApiReady] = useState(false);
@@ -115,6 +121,7 @@ function Home() {
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
+    visualLevel,
     onError: (drawmaidError) => {
       setError(drawmaidError.message);
       setErrorContext(drawmaidError);
@@ -264,10 +271,11 @@ function Home() {
 
     try {
       mermaidOutput = await generate(userPrompt, {
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
+        maxTokens: getVisualTier(visualLevel).maxTokens,
         modelId: currentModel,
         useLocalServer,
-        timeoutMs: useLocalServer ? 30000 : 15000,
+        timeoutMs: getVisualTier(visualLevel).timeoutMs,
       });
     } catch (err) {
       setIsGenerating(false);
@@ -300,15 +308,19 @@ function Home() {
 
     setIsProcessing(true);
 
-    if (!mermaidOutput?.trim()) {
+    if (!mermaidOutput?.trim() || mermaidOutput.trim() === "NO_DIAGRAM") {
       setIsGenerating(false);
       setIsProcessing(false);
-      handleError(
-        "llm_empty",
-        "empty_response",
-        "LLM returned empty response",
-        { intent },
-      );
+      if (!mermaidOutput?.trim()) {
+        handleError(
+          "llm_empty",
+          "empty_response",
+          "LLM returned empty response",
+          {
+            intent,
+          },
+        );
+      }
       return;
     }
 
@@ -342,11 +354,11 @@ function Home() {
         try {
           setIsProcessing(true);
           const recoveredOutput = await generate(errorPrompt, {
-            systemPrompt: SYSTEM_PROMPT,
+            systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
             maxTokens: 1024,
             modelId: currentModel,
             useLocalServer,
-            timeoutMs: useLocalServer ? 30000 : 15000,
+            timeoutMs: getVisualTier(visualLevel).timeoutMs,
           });
 
           if (!recoveredOutput?.trim()) {
@@ -408,11 +420,11 @@ function Home() {
 
       try {
         const recoveredOutput = await generate(errorPrompt, {
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
           maxTokens: 512,
           modelId: currentModel,
           useLocalServer,
-          timeoutMs: useLocalServer ? 30000 : 15000,
+          timeoutMs: getVisualTier(visualLevel).timeoutMs,
         });
 
         if (!recoveredOutput?.trim()) {
@@ -638,6 +650,11 @@ function Home() {
             currentModel={currentModel}
             onSelectModel={handleSelectModel}
             localServerConfigured={localServerConfigured}
+            visualLevel={visualLevel}
+            onVisualLevelChange={(level) => {
+              setVisualLevel(level);
+              saveVisualLevel(level);
+            }}
           />
         </div>
       </div>

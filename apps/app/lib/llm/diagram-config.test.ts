@@ -32,6 +32,11 @@ describe("getDiagramConfig", () => {
     expect(config.id).toBe("flowchart");
   });
 
+  it("returns configs for the other editable diagram types", () => {
+    expect(getDiagramConfig("erDiagram").id).toBe("erDiagram");
+    expect(getDiagramConfig("stateDiagram-v2").id).toBe("stateDiagram-v2");
+  });
+
   it("includes required properties for flowchart", () => {
     const config = getDiagramConfig("flowchart");
     expect(config).toHaveProperty("nodeSyntax");

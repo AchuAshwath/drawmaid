@@ -5,7 +5,8 @@ import {
   type ExcalidrawCanvasApi,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
 import { buildUserPrompt, extractIntent } from "@/lib/llm/intent-extraction";
-import { SYSTEM_PROMPT } from "@/lib/llm/mermaid-llm";
+import { buildSystemPrompt } from "@/lib/llm/prompt-assets";
+import { getVisualTier, type VisualLevel } from "@/lib/llm/visuals";
 import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import {
   createDrawmaidError,
@@ -28,6 +29,7 @@ interface UseAutoModeOptions {
   isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
   transcript: string;
+  visualLevel: VisualLevel;
   onError?: (error: DrawmaidError) => void;
   onGeneratingChange?: (generating: boolean) => void;
 }
@@ -37,7 +39,7 @@ interface UseAutoModeReturn {
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
-  const { excalidrawApiRef, isAutoMode, transcript } = options;
+  const { excalidrawApiRef, isAutoMode, transcript, visualLevel } = options;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
@@ -57,6 +59,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         localModels: models,
         generate: gen,
         isLocalServerConfigured,
+        visualLevel,
       } = optionsRef.current;
 
       setIsGenerating(true);
@@ -78,11 +81,12 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         const userPrompt = buildUserPrompt(task.transcript, intent);
 
         const result = await gen(userPrompt, {
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
+          maxTokens: getVisualTier(visualLevel).maxTokens,
           modelId: model,
           useLocalServer: useLocal,
           disableAbort: true,
-          timeoutMs: useLocal ? 30000 : 15000,
+          timeoutMs: getVisualTier(visualLevel).timeoutMs,
         } as Parameters<typeof gen>[1]);
 
         logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} completed`, {
@@ -134,7 +138,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         localModels: models,
       } = optionsRef.current;
       const api = excalidrawApiRef.current;
-      if (!result || !api) {
+      if (!result || result.trim() === "NO_DIAGRAM" || !api) {
         return;
       }
 
@@ -214,7 +218,13 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
     if (!engineRef.current) {
       logInfo("AUTO_MODE", "Auto Mode engine started");
-      engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
+      engineRef.current = new AutoModeEngine(
+        {
+          settlingMs: optionsRef.current.visualLevel === "high" ? 4500 : 1500,
+        },
+        handleGenerate,
+        handleResult,
+      );
       engineRef.current.start();
     }
 
@@ -228,6 +238,20 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       }
     };
   }, [isAutoMode, transcript, handleGenerate, handleResult]);
+
+  // A tier change affects the settling contract as well as the prompt. Restart
+  // the engine so High's longer quiet window takes effect immediately.
+  useEffect(() => {
+    if (!isAutoMode || !engineRef.current) return;
+    engineRef.current.stop();
+    engineRef.current = new AutoModeEngine(
+      { settlingMs: visualLevel === "high" ? 4500 : 1500 },
+      handleGenerate,
+      handleResult,
+    );
+    engineRef.current.start();
+    engineRef.current.onTranscriptChange(transcriptRef.current);
+  }, [visualLevel, isAutoMode, handleGenerate, handleResult]);
 
   useEffect(() => {
     return () => {

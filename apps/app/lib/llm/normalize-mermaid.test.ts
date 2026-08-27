@@ -105,6 +105,15 @@ describe("normalizeMermaid", () => {
     );
   });
 
+  it("recognizes ER and state diagram headers", () => {
+    expect(normalizeMermaid("erDiagram\n  A ||--o{ B : owns")).toContain(
+      "erDiagram",
+    );
+    expect(normalizeMermaid("stateDiagram-v2\n  [*] --> Idle")).toContain(
+      "stateDiagram-v2",
+    );
+  });
+
   it("prioritizes fenced content over keyword fallback", () => {
     const input = `Some explanation\nflowchart TD\nA --> B\n\`\`\`mermaid\nflowchart TD\nX --> Y\n\`\`\``;
     expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nX --> Y");

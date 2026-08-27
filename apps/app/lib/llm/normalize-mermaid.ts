@@ -5,6 +5,8 @@ const DIAGRAM_KEYWORDS: Record<string, string[]> = {
   flowchart: ["flowchart", "graph"],
   sequenceDiagram: ["sequencediagram"],
   classDiagram: ["classdiagram"],
+  erDiagram: ["erdiagram"],
+  "stateDiagram-v2": ["statediagram-v2", "statediagram"],
 };
 
 function getAllKeywords(): string[] {
@@ -25,9 +27,11 @@ function isValidMermaidStart(
 function extractFencedMermaid(raw: string): string | null {
   const trimmed = raw.trim();
 
-  const mermaidFenceMatch = trimmed.match(/```mermaid\n?([\s\S]*?)\n?```/i);
-  if (mermaidFenceMatch) {
-    return mermaidFenceMatch[1].trim();
+  const mermaidFences = [
+    ...trimmed.matchAll(/```mermaid\r?\n?([\s\S]*?)\r?\n?```/gi),
+  ];
+  if (mermaidFences.length > 0) {
+    return mermaidFences[mermaidFences.length - 1][1].trim();
   }
 
   const genericFenceMatch = trimmed.match(/```(\w*)\n?([\s\S]*?)\n?```/);

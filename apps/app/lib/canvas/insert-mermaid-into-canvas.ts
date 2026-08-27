@@ -3,6 +3,7 @@ import {
   convertToExcalidrawElements,
 } from "@excalidraw/excalidraw";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
+import { remapMermaidArrowheads } from "./mermaid-arrowheads";
 
 interface ExcalidrawElement {
   id: string;
@@ -145,6 +146,7 @@ export async function insertMermaidIntoCanvas(
   const newElements = convertToExcalidrawElements(skeleton, {
     regenerateIds: true,
   }) as ExcalidrawElement[];
+  remapMermaidArrowheads(newElements);
 
   const appState = api.getAppState();
   const containerDims = getContainerDimensions();

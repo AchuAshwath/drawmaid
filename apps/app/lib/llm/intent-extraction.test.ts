@@ -78,14 +78,14 @@ describe("extractIntent - Diagram Type (Backwards Scan)", () => {
   });
 
   describe("single keyword variants", () => {
-    it("sequence keyword alone", () => {
+    it("does not treat a generic sequence noun as an explicit type", () => {
       const result = extractIntent("make it a sequence");
-      expect(result.diagramType).toBe("sequenceDiagram");
+      expect(result.diagramType).toBeNull();
     });
 
-    it("class keyword alone", () => {
+    it("does not treat a generic class noun as an explicit type", () => {
       const result = extractIntent("draw a class");
-      expect(result.diagramType).toBe("classDiagram");
+      expect(result.diagramType).toBeNull();
     });
   });
 });
@@ -326,8 +326,8 @@ describe("buildErrorRecoveryPrompt", () => {
 
     const prompt = buildErrorRecoveryPrompt(context);
 
-    expect(prompt).toContain("INCOMPLETE EDGE OR INDENTATION");
-    expect(prompt).toContain("NO indentation");
+    expect(prompt).toContain("INCOMPLETE EDGE");
+    expect(prompt).not.toContain("NO indentation");
   });
 
   it("detects missing arrow error", () => {
@@ -409,7 +409,7 @@ describe("buildErrorRecoveryPrompt", () => {
     const prompt = buildErrorRecoveryPrompt(context);
 
     expect(prompt).toContain("STRICT RULES");
-    expect(prompt).toContain("NO indentation");
+    expect(prompt).not.toContain("NO indentation");
     expect(prompt).toContain("CORRECT EXAMPLE");
     expect(prompt).toContain("INCORRECT");
   });
