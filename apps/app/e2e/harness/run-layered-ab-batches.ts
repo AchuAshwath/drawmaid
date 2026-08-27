@@ -58,7 +58,7 @@ async function main() {
     arg("out-dir", "apps/app/e2e/harness/out-full/layered-ab-batches")!,
   );
   const concurrency = arg("concurrency", "4")!;
-  const root = resolve(import.meta.dirname, "../../../../..");
+  const root = resolve(import.meta.dirname, "../../../..");
   const ab = resolve(root, "apps/app/e2e/harness/ab.ts");
   const dryRun = process.argv.includes("--dry-run");
 
