@@ -1,5 +1,5 @@
 /** Run the seeded layered routing-on/off comparison batch by batch. */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import type { LayeredBatchManifest } from "./layered-batches";
@@ -58,21 +58,35 @@ async function main() {
     arg("out-dir", "apps/app/e2e/harness/out-full/layered-ab-batches")!,
   );
   const concurrency = arg("concurrency", "4")!;
+  const requestedBatch = arg("batch");
+  const batches = requestedBatch
+    ? manifest.batches.filter((batch) => batch.index === Number(requestedBatch))
+    : manifest.batches;
+  if (requestedBatch && batches.length !== 1) {
+    throw new Error(`unknown --batch ${requestedBatch}`);
+  }
   const root = resolve(import.meta.dirname, "../../../..");
   const ab = resolve(root, "apps/app/e2e/harness/ab.ts");
   const dryRun = process.argv.includes("--dry-run");
+  const resume = process.argv.includes("--resume");
 
   console.log(
-    `${manifest.batches.length} batches x ${manifest.batches[0]?.ids.length ?? 0} rows; ` +
-      `modes=${modes.join(",")}; estimated model calls=${estimateCalls(manifest, modes)}`,
+    `${batches.length} batches x ${manifest.batches[0]?.ids.length ?? 0} rows; ` +
+      `modes=${modes.join(",")}; estimated model calls=${estimateCalls({ ...manifest, batches }, modes)}`,
   );
   for (const mode of modes) {
-    for (const batch of manifest.batches) {
+    for (const batch of batches) {
       const out = resolve(
         outDir,
         `routing-${mode}`,
         `batch-${batch.index}.json`,
       );
+      if (resume && existsSync(out)) {
+        console.log(
+          `\nskipping existing: routing=${mode} batch=${batch.index}`,
+        );
+        continue;
+      }
       const args = [
         ab,
         "--model",
