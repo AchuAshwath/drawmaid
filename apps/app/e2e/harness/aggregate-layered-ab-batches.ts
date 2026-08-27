@@ -1,5 +1,11 @@
 /** Deduplicate adjacent-batch overlap and create one scoreable pair file. */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { LayeredBatchManifest } from "./layered-batches";
 
@@ -36,17 +42,29 @@ function main() {
   const pairsByKey = new Map<string, Pair>();
   let model: string | undefined;
   for (const batch of manifest.batches) {
-    const path = resolve(dir, `batch-${batch.index}.json`);
-    const file = JSON.parse(readFileSync(path, "utf8")) as {
-      meta?: { model?: string };
-      pairs: Pair[];
-    };
-    model ??= file.meta?.model;
-    for (const pair of file.pairs) {
-      if (!expectedIds.has(pair.id))
-        throw new Error(`unexpected id ${pair.id}`);
-      const key = `${pair.id}:${pair.level}`;
-      if (!pairsByKey.has(key)) pairsByKey.set(key, pair);
+    const chunkDir = resolve(dir, `batch-${batch.index}`);
+    const paths = existsSync(chunkDir)
+      ? readdirSync(chunkDir)
+          .filter((name) => /^chunk-\d+\.json$/.test(name))
+          .sort(
+            (a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]),
+          )
+          .map((name) => resolve(chunkDir, name))
+      : [resolve(dir, `batch-${batch.index}.json`)];
+    if (!paths.length)
+      throw new Error(`no chunks found for batch ${batch.index}`);
+    for (const path of paths) {
+      const file = JSON.parse(readFileSync(path, "utf8")) as {
+        meta?: { model?: string };
+        pairs: Pair[];
+      };
+      model ??= file.meta?.model;
+      for (const pair of file.pairs) {
+        if (!expectedIds.has(pair.id))
+          throw new Error(`unexpected id ${pair.id}`);
+        const key = `${pair.id}:${pair.level}`;
+        if (!pairsByKey.has(key)) pairsByKey.set(key, pair);
+      }
     }
   }
   const expected = new Set(

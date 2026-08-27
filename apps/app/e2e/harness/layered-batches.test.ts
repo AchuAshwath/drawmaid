@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLayeredBatches } from "./layered-batches";
+import { splitIds } from "./run-layered-ab-batches";
 import { ALL_TRANSCRIPTS } from "../../fixtures/transcripts-multi";
 
 describe("layered A/B batch sampling", () => {
@@ -34,5 +35,14 @@ describe("layered A/B batch sampling", () => {
         overlap: 0,
       }),
     ).toThrow(/unique transcripts/);
+  });
+
+  it("splits work into resumable chunks", () => {
+    expect(splitIds(["a", "b", "c", "d", "e"], 2)).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+      ["e"],
+    ]);
+    expect(() => splitIds(["a"], 0)).toThrow(/positive integer/);
   });
 });
