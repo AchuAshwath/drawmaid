@@ -148,8 +148,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         taskEpochRef.current.delete(task);
         return;
       }
-      taskEpochRef.current.delete(task);
       if (!result || result.trim() === "NO_DIAGRAM" || !api) {
+        taskEpochRef.current.delete(task);
         return;
       }
 
@@ -184,6 +184,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           },
         );
         onError?.(drawmaidError);
+        taskEpochRef.current.delete(task);
         return;
       }
 
@@ -219,6 +220,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           },
         );
         onError?.(drawmaidError);
+      } finally {
+        taskEpochRef.current.delete(task);
       }
     },
     [excalidrawApiRef],
