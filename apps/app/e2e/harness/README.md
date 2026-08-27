@@ -148,6 +148,9 @@ cd apps/app && HARNESS_IN=e2e/harness/flat-image-smoke.json \
   bunx playwright test e2e/harness/render.playwright.ts
 ```
 
+Set `HARNESS_TYPE` to show one flat-image type at a time, for example
+`HARNESS_TYPE=gantt`.
+
 Smoke-test the render stage with no CPA at all. `smoke-generated.json` holds
 eight hand-written records covering all five editable types, a requested gantt,
 an unrequested gantt and a correct refusal:
