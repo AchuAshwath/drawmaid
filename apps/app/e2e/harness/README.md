@@ -138,9 +138,15 @@ HARNESS_DWELL_MS=2500 \
 bunx playwright test e2e/harness/ab.playwright.ts --headed
 ```
 
-The six on-request flat-image types are covered by the existing hand-written
-demo and smoke fixtures; they do not consume Gemini quota and are not included
-in the Low/Medium/High editable-shape loop.
+The six on-request flat-image types have a no-LLM fixture in
+`flat-image-smoke.json`; they do not consume Gemini quota and are not included
+in the Low/Medium/High editable-shape loop. Render that fixture later with:
+
+```bash
+cd apps/app && HARNESS_IN=e2e/harness/flat-image-smoke.json \
+  HARNESS_OUT=e2e/harness/out-flat-image-smoke \
+  bunx playwright test e2e/harness/render.playwright.ts
+```
 
 Smoke-test the render stage with no CPA at all. `smoke-generated.json` holds
 eight hand-written records covering all five editable types, a requested gantt,
