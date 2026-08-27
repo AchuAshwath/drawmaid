@@ -5,3 +5,4 @@ states, in their stated order. Declare participants first, use simple IDs,
 and use `->>` / `-->>` message lines only unless another construct is required
 to preserve explicit meaning. Do not add replies, notes, branches, loops,
 activations, numbering, or styling just to make a small exchange look richer.
+Every message must include a short label after `:`; a bare arrow is invalid.
