@@ -84,7 +84,7 @@ the pair file and report together:
 ```bash
 HARNESS_CPA_URL=http://127.0.0.1:8317/v1 \
 bun apps/app/e2e/harness/tuning/tune.ts --type erDiagram \
-  --model gemini-3.6-flash-high --sample 6 --name er-first-pass
+  --model gemini-3.6-flash-high --corpus er --sample 12 --name er-first-pass
 ```
 
 Edit one `*.append.md` file under
@@ -95,6 +95,8 @@ room to choose valid constructs. Palette contracts also cap accidental
 over-colouring rather than rewarding more colour.
 
 `ab.ts` accepts `--type` and `--prompt-dir` for the underlying A/B run.
+Pass `--corpus balanced` for the cross-type sampler; the ER loop defaults to
+the ER-focused corpus, which also includes multi-diagram ER cases.
 `ab.playwright.ts` accepts `HARNESS_AB_SHOTS` so each tuning run can keep its
 screenshots separate.
 

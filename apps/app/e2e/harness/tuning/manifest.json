@@ -105,8 +105,7 @@
             "label": "typed attributes are present",
             "any": [
               "\\{[\\s\\S]*\\b(?:string|int|uuid|date|timestamp|decimal|float|boolean|text)\\b"
-            ],
-            "required": true
+            ]
           },
           {
             "id": "keys",
@@ -128,7 +127,8 @@
               "_ITEM\\s*\\{",
               "_JOIN\\s*\\{",
               "BRIDGE\\s*\\{",
-              "JOIN\\s*\\{"
+              "JOIN\\s*\\{",
+              "[A-Z][A-Z0-9_]*\\s*\\{(?=[^}]*\\bFK\\b[^}]*\\bFK\\b)[^}]*\\}"
             ]
           },
           {

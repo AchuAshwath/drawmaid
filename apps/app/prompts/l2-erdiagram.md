@@ -8,4 +8,6 @@ cardinality, keys, attributes, and bridge entities instead. When the source
 clearly distinguishes entity roles, a small palette is available through
 `style ENTITY fill:#...,stroke:#...`; use at most two or three styles for clear
 roles, and leave the other tables plain. Colour added without a role is a
-regression, not extra detail.
+regression, not extra detail. If an ER diagram is pasted, preserve its
+entities and relationships and add only what the user requests; do not invent
+fields or tables to make it look fuller.

@@ -120,7 +120,12 @@ export function scoreFile(input: string, type: DiagramType): TuningReport {
   const byId = new Map<string, ContractResult[]>();
   for (const pair of data.pairs) {
     const transcript = ALL_TRANSCRIPTS.find((t) => t.id === pair.id);
-    if (!transcript || transcript.expectedType !== type) continue;
+    if (
+      !transcript ||
+      (transcript.expectedType !== type &&
+        !transcript.expectedTypes?.some((expected) => expected === type))
+    )
+      continue;
     const code = pair.docs.join("\n");
     const result = scoreContracts(pair.id, pair.level, code, type);
     rows.push({

@@ -29,6 +29,13 @@ const read = (rel: string) => readFileSync(here(rel), "utf8").trim();
 const L0 = read("../../prompts/l0-core.md");
 const LOW = read("../../prompts/l1-low.md");
 const MEDIUM = read("../../prompts/l1-medium.md");
+const TYPE_PROMPTS: Partial<Record<DiagramType, string>> = {
+  flowchart: read("../../prompts/l2-flowchart.md"),
+  sequenceDiagram: read("../../prompts/l2-sequence.md"),
+  classDiagram: read("../../prompts/l2-class.md"),
+  erDiagram: read("../../prompts/l2-erdiagram.md"),
+  "stateDiagram-v2": read("../../prompts/l2-statediagram.md"),
+};
 /**
  * High is two calls. The plan pass runs WITHOUT L0, because L0 opens with
  * "Return ```mermaid fences and nothing else" and an earlier instruction beats
@@ -172,6 +179,7 @@ async function main() {
     "high-render.append.md",
     HIGH_RENDER,
   );
+  const typePrompt = onlyType ? (TYPE_PROMPTS[onlyType]?.trim() ?? "") : "";
 
   // `--corpus long` swaps the eight hand-picked short entries for the ten
   // long-form ones. The short set cannot separate Medium from High: High's
@@ -288,7 +296,11 @@ async function main() {
   }
 
   if (onlyType) {
-    picked = picked.filter((t) => t.expectedType === onlyType);
+    picked = picked.filter(
+      (t) =>
+        t.expectedType === onlyType ||
+        t.expectedTypes?.some((expected) => expected === onlyType),
+    );
   }
 
   const jobs = picked.flatMap((t) => LEVELS.map((level) => ({ t, level })));
@@ -339,14 +351,18 @@ async function main() {
         // was Low with two calls. Handing over the text lets the brief carry
         // decisions only.
         const d = await call(
-          `${L0}\n\n${highRenderPrompt}`,
+          [L0, highRenderPrompt, typePrompt].filter(Boolean).join("\n\n"),
           `${t.text}\n\n## Brief\n\n${p.text}`,
           model,
         );
         r = { text: d.text, ms: p.ms + d.ms, error: p.error ?? d.error };
       } else {
         const l1 = level === "low" ? lowPrompt : mediumPrompt;
-        r = await call(`${L0}\n\n${l1}`, t.text, model);
+        r = await call(
+          [L0, l1, typePrompt].filter(Boolean).join("\n\n"),
+          t.text,
+          model,
+        );
       }
       const docs = fences(r.text);
       const all = docs.join("\n");

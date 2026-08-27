@@ -24,6 +24,19 @@ describe("visual tuning contracts", () => {
     expect(medium.features.find((f) => f.id === "keys")?.passed).toBe(true);
   });
 
+  it("does not fail a source-limited ER edit for missing invented fields", () => {
+    const medium = scoreContracts(
+      "er-edit",
+      "medium",
+      'erDiagram\nAUTHOR ||--o{ BOOK : "writes"\nPUBLISHER ||--o{ BOOK : "publishes"',
+      "erDiagram",
+    );
+    expect(medium.passed).toBe(true);
+    expect(medium.features.find((f) => f.id === "typed-fields")?.passed).toBe(
+      false,
+    );
+  });
+
   it("reports what a higher level adds", () => {
     const low = scoreContracts(
       "flow-case",

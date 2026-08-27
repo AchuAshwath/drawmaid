@@ -43,6 +43,10 @@ async function main() {
   const sample = Number(
     arg("sample", String(contractManifest.types[type].sample)),
   );
+  const corpus = arg(
+    "corpus",
+    type === "erDiagram" ? "er" : "balanced",
+  ) as string;
   const seed = arg("seed", "1") as string;
   const variant = arg("variant", `tuning/variants/${type}`) as string;
   const stamp = arg("name", `gemini-${type}-${Date.now()}`) as string;
@@ -65,7 +69,7 @@ async function main() {
     "--model",
     model,
     "--corpus",
-    "balanced",
+    corpus,
     "--type",
     type,
     "--sample",
