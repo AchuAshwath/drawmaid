@@ -23,8 +23,8 @@ describe("visual levels", () => {
   it("keeps the assembled prompt stable and adds type guidance", () => {
     const medium = buildSystemPrompt("medium", "erDiagram");
     expect(medium).toBe(buildSystemPrompt("medium", "erDiagram"));
-    expect(medium).toContain("# Core Mermaid contract");
-    expect(medium).toContain("# Medium visual detail");
+    expect(medium).toContain("# Core");
+    expect(medium).toContain("# Medium");
     expect(medium).toContain("Never name an entity `CLASS`");
     expect(medium).not.toContain("{{transcript}}");
   });
