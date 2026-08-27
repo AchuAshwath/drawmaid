@@ -44,7 +44,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
   const generationEpochRef = useRef(0);
-  const taskEpochRef = useRef(new Map<number, number>());
+  const taskEpochRef = useRef(new WeakMap<object, number>());
   const lastProcessedRef = useRef("");
   const optionsRef = useRef(options);
   const transcriptRef = useRef(transcript);
@@ -67,7 +67,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       setIsGenerating(true);
       onGeneratingChange?.(true);
       const epoch = generationEpochRef.current;
-      if (task.id !== undefined) taskEpochRef.current.set(task.id, epoch);
+      taskEpochRef.current.set(task, epoch);
 
       const isLocal =
         isLocalServerConfigured || models.some((m) => m.id === model);
@@ -144,14 +144,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         localModels: models,
       } = optionsRef.current;
       const api = excalidrawApiRef.current;
-      if (
-        task.id !== undefined &&
-        taskEpochRef.current.get(task.id) !== generationEpochRef.current
-      ) {
-        taskEpochRef.current.delete(task.id);
+      if (taskEpochRef.current.get(task) !== generationEpochRef.current) {
+        taskEpochRef.current.delete(task);
         return;
       }
-      if (task.id !== undefined) taskEpochRef.current.delete(task.id);
+      taskEpochRef.current.delete(task);
       if (!result || result.trim() === "NO_DIAGRAM" || !api) {
         return;
       }
@@ -229,6 +226,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   useEffect(() => {
     if (!isAutoMode) {
+      generationEpochRef.current++;
+      taskEpochRef.current = new WeakMap();
       engineRef.current?.stop();
       engineRef.current = null;
       return;
@@ -262,7 +261,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   useEffect(() => {
     if (!isAutoMode || !engineRef.current) return;
     generationEpochRef.current++;
-    taskEpochRef.current.clear();
+    taskEpochRef.current = new WeakMap();
     engineRef.current.stop();
     engineRef.current = new AutoModeEngine(
       { settlingMs: visualLevel === "high" ? 4500 : 1500 },
@@ -275,6 +274,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   useEffect(() => {
     return () => {
+      generationEpochRef.current++;
+      taskEpochRef.current = new WeakMap();
       engineRef.current?.stop();
       engineRef.current = null;
     };
