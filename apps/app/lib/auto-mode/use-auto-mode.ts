@@ -192,7 +192,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
       try {
         logInfo("CANVAS", `Inserting diagram for task #${task.id ?? "?"}`);
-        await insertMermaidIntoCanvas(api, mermaidCode, { replace: true });
+        await insertMermaidIntoCanvas(api, mermaidCode, {
+          replace: true,
+          isStillCurrent: () =>
+            taskEpochRef.current.get(task) === generationEpochRef.current,
+        });
         lastProcessedRef.current = task.transcript;
         logInfo("CANVAS", `Diagram rendered successfully on canvas`);
       } catch (error) {

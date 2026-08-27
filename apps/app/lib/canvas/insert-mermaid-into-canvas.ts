@@ -139,7 +139,7 @@ function positionElementsAtViewportCenter(
 export async function insertMermaidIntoCanvas(
   api: ExcalidrawCanvasApi,
   mermaidCode: string,
-  options?: { replace?: boolean },
+  options?: { replace?: boolean; isStillCurrent?: () => boolean },
 ): Promise<void> {
   const { elements: skeleton, files } =
     await parseMermaidToExcalidraw(mermaidCode);
@@ -162,6 +162,11 @@ export async function insertMermaidIntoCanvas(
   );
 
   const current = api.getSceneElements() as ExcalidrawElement[];
+
+  // Auto mode can be superseded while the converter is awaiting Mermaid's
+  // parser. Check immediately before the synchronous scene mutation so stale
+  // output never lands after a tier/mode change or component unmount.
+  if (options?.isStillCurrent && !options.isStillCurrent()) return;
 
   let elementsToInsert: ExcalidrawElement[];
 
