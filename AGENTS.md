@@ -54,3 +54,17 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 - Use precise TypeScript types. Avoid `any` and unnecessary type assertions — let the compiler enforce correctness.
 - Document non-obvious trade-offs and decisions. Explain why, not what — every word must add value.
 - Prompts and configs should be externalized to `.md`/`.json` files for easy iteration without code changes.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub issues in `AchuAshwath/drawmaid` are the tracker; use `gh` and keep PRs out of the triage request surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the canonical `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. Read the root `CONTEXT.md` and relevant `docs/adr/` records before architectural work. See `docs/agents/domain.md`.
