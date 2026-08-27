@@ -30,8 +30,7 @@
           {
             "id": "semantic-emphasis",
             "label": "semantic emphasis is present",
-            "any": ["classDef\\s", ":::", "==>", "stroke-width"],
-            "required": true
+            "any": ["classDef\\s", ":::", "==>", "stroke-width"]
           },
           {
             "id": "terminality",
