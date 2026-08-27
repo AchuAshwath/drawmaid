@@ -108,10 +108,10 @@ drops. Point it at a node inside.
 
 Colour says in one glance what a label would need a sentence for.
 
-Colour is optional, not decoration. Use it only when the text gives a clear
-success, failure, risk, owner or kind distinction; keep the palette small and
-leave everything else plain. Usually zero, one, or two accents are enough;
-never colour a whole diagram just to make it look richer. More colour is not
+Colour is optional, not decoration. On a small, simple diagram leave the
+canvas plain; use it when a larger or confusing diagram becomes faster to
+scan. It must carry a clear success, failure, risk, owner or kind distinction;
+keep the palette small and leave everything else plain. More colour is not
 more detail.
 
 Two readings a reader brings without being told.

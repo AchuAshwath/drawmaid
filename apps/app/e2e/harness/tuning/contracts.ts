@@ -47,6 +47,91 @@ export interface ContractResult {
   features: FeatureResult[];
 }
 
+export type ColourRestraintStatus =
+  | "plain"
+  | "purposeful-scale"
+  | "small-colour"
+  | "over-colour";
+
+export interface ColourRestraint {
+  status: ColourRestraintStatus;
+  entityCount: number;
+  styledCount: number;
+  distinctFills: number;
+}
+
+/**
+ * Colour is useful when it lowers search cost in a dense diagram. This is a
+ * warning signal rather than a hard contract: the scorer cannot know every
+ * visual context, but it can make accidental colouring of tiny ER schemas
+ * visible for human review.
+ */
+export function scoreColourRestraint(
+  docs: string[],
+  type: DiagramType,
+): ColourRestraint {
+  if (type !== "erDiagram") {
+    return {
+      status: "plain",
+      entityCount: 0,
+      styledCount: 0,
+      distinctFills: 0,
+    };
+  }
+  const perDoc = docs.map((code) => {
+    const entityCount = [...code.matchAll(/^\s*[A-Za-z_][A-Za-z0-9_]*\s*\{/gim)]
+      .length;
+    const styleLines = [...code.matchAll(/^\s*style\s+[^\n]+/gim)].map(
+      (m) => m[0],
+    );
+    const fills = new Set(
+      styleLines.flatMap((line) => {
+        const match = /\bfill:\s*([^,\s]+)/i.exec(line);
+        return match ? [match[1].toLowerCase()] : [];
+      }),
+    );
+    const styledCount = styleLines.length;
+    const status: ColourRestraintStatus =
+      styledCount === 0
+        ? "plain"
+        : styledCount > 3 || fills.size > 3
+          ? "over-colour"
+          : entityCount <= 5
+            ? "small-colour"
+            : "purposeful-scale";
+    return { status, entityCount, styledCount, distinctFills: fills.size };
+  });
+  const rank: Record<ColourRestraintStatus, number> = {
+    plain: 0,
+    "purposeful-scale": 1,
+    "small-colour": 2,
+    "over-colour": 3,
+  };
+  const worst = perDoc.reduce(
+    (a, b) => (rank[b.status] > rank[a.status] ? b : a),
+    perDoc[0] ?? {
+      status: "plain" as const,
+      entityCount: 0,
+      styledCount: 0,
+      distinctFills: 0,
+    },
+  );
+  const allFills = new Set(
+    docs.flatMap((code) =>
+      [...code.matchAll(/^\s*style\s+[^\n]+/gim)].flatMap((m) => {
+        const fill = /\bfill:\s*([^,\s]+)/i.exec(m[0]);
+        return fill ? [fill[1].toLowerCase()] : [];
+      }),
+    ),
+  );
+  return {
+    status: worst.status,
+    entityCount: perDoc.reduce((n, x) => n + x.entityCount, 0),
+    styledCount: perDoc.reduce((n, x) => n + x.styledCount, 0),
+    distinctFills: allFills.size,
+  };
+}
+
 function firstEvidence(code: string, patterns: string[]): string | null {
   for (const source of patterns) {
     const match = new RegExp(source, "im").exec(code);

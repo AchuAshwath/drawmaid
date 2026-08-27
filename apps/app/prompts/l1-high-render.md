@@ -106,10 +106,11 @@ hue seen twice means the two are the same kind. Different kinds want different
 hues rather than two shades of one. Shades of a single hue say degree, and
 deepening along a sequence reads as travelling along it.
 
-Colour a few things and they stand out. Colour everything and nothing does.
-Use colour only for a distinction the source supports, with one restrained
-palette of at most three accents. If no such distinction is clear, plain is the
-right High result; colour added for decoration is a regression.
+Colour is a scarce channel. On a small, simple diagram, leave the canvas plain;
+reserve colour for a large or confusing diagram where it reduces search time.
+Use it only for a distinction the source supports, with one restrained palette
+of at most three accents. If colour does not make a dense diagram easier to
+read, plain is the right High result; decoration is a regression.
 Before returning a fence, count its colour rules: keep at most three styled
 nodes and at most three distinct fills. If more would be useful, keep the
 three distinctions that answer the diagram's question and leave the rest
@@ -140,13 +141,6 @@ border.
 `classDef name fill:…,stroke:…,stroke-width:…` then `A:::name`, or
 `class A,B,C name` for several at once. One class per node: `class A one,two`
 silently applies neither.
-
-`erDiagram` carries no `classDef`. Its meaning lives in relationship labels,
-cardinality, keys and bridge entities. Mermaid ER also accepts `style ENTITY
-fill:#...,stroke:#...` for a small role-based palette; use that only where the
-source gives clear roles. At High, when at least two roles are clear, make that
-distinction visible with two or three styles; leave an undifferentiated schema
-plain.
 
 ## Labels
 

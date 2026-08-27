@@ -7,9 +7,10 @@ the two references, then connect each parent to it. Preserve a join entity the
 source already provides and do not add a redundant one. When the source clearly
 gives entities different roles, a small palette may use Mermaid's native `style ENTITY
 fill:#...,stroke:#...` lines. Do not use `classDef`, and do not colour every
-table when the source gives no meaningful roles. Use at most two or three
-styles, only when each one names a real role; otherwise plain is the honest
-result. When a diagram is pasted, preserve its entities and relationships;
+table when the source gives no meaningful roles. A small, readable schema
+should stay plain even when roles differ; reserve two or three styles for a
+large or confusing schema where they reduce search time. When a diagram is
+pasted, preserve its entities and relationships;
 do not invent fields or tables that the source does not provide, except for the
 specific additions requested by the user.
 Before returning each ER fence, count the `style` lines and keep at most three

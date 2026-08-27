@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { scoreContracts, scoreDistinctness } from "./contracts";
+import {
+  scoreColourRestraint,
+  scoreContracts,
+  scoreDistinctness,
+} from "./contracts";
 
 describe("visual tuning contracts", () => {
   it("scores evidence without requiring one exact Mermaid spelling", () => {
@@ -82,5 +86,35 @@ describe("visual tuning contracts", () => {
       count: 4,
       maxMatches: 3,
     });
+  });
+
+  it("flags colour on a small ER schema while allowing it on a dense one", () => {
+    expect(
+      scoreColourRestraint(
+        [
+          [
+            "erDiagram",
+            "A { string id PK }",
+            "B { string id PK }",
+            "style A fill:#a5d8ff",
+            "style B fill:#eebefa",
+          ].join("\n"),
+        ],
+        "erDiagram",
+      ).status,
+    ).toBe("small-colour");
+    expect(
+      scoreColourRestraint(
+        [
+          [
+            "erDiagram",
+            ...Array.from({ length: 8 }, (_, i) => `E${i} { string id PK }`),
+            "style E0 fill:#a5d8ff",
+            "style E1 fill:#eebefa",
+          ].join("\n"),
+        ],
+        "erDiagram",
+      ).status,
+    ).toBe("purposeful-scale");
   });
 });

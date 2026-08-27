@@ -10,6 +10,7 @@ import { dirname } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { ALL_TRANSCRIPTS } from "../../../fixtures/transcripts-multi";
 import {
+  scoreColourRestraint,
   scoreContracts,
   scoreDistinctness,
   type ContractResult,
@@ -40,6 +41,7 @@ interface ScoreRow {
   level: TuningLevel;
   docs: number;
   result: ContractResult;
+  colour: ReturnType<typeof scoreColourRestraint>;
 }
 
 export interface TuningReport {
@@ -92,8 +94,9 @@ function markdown(report: TuningReport): string {
           `${f.passed ? "✓" : "·"} ${f.id}${f.evidence ? ` (${f.evidence})` : ""}`,
       )
       .join("; ");
+    const colour = `${row.colour.status} (${row.colour.styledCount}/${row.colour.entityCount} entities, ${row.colour.distinctFills} fills)`;
     lines.push(
-      `| ${row.id} | ${row.level} | ${row.result.passed ? "✓" : "·"} | ${row.docs} | ${features} |`,
+      `| ${row.id} | ${row.level} | ${row.result.passed ? "✓" : "·"} | ${row.docs} | ${features}; · colour ${colour} |`,
     );
   }
   lines.push(
@@ -135,6 +138,7 @@ export function scoreFile(input: string, type: DiagramType): TuningReport {
       level: pair.level,
       docs: pair.docs.length,
       result,
+      colour: scoreColourRestraint(pair.docs, type),
     });
     const list = byId.get(pair.id) ?? [];
     list.push(result);
