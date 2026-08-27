@@ -74,6 +74,30 @@ parsing (#40/#50, #34), not a specific Chromium revision. Set
 `--out`, `--concurrency`.
 `render.playwright.ts` env: `HARNESS_IN`, `HARNESS_OUT`, `HARNESS_SHOT_LIMIT`.
 
+### One-type visual tuning loop
+
+For prompt work, tune one editable type at a time. The loop uses Gemini by
+default, samples that type across use cases, appends only the files present in
+the selected variant directory, scores observable visual contracts, and writes
+the pair file and report together:
+
+```bash
+HARNESS_CPA_URL=http://127.0.0.1:8317/v1 \
+bun apps/app/e2e/harness/tuning/tune.ts --type erDiagram \
+  --model gemini-3.6-flash-high --sample 6 --name er-first-pass
+```
+
+Edit one `*.append.md` file under
+`e2e/harness/tuning/variants/<type>/`, rerun with the same name, and compare
+`report.md`. Contracts are evidence checks, not a closed Mermaid vocabulary:
+they make Low/Medium/High differences measurable while leaving future models
+room to choose valid constructs. Palette contracts also cap accidental
+over-colouring rather than rewarding more colour.
+
+`ab.ts` accepts `--type` and `--prompt-dir` for the underlying A/B run.
+`ab.playwright.ts` accepts `HARNESS_AB_SHOTS` so each tuning run can keep its
+screenshots separate.
+
 Smoke-test the render stage with no CPA at all. `smoke-generated.json` holds
 eight hand-written records covering all five editable types, a requested gantt,
 an unrequested gantt and a correct refusal:

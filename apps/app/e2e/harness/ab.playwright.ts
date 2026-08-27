@@ -12,10 +12,13 @@
 import { test } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { resolve } from "node:path";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const IN = process.env.HARNESS_AB_IN ?? here("out-ab/pairs.json");
-const SHOTS = here("out-ab/shots");
+const SHOTS = process.env.HARNESS_AB_SHOTS
+  ? resolve(process.env.HARNESS_AB_SHOTS)
+  : here("out-ab/shots");
 const DWELL_MS = Number(process.env.HARNESS_DWELL_MS ?? "6000");
 /** Space between the Low column and the Medium column, in scene units. */
 const GUTTER = 160;

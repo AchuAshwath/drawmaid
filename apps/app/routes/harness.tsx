@@ -35,6 +35,8 @@ interface RunResult {
   /** #56's guard input. One image means gantt, degradation, or a parse error. */
   isSingleImage: boolean;
   fileCount: number;
+  /** Number of converted containers carrying a fill colour. */
+  styledFills: number;
   error?: string;
   errorName?: string;
 }
@@ -133,6 +135,11 @@ function Harness() {
           isSingleImage:
             converted.length === 1 && converted[0]?.type === "image",
           fileCount: files ? Object.keys(files).length : 0,
+          styledFills: converted.filter(
+            (el) =>
+              typeof el.backgroundColor === "string" &&
+              el.backgroundColor !== "transparent",
+          ).length,
         };
       } catch (err) {
         return {
@@ -142,6 +149,7 @@ function Harness() {
           types: {},
           isSingleImage: false,
           fileCount: 0,
+          styledFills: 0,
           error: err instanceof Error ? err.message : String(err),
           errorName: err instanceof Error ? err.name : typeof err,
         };

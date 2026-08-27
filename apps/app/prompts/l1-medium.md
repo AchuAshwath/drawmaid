@@ -108,6 +108,12 @@ drops. Point it at a node inside.
 
 Colour says in one glance what a label would need a sentence for.
 
+Colour is optional, not decoration. Use it only when the text gives a clear
+success, failure, risk, owner or kind distinction; keep the palette small and
+leave everything else plain. Usually zero, one, or two accents are enough;
+never colour a whole diagram just to make it look richer. More colour is not
+more detail.
+
 Two readings a reader brings without being told.
 
 - **Green is the path that worked**, the success, the thing that is fine.

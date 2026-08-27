@@ -48,15 +48,17 @@ describe("acceptance 2: the types the shipped normalizer throws away", () => {
     });
   }
 
-  it("the shipped normalizer returns null for erDiagram and stateDiagram-v2", () => {
-    // The defect #56 was opened for, pinned so it cannot be argued about.
+  it("the shipped normalizer accepts all five editable types", () => {
+    // #56 was opened for these two types being discarded. The prototype fixes
+    // are now part of the branch, so keep the regression check pointed at the
+    // current contract rather than the historical failure.
     expect(
       normalizeMermaid(fence("erDiagram\nA ||--o{ B : has"), null),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(
       normalizeMermaid(fence("stateDiagram-v2\n[*] --> Idle"), null),
-    ).toBeNull();
-    // ...while the three it knows pass fine.
+    ).not.toBeNull();
+    // ...and the three original types still pass fine.
     expect(
       normalizeMermaid(fence("flowchart TD\nA --> B"), null),
     ).not.toBeNull();

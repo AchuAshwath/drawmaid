@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "principle": "Contracts observe meaning that reached the diagram; they do not prescribe a closed Mermaid vocabulary.",
+  "types": {
+    "flowchart": {
+      "sample": 6,
+      "contracts": {
+        "low": [
+          {
+            "id": "process-shape",
+            "label": "steps are connected",
+            "any": ["-->"],
+            "required": true
+          }
+        ],
+        "medium": [
+          {
+            "id": "decision-context",
+            "label": "a condition is visible",
+            "any": ["-->|", "{[^}]+}"],
+            "required": true
+          },
+          {
+            "id": "grouping-or-loop",
+            "label": "grouping or repetition is visible",
+            "any": ["subgraph\\s", "-.->", "-->[^\\n]*\\n[^\\n]*-->"]
+          }
+        ],
+        "high": [
+          {
+            "id": "semantic-emphasis",
+            "label": "semantic emphasis is present",
+            "any": ["classDef\\s", ":::", "==>", "stroke-width"],
+            "required": true
+          },
+          {
+            "id": "terminality",
+            "label": "start or end is explicit",
+            "any": ["\\(\\(Start", "\\(\\(End", "\\[\\*\\]"]
+          }
+        ]
+      }
+    },
+    "sequenceDiagram": {
+      "sample": 6,
+      "contracts": {
+        "low": [
+          {
+            "id": "message-path",
+            "label": "parties exchange messages",
+            "any": ["participant\\s", "->>", "-->>"],
+            "required": true
+          }
+        ],
+        "medium": [
+          {
+            "id": "reply-or-context",
+            "label": "replies or context are visible",
+            "any": ["-->>", "Note\\s", "alt\\s", "loop\\s"],
+            "required": true
+          }
+        ],
+        "high": [
+          {
+            "id": "rich-sequence",
+            "label": "a type-specific sequence construct is present",
+            "any": [
+              "Note\\s",
+              "alt\\s",
+              "loop\\s",
+              "activate\\s",
+              "deactivate\\s"
+            ],
+            "required": true
+          },
+          {
+            "id": "directional-detail",
+            "label": "request/reply direction is explicit",
+            "any": ["->>", "-->>"],
+            "required": true
+          }
+        ]
+      }
+    },
+    "erDiagram": {
+      "sample": 6,
+      "contracts": {
+        "low": [
+          {
+            "id": "entities",
+            "label": "entities are present",
+            "any": ["erDiagram\\s+[A-Z][A-Z0-9_]*"],
+            "required": true
+          },
+          {
+            "id": "cardinality",
+            "label": "cardinality is explicit",
+            "any": ["\\|\\|--", "--o\\{", "\\|\\{"],
+            "required": true
+          }
+        ],
+        "medium": [
+          {
+            "id": "typed-fields",
+            "label": "typed attributes are present",
+            "any": [
+              "\\{[\\s\\S]*\\b(?:string|int|uuid|date|timestamp|decimal|float|boolean|text)\\b"
+            ],
+            "required": true
+          },
+          {
+            "id": "keys",
+            "label": "keys are marked when available",
+            "any": ["\\b(?:PK|FK|UK)\\b"]
+          }
+        ],
+        "high": [
+          {
+            "id": "relationship-meaning",
+            "label": "relationships carry a readable role",
+            "any": [":\\s*\\\"[^\\\"]+\\\"", ":\\s*[A-Za-z]"],
+            "required": true
+          },
+          {
+            "id": "many-to-many-shape",
+            "label": "many-to-many structure is made explicit",
+            "any": [
+              "_ITEM\\s*\\{",
+              "_JOIN\\s*\\{",
+              "BRIDGE\\s*\\{",
+              "JOIN\\s*\\{"
+            ]
+          },
+          {
+            "id": "semantic-colour",
+            "label": "a small role-based palette is used when useful",
+            "any": ["^\\s*style\\s+[A-Za-z_][A-Za-z0-9_]*\\s+fill:"],
+            "maxMatches": 3
+          }
+        ]
+      }
+    },
+    "classDiagram": {
+      "sample": 6,
+      "contracts": {
+        "low": [
+          {
+            "id": "class-shape",
+            "label": "classes and relationships are present",
+            "any": ["class\\s+\\w+", "<\\|--", "-->"],
+            "required": true
+          }
+        ],
+        "medium": [
+          {
+            "id": "members",
+            "label": "fields or methods are visible",
+            "any": ["\\{[\\s\\S]*[+#-]\\w+"],
+            "required": true
+          }
+        ],
+        "high": [
+          {
+            "id": "visibility",
+            "label": "member visibility is explicit",
+            "any": ["^[ \\t]*[+#-]\\w+"],
+            "required": true
+          },
+          {
+            "id": "relationship-kind",
+            "label": "inheritance or ownership is distinguished",
+            "any": ["<\\|--", "\\*--", "o--"]
+          }
+        ]
+      }
+    },
+    "stateDiagram-v2": {
+      "sample": 6,
+      "contracts": {
+        "low": [
+          {
+            "id": "state-path",
+            "label": "states and transitions are present",
+            "any": ["-->"],
+            "required": true
+          }
+        ],
+        "medium": [
+          {
+            "id": "triggers",
+            "label": "transition triggers are visible",
+            "any": ["-->[^\\n]*:\\s*\\S"],
+            "required": true
+          }
+        ],
+        "high": [
+          {
+            "id": "start-end",
+            "label": "start and end are explicit",
+            "any": ["\\[\\*\\]"],
+            "required": true
+          },
+          {
+            "id": "grouping-or-style",
+            "label": "grouping or semantic style is present",
+            "any": ["state\\s+\\\"", "classDef\\s", "class\\s"]
+          }
+        ]
+      }
+    }
+  }
+}

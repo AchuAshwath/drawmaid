@@ -107,6 +107,9 @@ hues rather than two shades of one. Shades of a single hue say degree, and
 deepening along a sequence reads as travelling along it.
 
 Colour a few things and they stand out. Colour everything and nothing does.
+Use colour only for a distinction the source supports, with one restrained
+palette of at most three accents. If no such distinction is clear, plain is the
+right High result; colour added for decoration is a regression.
 
 Five properties of a `classDef` reach the canvas. The rest are dropped.
 
@@ -134,7 +137,12 @@ border.
 `class A,B,C name` for several at once. One class per node: `class A one,two`
 silently applies neither.
 
-`erDiagram` carries no `classDef`. Its meaning lives in the relationship labels.
+`erDiagram` carries no `classDef`. Its meaning lives in relationship labels,
+cardinality, keys and bridge entities. Mermaid ER also accepts `style ENTITY
+fill:#...,stroke:#...` for a small role-based palette; use that only where the
+source gives clear roles. At High, when at least two roles are clear, make that
+distinction visible with two or three styles; leave an undifferentiated schema
+plain.
 
 ## Labels
 

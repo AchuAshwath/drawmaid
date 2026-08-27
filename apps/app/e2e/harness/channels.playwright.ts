@@ -53,6 +53,12 @@ const CASES: Record<string, string> = {
     string customerId FK
     int total
   }`,
+  "erDiagram: native style syntax": `erDiagram
+  USER ||--o{ ORDER : "places"
+  USER { string id PK }
+  ORDER { string id PK }
+  style USER fill:#a5d8ff,stroke:#1971c2,stroke-width:2px
+  style ORDER fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px`,
   "cylinder shape [(DB)]": `flowchart LR
   A[App] --> B[(Postgres)]
   B --> C[[Subroutine]]
@@ -153,7 +159,7 @@ test("which visual channels survive conversion", async ({ page }) => {
     }, doc);
     console.log(`\n## ${name}`);
     console.log(
-      `   ${r.status}  ${r.elementCount} elements  ${JSON.stringify(r.types)}`,
+      `   ${r.status}  ${r.elementCount} elements  ${r.styledFills} fills  ${JSON.stringify(r.types)}`,
     );
     if (r.error) console.log(`   ERROR ${r.error}`);
   }

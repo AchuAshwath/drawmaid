@@ -15,12 +15,13 @@
  *   bun apps/app/e2e/harness/ab.ts --model gemini-3.6-flash-high
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { ALL_TRANSCRIPTS } from "../../fixtures/transcripts-multi";
 import { LONG_TRANSCRIPTS } from "../../fixtures/transcripts-long";
 import { DIRECT_TRANSCRIPTS } from "../../fixtures/transcripts-direct";
 import type { Transcript } from "../../fixtures/transcripts";
+import { EDITABLE_TYPES, type DiagramType } from "./type-registry";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const read = (rel: string) => readFileSync(here(rel), "utf8").trim();
@@ -80,6 +81,25 @@ function arg(name: string, fallback?: string): string | undefined {
   return i !== -1 ? process.argv[i + 1] : fallback;
 }
 
+/**
+ * Tuning experiments are append-only. A variant can add one small observation
+ * without copying the whole production prompt, so changing one thing really
+ * means changing one thing. The base prompt remains the control.
+ */
+function appendPrompt(
+  dir: string | undefined,
+  name: string,
+  base: string,
+): string {
+  if (!dir) return base;
+  try {
+    const addition = readFileSync(resolve(dir, name), "utf8").trim();
+    return addition ? `${base.trim()}\n\n${addition}` : base;
+  } catch {
+    return base;
+  }
+}
+
 const fences = (raw: string): string[] =>
   [...raw.matchAll(/```(?:mermaid)?\r?\n?([\s\S]*?)```/gi)]
     .map((m) => m[1].trim())
@@ -135,6 +155,23 @@ async function main() {
   // therefore outside the narrowing, still sees a plain `string`.
   const model: string = modelArg;
   const out = arg("out", here("out-ab/pairs.json")) as string;
+  const onlyType = arg("type") as DiagramType | undefined;
+  if (onlyType && !(EDITABLE_TYPES as readonly string[]).includes(onlyType)) {
+    throw new Error(`--type must be one of: ${EDITABLE_TYPES.join(", ")}`);
+  }
+  const promptDir = arg("prompt-dir");
+  const lowPrompt = appendPrompt(promptDir, "low.append.md", LOW);
+  const mediumPrompt = appendPrompt(promptDir, "medium.append.md", MEDIUM);
+  const highPlanPrompt = appendPrompt(
+    promptDir,
+    "high-plan.append.md",
+    HIGH_PLAN,
+  );
+  const highRenderPrompt = appendPrompt(
+    promptDir,
+    "high-render.append.md",
+    HIGH_RENDER,
+  );
 
   // `--corpus long` swaps the eight hand-picked short entries for the ten
   // long-form ones. The short set cannot separate Medium from High: High's
@@ -189,7 +226,7 @@ async function main() {
       "erDiagram",
       "classDiagram",
       "stateDiagram-v2",
-    ];
+    ].filter((type) => !onlyType || type === onlyType);
     let x = seed * 2654435761;
     const rand = () => (x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32;
     const byType = new Map<string, Transcript[]>();
@@ -215,7 +252,7 @@ async function main() {
     const cases = [...new Set(ALL_TRANSCRIPTS.map((t) => t.useCase))].sort();
     picked = [];
     const seen = new Set<string>();
-    const want = sample || 20;
+    const want = sample || (onlyType ? 8 : 20);
     for (let i = 0; picked.length < want && i < want * 12; i++) {
       const ty = TYPES[i % TYPES.length];
       const uc = cases[(i + Math.floor(i / TYPES.length)) % cases.length];
@@ -248,6 +285,10 @@ async function main() {
       if (!t) throw new Error(`no transcript ${id}`);
       return t;
     });
+  }
+
+  if (onlyType) {
+    picked = picked.filter((t) => t.expectedType === onlyType);
   }
 
   const jobs = picked.flatMap((t) => LEVELS.map((level) => ({ t, level })));
@@ -289,7 +330,7 @@ async function main() {
       let plan: string | undefined;
       let r: { text: string; ms: number; error?: string };
       if (level === "high") {
-        const p = await call(HIGH_PLAN, t.text, model);
+        const p = await call(highPlanPrompt, t.text, model);
         plan = p.text;
         // The render pass gets the ORIGINAL TEXT as well as the brief. Without
         // it the brief had to enumerate every node, which turned the plan into
@@ -298,13 +339,13 @@ async function main() {
         // was Low with two calls. Handing over the text lets the brief carry
         // decisions only.
         const d = await call(
-          `${L0}\n\n${HIGH_RENDER}`,
+          `${L0}\n\n${highRenderPrompt}`,
           `${t.text}\n\n## Brief\n\n${p.text}`,
           model,
         );
         r = { text: d.text, ms: p.ms + d.ms, error: p.error ?? d.error };
       } else {
-        const l1 = level === "low" ? LOW : MEDIUM;
+        const l1 = level === "low" ? lowPrompt : mediumPrompt;
         r = await call(`${L0}\n\n${l1}`, t.text, model);
       }
       const docs = fences(r.text);
