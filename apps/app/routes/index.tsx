@@ -355,7 +355,7 @@ function Home() {
           setIsProcessing(true);
           const recoveredOutput = await generate(errorPrompt, {
             systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
-            maxTokens: 1024,
+            maxTokens: getVisualTier(visualLevel).maxTokens,
             modelId: currentModel,
             useLocalServer,
             timeoutMs: getVisualTier(visualLevel).timeoutMs,
@@ -421,7 +421,7 @@ function Home() {
       try {
         const recoveredOutput = await generate(errorPrompt, {
           systemPrompt: buildSystemPrompt(visualLevel, intent.diagramType),
-          maxTokens: 512,
+          maxTokens: getVisualTier(visualLevel).maxTokens,
           modelId: currentModel,
           useLocalServer,
           timeoutMs: getVisualTier(visualLevel).timeoutMs,

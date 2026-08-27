@@ -24,14 +24,20 @@ function isValidMermaidStart(
   return getAllKeywords().some((kw) => lower.startsWith(kw));
 }
 
-function extractFencedMermaid(raw: string): string | null {
+function extractFencedMermaid(
+  raw: string,
+  diagramType: string | null,
+): string | null {
   const trimmed = raw.trim();
 
   const mermaidFences = [
     ...trimmed.matchAll(/```mermaid\r?\n?([\s\S]*?)\r?\n?```/gi),
   ];
-  if (mermaidFences.length > 0) {
-    return mermaidFences[mermaidFences.length - 1][1].trim();
+  for (let i = mermaidFences.length - 1; i >= 0; i--) {
+    const content = mermaidFences[i][1].trim();
+    if (isValidMermaidStart(content.split("\n")[0], diagramType)) {
+      return content;
+    }
   }
 
   const genericFenceMatch = trimmed.match(/```(\w*)\n?([\s\S]*?)\n?```/);
@@ -113,7 +119,7 @@ export function normalizeMermaid(
 
   let extracted: string | null = null;
 
-  extracted = extractFencedMermaid(raw);
+  extracted = extractFencedMermaid(raw, diagramType);
   if (extracted) {
     const firstLine = extracted.split("\n")[0];
     if (isValidMermaidStart(firstLine, diagramType)) {

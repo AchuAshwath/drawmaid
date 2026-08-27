@@ -43,6 +43,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
+  const generationEpochRef = useRef(0);
+  const taskEpochRef = useRef(new Map<number, number>());
   const lastProcessedRef = useRef("");
   const optionsRef = useRef(options);
   const transcriptRef = useRef(transcript);
@@ -64,6 +66,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
       setIsGenerating(true);
       onGeneratingChange?.(true);
+      const epoch = generationEpochRef.current;
+      if (task.id !== undefined) taskEpochRef.current.set(task.id, epoch);
 
       const isLocal =
         isLocalServerConfigured || models.some((m) => m.id === model);
@@ -120,8 +124,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onError?.(drawmaidError);
         return null;
       } finally {
-        setIsGenerating(false);
-        onGeneratingChange?.(false);
+        if (epoch === generationEpochRef.current) {
+          setIsGenerating(false);
+          onGeneratingChange?.(false);
+        }
       }
     },
     [],
@@ -138,6 +144,14 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         localModels: models,
       } = optionsRef.current;
       const api = excalidrawApiRef.current;
+      if (
+        task.id !== undefined &&
+        taskEpochRef.current.get(task.id) !== generationEpochRef.current
+      ) {
+        taskEpochRef.current.delete(task.id);
+        return;
+      }
+      if (task.id !== undefined) taskEpochRef.current.delete(task.id);
       if (!result || result.trim() === "NO_DIAGRAM" || !api) {
         return;
       }
@@ -243,6 +257,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   // the engine so High's longer quiet window takes effect immediately.
   useEffect(() => {
     if (!isAutoMode || !engineRef.current) return;
+    generationEpochRef.current++;
+    taskEpochRef.current.clear();
     engineRef.current.stop();
     engineRef.current = new AutoModeEngine(
       { settlingMs: visualLevel === "high" ? 4500 : 1500 },

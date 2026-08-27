@@ -118,4 +118,15 @@ describe("normalizeMermaid", () => {
     const input = `Some explanation\nflowchart TD\nA --> B\n\`\`\`mermaid\nflowchart TD\nX --> Y\n\`\`\``;
     expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nX --> Y");
   });
+
+  it("uses the last valid Mermaid fence when a trailing fence is invalid", () => {
+    const input = `\`\`\`mermaid
+flowchart TD
+A --> B
+\`\`\`
+\n\`\`\`mermaid
+not a diagram
+\`\`\``;
+    expect(normalizeMermaid(input, "flowchart")).toBe("flowchart TD\nA --> B");
+  });
 });
