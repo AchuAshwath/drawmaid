@@ -58,7 +58,7 @@ same-origin policy for no benefit.
 ```bash
 # stage 1: generate in Node
 HARNESS_CPA_URL=http://127.0.0.1:8317/v1 \
-bun apps/app/e2e/harness/generate.ts --model claude-sonnet-4-6 --arms keyword,model
+bun apps/app/e2e/harness/generate.ts --model gemini-3.6-flash-high --arms keyword,model
 
 # stage 2: render in a real browser and score
 cd apps/app && bunx playwright test e2e/harness/render.playwright.ts
@@ -100,6 +100,47 @@ Pass `--corpus balanced` for the cross-type sampler; the ER loop defaults to
 the ER-focused corpus, which also includes multi-diagram ER cases.
 `ab.playwright.ts` accepts `HARNESS_AB_SHOTS` so each tuning run can keep its
 screenshots separate.
+
+### Deferred sequence/class run (quota-gated)
+
+Sequence and class prompt variants are prepared and committed, but their model
+outputs are deliberately deferred while Gemini quota is low. When quota is
+available, run one type at a time with the fixed seed and sample below; these
+are approximately 50% samples spread across use cases:
+
+```bash
+# sequenceDiagram: 40 of 79 eligible scenarios, 160 model requests
+bun apps/app/e2e/harness/tuning/tune.ts --type sequenceDiagram \
+  --model gemini-3.6-flash-high --corpus balanced --sample 40 --seed 7 \
+  --name sequence-50pct-v1
+
+# classDiagram: 29 of 57 eligible scenarios, 116 model requests
+bun apps/app/e2e/harness/tuning/tune.ts --type classDiagram \
+  --model gemini-3.6-flash-high --corpus balanced --sample 29 --seed 7 \
+  --name class-50pct-v1
+```
+
+The request counts include High's plan and render passes. Do not start either
+command when the remaining quota cannot cover the complete sample; partial
+runs are not comparable evidence. After both pair files exist, show the three
+levels side by side in a headed browser without making further model calls:
+
+```bash
+cd apps/app
+HARNESS_AB_IN=e2e/harness/out-tuning/sequenceDiagram/sequence-50pct-v1/pairs.json \
+HARNESS_AB_SHOTS=e2e/harness/out-tuning/sequenceDiagram/sequence-50pct-v1/shots \
+HARNESS_DWELL_MS=2500 \
+bunx playwright test e2e/harness/ab.playwright.ts --headed
+
+HARNESS_AB_IN=e2e/harness/out-tuning/classDiagram/class-50pct-v1/pairs.json \
+HARNESS_AB_SHOTS=e2e/harness/out-tuning/classDiagram/class-50pct-v1/shots \
+HARNESS_DWELL_MS=2500 \
+bunx playwright test e2e/harness/ab.playwright.ts --headed
+```
+
+The six on-request flat-image types are covered by the existing hand-written
+demo and smoke fixtures; they do not consume Gemini quota and are not included
+in the Low/Medium/High editable-shape loop.
 
 Smoke-test the render stage with no CPA at all. `smoke-generated.json` holds
 eight hand-written records covering all five editable types, a requested gantt,

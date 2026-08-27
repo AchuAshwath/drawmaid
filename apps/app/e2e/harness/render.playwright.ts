@@ -10,7 +10,7 @@
  * It reports, it does not assert. A failing diagram is data, not a test failure.
  *
  * Run:
- *   bun apps/app/e2e/harness/generate.ts --model claude-sonnet-4-6
+ *   bun apps/app/e2e/harness/generate.ts --model gemini-3.6-flash-high
  *   bunx playwright test apps/app/e2e/harness/render.playwright.ts
  */
 import { test } from "@playwright/test";

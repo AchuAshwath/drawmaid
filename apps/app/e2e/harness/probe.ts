@@ -30,7 +30,7 @@
  *   --concurrency     default 12
  *   --limit / --filter as generate.ts
  *   --sample <n>      a BALANCED subset: round-robin across the expected
- *                     types and the refusal group, so a 45-call Sonnet run
+ *                     types and the refusal group, so a 45-call frontier run
  *                     still scores every type. `--limit` takes the first n,
  *                     which on this corpus is nearly all flowchart.
  *   --seed <n>        rotates which member of each group is taken. Same seed
@@ -221,7 +221,7 @@ async function main() {
   if (sample > 0) {
     // Group by what is being scored, then take round-robin. A flat slice would
     // be 60% flowchart, because #55 balanced the corpus by phenomenon rather
-    // than by type, and a Sonnet run is too small to absorb that.
+    // than by type, and a small frontier run is too small to absorb that.
     const groups = new Map<string, Transcript[]>();
     for (const t of corpus) {
       const k =

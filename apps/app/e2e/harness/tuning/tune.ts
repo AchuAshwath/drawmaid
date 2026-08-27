@@ -4,7 +4,7 @@
  * One command generates Low/Medium/High for one type, scores contracts, and
  * leaves the artifacts together. Edit one appendix, rerun the same command,
  * and compare the report. The default model is the live Gemini evaluation
- * model, never Sonnet.
+ * model, defaulting to Gemini 3.6 Flash High.
  */
 import { mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";

@@ -12,7 +12,7 @@
  *
  * Usage:
  *   HARNESS_CPA_URL=http://127.0.0.1:8317/v1 \
- *   bun apps/app/e2e/harness/generate.ts --model claude-sonnet-4-6 --arms keyword,model
+ *   bun apps/app/e2e/harness/generate.ts --model gemini-3.6-flash-high --arms keyword,model
  *
  * Flags:
  *   --model <id>     required
@@ -115,7 +115,9 @@ async function pool<T>(
 async function main() {
   const model = arg("model");
   if (!model) {
-    console.error("--model is required. #47 pins claude-sonnet-4-6.");
+    console.error(
+      "--model is required. Use gemini-3.6-flash-high for this prototype.",
+    );
     process.exit(1);
   }
   const arms = (arg("arms", "keyword,model") as string).split(",") as ArmId[];
