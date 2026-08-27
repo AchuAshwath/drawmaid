@@ -13,8 +13,11 @@ asks to see it.
 Words such as `separately`, `both`, `before and after`, `current and proposed`,
 or a move to a second question can mark another view. Do not merge a comparison
 when arrows between its alternatives would assert a relationship the text did
-not state. The effort note below decides whether a secondary view earns its
-cost.
+not state. A companion view can also be implicit in phrases such as `also show`,
+`plus the dependency/order`, `alongside`, or `then break that part down`: split
+when the added clause asks a different structural question, and keep it in the
+same view when it only adds detail to the first. The effort note below decides
+whether a secondary view earns its cost.
 
 Choose by structure: `flowchart` for one actor's steps, decisions, lists or
 groups; `sequenceDiagram` when named parties send requests, messages or replies;
