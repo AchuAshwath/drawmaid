@@ -45,6 +45,11 @@ const TYPE_PROMPTS: Partial<Record<DiagramType, string>> = {
   erDiagram: read("../../prompts/l2-erdiagram.md"),
   "stateDiagram-v2": read("../../prompts/l2-statediagram.md"),
 };
+const ALL_EDITABLE_GUIDANCE = Object.entries(TYPE_PROMPTS)
+  .flatMap(([type, prompt]) =>
+    prompt ? [`## Type guidance: ${type}`, prompt] : [],
+  )
+  .join("\n\n");
 /**
  * High's plan/render path is two calls after the optional routing call. The
  * plan pass runs WITHOUT L0, because L0 opens with
@@ -180,6 +185,7 @@ async function main() {
   const model: string = modelArg;
   const out = arg("out", here("out-ab/pairs.json")) as string;
   const onlyType = arg("type") as DiagramType | undefined;
+  const routing = arg("routing", "on");
   const shardIndex = Number(arg("shard-index", "0"));
   const shardCount = Number(arg("shard-count", "1"));
   if (
@@ -194,6 +200,10 @@ async function main() {
   if (onlyType && !(EDITABLE_TYPES as readonly string[]).includes(onlyType)) {
     throw new Error(`--type must be one of: ${EDITABLE_TYPES.join(", ")}`);
   }
+  if (routing !== "on" && routing !== "off") {
+    throw new Error('--routing must be "on" or "off"');
+  }
+  const useRouting = routing === "on" && !onlyType;
   const promptDir = arg("prompt-dir");
   const lowPrompt = appendPrompt(promptDir, "low.append.md", LOW);
   const mediumPrompt = appendPrompt(promptDir, "medium.append.md", MEDIUM);
@@ -416,7 +426,7 @@ async function main() {
       if (level === "high") {
         let routeMs = 0;
         let routeError: string | undefined;
-        if (!onlyType) {
+        if (useRouting) {
           const routed = await call(
             [TYPE_ROUTE, ROUTE_LEVEL.high].join("\n\n"),
             t.text,
@@ -432,8 +442,12 @@ async function main() {
           r = { text: "", ms: routeMs, error: `route: ${routeError}` };
         } else {
           const p = await call(
-            [highPlanPrompt, TYPE_ROUTE_PLAN].join("\n\n"),
-            `${t.text}\n\n## Routed views\n\n${routedViews(routeTypes)}`,
+            useRouting
+              ? [highPlanPrompt, TYPE_ROUTE_PLAN].join("\n\n")
+              : highPlanPrompt,
+            useRouting
+              ? `${t.text}\n\n## Routed views\n\n${routedViews(routeTypes)}`
+              : t.text,
             model,
             1024,
           );
@@ -448,7 +462,9 @@ async function main() {
           } else {
             const dynamicTypePrompt = onlyType
               ? fixedTypePrompt
-              : guidanceFor(routeTypes);
+              : useRouting
+                ? guidanceFor(routeTypes)
+                : ALL_EDITABLE_GUIDANCE;
             // The render pass gets the ORIGINAL TEXT as well as the brief.
             // Without it the brief becomes a lossy node-by-node transcription.
             const d = await call(
@@ -468,7 +484,7 @@ async function main() {
       } else {
         let routeMs = 0;
         let routeError: string | undefined;
-        if (!onlyType) {
+        if (useRouting) {
           const routed = await call(
             [TYPE_ROUTE, ROUTE_LEVEL[level]].join("\n\n"),
             t.text,
@@ -485,7 +501,9 @@ async function main() {
         } else {
           const dynamicTypePrompt = onlyType
             ? fixedTypePrompt
-            : guidanceFor(routeTypes);
+            : useRouting
+              ? guidanceFor(routeTypes)
+              : ALL_EDITABLE_GUIDANCE;
           const l1 = level === "low" ? lowPrompt : mediumPrompt;
           const drawn = await call(
             [L0, l1, TYPE_ROUTE_RENDER, dynamicTypePrompt]
@@ -545,6 +563,7 @@ async function main() {
           corpus,
           sample,
           seed,
+          routing,
           shardIndex,
           shardCount,
           transcriptCount: picked.length,
