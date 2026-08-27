@@ -19,6 +19,9 @@ Keep the Mermaid fence converter-safe:
   A field can be `+String id`; a method can be `+findById(id) User`. Keep the
   member's type and name, but translate source-language syntax into this form
   rather than copying colons, semicolons or braces from pasted code.
+- Use `class Name { <<interface>> ... }` or
+  `class Name { <<abstract>> ... }` for those modifiers; do not use an
+  `interface Name` declaration or a standalone modifier line.
 - Mermaid uses `+` for public, `-` for private and `#` for protected members.
   Apply those markers when the source says public, private or protected; do
   not guess visibility when it is not stated.
@@ -31,8 +34,16 @@ Keep the Mermaid fence converter-safe:
   only when it carries a stated role. Leave multiplicities out unless the
   source gives them.
 - `<<interface>>` and `<<abstract>>` are useful only when the source states
-  that distinction. Do not add a namespace, package, class or member merely
-  to make the diagram look complete; preserve source-limited edits exactly.
+  that distinction. Avoid `namespace` and package blocks because they are not
+  reliably supported by the canvas converter; represent a stated grouping with
+  clear names or restrained styling instead. Do not add a class or member
+  merely to make the diagram look complete; preserve source-limited edits
+  exactly.
+
+If you use `classDef` for a genuinely large or confusing model, assign styles
+one class per line (`class Order domain`), never comma-separated groups. Keep
+style names and fills simple. A plain valid class diagram is always preferable
+to styling that risks parsing failure.
 
 Keep classes and relation endpoints consistent after simplifying names. Do not
 emit a second unrelated diagram for an analogy or explanatory aside. Colour is

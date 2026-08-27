@@ -6,3 +6,6 @@ the source supports. A small model may remain plain. If classes have clear
 conceptual groups, a restrained shared palette can help at High; use no more
 than two or three shared fills and leave unrelated classes unstyled. Prefer a
 simple valid class diagram over extra decoration or speculative structure.
+Use `class Name { <<interface>> ... }` rather than an `interface Name` shorthand,
+avoid namespace blocks, and assign any styles one class per `class` line rather
+than grouping names with commas.

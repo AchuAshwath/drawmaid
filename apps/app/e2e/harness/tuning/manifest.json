@@ -156,16 +156,18 @@
           {
             "id": "members",
             "label": "fields or methods are visible",
-            "any": ["\\{[\\s\\S]*[+#-]\\w+"],
-            "required": true
+            "any": [
+              "\\{[\\s\\S]*\\b(?:[+#-]\\s*)?[A-Za-z_][A-Za-z0-9_~<>]*\\s+[A-Za-z_][A-Za-z0-9_]*",
+              "\\{[\\s\\S]*\\b[A-Za-z_][A-Za-z0-9_]*\\([^)]*\\)"
+            ]
           }
         ],
         "high": [
           {
             "id": "visibility",
             "label": "member visibility is explicit",
-            "any": ["^[ \\t]*[+#-]\\w+"],
-            "required": true
+            "any": ["^[ \\t]*[+#-][A-Za-z_]"],
+            "required": false
           },
           {
             "id": "relationship-kind",

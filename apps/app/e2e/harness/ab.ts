@@ -179,7 +179,15 @@ async function main() {
     "high-render.append.md",
     HIGH_RENDER,
   );
-  const typePrompt = onlyType ? (TYPE_PROMPTS[onlyType]?.trim() ?? "") : "";
+  const typePrompt = onlyType
+    ? [
+        `## Tuning target: ${onlyType}`,
+        `For this one-type tuning run, make ${onlyType} the primary editable fence when the request describes that model. If the source explicitly asks for a separate companion view, keep that view in its own fence; do not replace the requested ${onlyType} fence with another diagram type.`,
+        TYPE_PROMPTS[onlyType]?.trim() ?? "",
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : "";
 
   // `--corpus long` swaps the eight hand-picked short entries for the ten
   // long-form ones. The short set cannot separate Medium from High: High's

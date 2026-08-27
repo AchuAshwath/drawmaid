@@ -221,4 +221,25 @@ describe("visual tuning contracts", () => {
       passed: true,
     });
   });
+
+  it("keeps class depth observational when source omits members or visibility", () => {
+    const medium = scoreContracts(
+      "class-relationships-only",
+      "medium",
+      ["classDiagram", "Order *-- LineItem", "Customer --> Order"].join("\n"),
+      "classDiagram",
+    );
+    const high = scoreContracts(
+      "class-relationships-only",
+      "high",
+      ["classDiagram", "Order *-- LineItem", "Customer --> Order"].join("\n"),
+      "classDiagram",
+    );
+    expect(medium.passed).toBe(true);
+    expect(high.passed).toBe(true);
+    expect(medium.features.find((f) => f.id === "members")?.passed).toBe(false);
+    expect(high.features.find((f) => f.id === "visibility")?.passed).toBe(
+      false,
+    );
+  });
 });
