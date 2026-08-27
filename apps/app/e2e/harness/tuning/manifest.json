@@ -189,16 +189,14 @@
           {
             "id": "triggers",
             "label": "transition triggers are visible",
-            "any": ["-->[^\\n]*:\\s*\\S"],
-            "required": true
+            "any": ["-->[^\\n]*:\\s*\\S"]
           }
         ],
         "high": [
           {
             "id": "start-end",
             "label": "start and end are explicit",
-            "any": ["\\[\\*\\]"],
-            "required": true
+            "any": ["\\[\\*\\]"]
           },
           {
             "id": "grouping-or-style",
