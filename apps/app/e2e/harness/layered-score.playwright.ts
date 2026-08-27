@@ -8,23 +8,19 @@
 import { test } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { declaredType, isOnRequest, type DiagramType } from "./type-registry";
+import { declaredType, type DiagramType } from "./type-registry";
 import { ALL_TRANSCRIPTS } from "../../fixtures/transcripts-multi";
+import {
+  scoreLayeredOutput,
+  type Level,
+  type RenderResult,
+  type Verdict,
+} from "./layered-score";
 
 const IN = process.env.HARNESS_AB_IN ?? "e2e/harness/out-ab/pairs.json";
 const OUT = resolve(
   process.env.HARNESS_AB_SCORE_OUT ?? `${dirname(IN)}/layered-score.json`,
 );
-
-type Level = "low" | "medium" | "high";
-type Verdict =
-  | "ok"
-  | "ok-single-image"
-  | "ok-no-diagram"
-  | "wrong-type"
-  | "degraded-to-image"
-  | "broken"
-  | "empty";
 
 interface Pair {
   id: string;
@@ -35,14 +31,6 @@ interface Pair {
   styledNodes: number;
   subgraphs: number;
   edgeLabels: number;
-  error?: string;
-}
-
-interface RenderResult {
-  status: "ok" | "throw";
-  elementCount: number;
-  isSingleImage: boolean;
-  fileCount: number;
   error?: string;
 }
 
@@ -57,10 +45,14 @@ interface Row {
   renders: RenderResult[];
   verdict: Verdict;
   ms: number;
+  error?: string;
 }
 
 interface LevelSummary {
+  /** All attempts, including provider failures. */
   n: number;
+  /** Rows on which model quality and latency can actually be measured. */
+  scored: number;
   usable: number;
   verdicts: Record<Verdict, number>;
   medianMs: number | null;
@@ -68,44 +60,6 @@ interface LevelSummary {
 }
 
 const typeOf = (code: string): DiagramType | null => declaredType(code);
-
-function score(
-  expectedType: DiagramType | null,
-  expectedTypes: DiagramType[] | undefined,
-  expectedOutcome: string | undefined,
-  docs: string[],
-  renders: RenderResult[],
-): Verdict {
-  if (expectedOutcome === "no-diagram") {
-    return docs.length === 0 ? "ok-no-diagram" : "degraded-to-image";
-  }
-  if (docs.length === 0) return "empty";
-  if (renders.some((r) => r.status === "throw" || r.elementCount === 0)) {
-    return "broken";
-  }
-
-  const produced = renders.map((r, i) => ({
-    type: typeOf(docs[i]),
-    image: r.isSingleImage,
-  }));
-  if (produced.some((r) => r.image)) {
-    const okay = produced.every(
-      (r) => r.image && r.type !== null && isOnRequest(r.type),
-    );
-    return expectedOutcome === "single-image" && okay
-      ? "ok-single-image"
-      : "degraded-to-image";
-  }
-
-  const types = produced.map((r) => r.type);
-  if (expectedTypes?.length) {
-    return expectedTypes.every((wanted) => types.includes(wanted))
-      ? "ok"
-      : "wrong-type";
-  }
-  if (expectedType === null) return "ok";
-  return types.includes(expectedType) ? "ok" : "wrong-type";
-}
 
 function median(values: number[]): number | null {
   if (!values.length) return null;
@@ -147,14 +101,20 @@ test("score layered prompts through the real converter", async ({ page }) => {
       producedTypes: pair.docs.map(typeOf),
       docs: pair.docs.length,
       renders,
-      verdict: score(
-        t.expectedType as DiagramType | null,
-        t.expectedTypes as DiagramType[] | undefined,
+      verdict: scoreLayeredOutput(
+        pair.level,
+        {
+          expectedType: t.expectedType as DiagramType | null,
+          expectedTypes: t.expectedTypes as DiagramType[] | undefined,
+          multiFrom: t.multiFrom,
+        },
         t.outcome,
         pair.docs,
         renders,
+        pair.error,
       ),
       ms: pair.ms,
+      ...(pair.error ? { error: pair.error } : {}),
     });
   }
 
@@ -162,6 +122,7 @@ test("score layered prompts through the real converter", async ({ page }) => {
   const summary = Object.fromEntries(
     levels.map((level) => {
       const rs = rows.filter((r) => r.level === level);
+      const scored = rs.filter((r) => r.verdict !== "provider-error");
       const verdicts = Object.fromEntries(
         (
           [
@@ -172,6 +133,7 @@ test("score layered prompts through the real converter", async ({ page }) => {
             "degraded-to-image",
             "broken",
             "empty",
+            "provider-error",
           ] as Verdict[]
         ).map((v) => [v, rs.filter((r) => r.verdict === v).length]),
       );
@@ -179,14 +141,15 @@ test("score layered prompts through the real converter", async ({ page }) => {
         level,
         {
           n: rs.length,
-          usable: rs.filter((r) =>
+          scored: scored.length,
+          usable: scored.filter((r) =>
             ["ok", "ok-single-image", "ok-no-diagram"].includes(r.verdict),
           ).length,
           verdicts,
-          medianMs: median(rs.map((r) => r.ms)),
-          p95Ms: rs.length
-            ? [...rs.map((r) => r.ms)].sort((a, b) => a - b)[
-                Math.floor(rs.length * 0.95)
+          medianMs: median(scored.map((r) => r.ms)),
+          p95Ms: scored.length
+            ? [...scored.map((r) => r.ms)].sort((a, b) => a - b)[
+                Math.floor(scored.length * 0.95)
               ]
             : null,
         },
@@ -211,13 +174,13 @@ test("score layered prompts through the real converter", async ({ page }) => {
     `Input: \`${IN}\`  `,
     `Rows: ${rows.length}`,
     "",
-    "| level | usable | ok | wrong type | degraded | broken | empty | median ms | p95 ms |",
-    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    "| level | model score | attempts | ok | wrong type | degraded | broken | empty | provider error | median ms | p95 ms |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
   for (const level of levels) {
     const s = (summary as Record<Level, LevelSummary>)[level];
     lines.push(
-      `| ${level} | ${s.usable}/${s.n} | ${s.verdicts.ok} | ${s.verdicts["wrong-type"]} | ${s.verdicts["degraded-to-image"]} | ${s.verdicts.broken} | ${s.verdicts.empty} | ${s.medianMs ?? "—"} | ${s.p95Ms ?? "—"} |`,
+      `| ${level} | ${s.usable}/${s.scored} | ${s.n} | ${s.verdicts.ok} | ${s.verdicts["wrong-type"]} | ${s.verdicts["degraded-to-image"]} | ${s.verdicts.broken} | ${s.verdicts.empty} | ${s.verdicts["provider-error"]} | ${s.medianMs ?? "—"} | ${s.p95Ms ?? "—"} |`,
     );
   }
   lines.push(
@@ -228,9 +191,9 @@ test("score layered prompts through the real converter", async ({ page }) => {
     "| --- | --- | --- | --- | --- | --- |",
   );
   for (const r of failures) {
-    const detail = r.renders
-      .map((x) => x.error ?? `${x.elementCount} elements`)
-      .join(" / ");
+    const detail =
+      r.error ??
+      r.renders.map((x) => x.error ?? `${x.elementCount} elements`).join(" / ");
     lines.push(
       `| \`${r.id}\` | ${r.level} | ${(r.expectedTypes ?? [r.expectedType]).filter(Boolean).join(", ") || "none"} | ${r.producedTypes.join(", ") || "none"} | \`${r.verdict}\` | ${detail.replace(/\|/g, "\\|").slice(0, 180)} |`,
     );

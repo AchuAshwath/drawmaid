@@ -52,13 +52,15 @@ Use the vocabulary the source earns, at the effort level requested:
   `activate A` and `deactivate A` around that span. Use `autonumber` only when
   message order itself is important to the reader.
 
-Use `opt`, `par`, `critical`, or `break` only when that construct is genuinely
-what the source describes and the selected Mermaid renderer supports it. A
-valid plain message is better than an ambitious construct that obscures the
-exchange. Every `alt`, `loop`, or other block must have a matching `end`.
+Prefer the converter-proven `alt` / `else`, `loop`, and participant-note
+constructs. Other control blocks vary by renderer; express terminal outcomes
+as messages inside an alternate branch instead. A valid plain message is
+better than an ambitious construct that obscures the exchange. Every `alt` or
+`loop` block must have a matching `end`.
 
-Do not use `== Phase ==` as a divider; it is not supported by the canvas
-converter. Do not add a `direction` line, `subgraph`, flowchart syntax,
+Phase dividers are not supported by the canvas converter; when a phase matters,
+express it as a concise note attached to declared participants. Do not add a
+`direction` line, `subgraph`, flowchart syntax,
 `classDef`, or arbitrary styling to a sequence fence. The sequence layout
 already supplies the lifelines; visual emphasis should come from the
 type-specific constructs and the meaning in the source.

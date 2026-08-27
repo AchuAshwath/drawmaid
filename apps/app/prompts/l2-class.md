@@ -40,14 +40,12 @@ Keep the Mermaid fence converter-safe:
   merely to make the diagram look complete; preserve source-limited edits
   exactly.
 
-If you use `classDef` for a genuinely large or confusing model, assign styles
-one class per line (`class Order domain`), never comma-separated groups. Keep
-style names and fills simple. A plain valid class diagram is always preferable
-to styling that risks parsing failure.
+Keep class diagrams unstyled: the canvas converter does not reliably accept
+styling directives or inline style suffixes here. Use members, visibility,
+stereotypes and relationship kinds to make High meaningfully richer than
+Medium.
 
 Keep classes and relation endpoints consistent after simplifying names. Do not
-emit a second unrelated diagram for an analogy or explanatory aside. Colour is
-optional: keep small class diagrams plain, and at High use at most two or three
-shared fills only when a large or confusing model has clear conceptual groups;
-leave unrelated classes plain. A valid, readable unstyled diagram is better
-than decorative colour or an ambitious construct that fails to convert.
+emit a second unrelated diagram for an analogy or explanatory aside. A valid,
+readable unstyled diagram is better than decorative colour or an ambitious
+construct that fails to convert.

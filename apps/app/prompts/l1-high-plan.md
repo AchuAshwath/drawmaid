@@ -101,6 +101,17 @@ The text decides how many. Things belong in one block when they are about the
 same subject and answer the same question. Anything answering a different
 question is its own block, whatever type that one turns out to need. Where the
 text holds two subjects it usually says so once, in passing, and never again.
+Repeat a block when two independent views use the same type; sharing a type
+does not make their subjects related. Preserve a specialised type when the
+structure earns it rather than replacing several views with a broad flowchart.
+Treat `separately`, `both`, before/after contrasts and a move to another
+question as evidence of another block. Keep a schema apart from an operational
+decision about it. Named parties exchanging requests and replies earn a
+`sequenceDiagram`; one thing moving through conditions earns a
+`stateDiagram-v2`; stable kinds and their relationships earn a `classDiagram`.
+When one account needs both a static architecture or ownership overview and a
+temporal exchange between its parties, those answer different questions and
+earn separate blocks.
 
 An illustration is a block of its own only when they asked to see it. An
 analogy used while explaining is not that.

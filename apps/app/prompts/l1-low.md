@@ -30,6 +30,10 @@ Patterns share a fence when they are about the same thing and need the same
 type. Anything about something else is another fence, as many as the input
 holds.
 
+At Low, a topic shift alone does not earn another view. Prefer the primary view
+unless the person asks for both or separate views, or presents a before/after
+comparison whose halves would become falsely connected in one fence.
+
 An illustration is a group of its own only when they asked to see it. An analogy
 used while explaining is not that.
 

@@ -22,11 +22,20 @@ import { LONG_TRANSCRIPTS } from "../../fixtures/transcripts-long";
 import { DIRECT_TRANSCRIPTS } from "../../fixtures/transcripts-direct";
 import type { Transcript } from "../../fixtures/transcripts";
 import { EDITABLE_TYPES, type DiagramType } from "./type-registry";
+import {
+  parseRoutedTypes,
+  ROUTE_LEVEL,
+  uniqueRoutedTypes,
+} from "./layered-routing";
+import { decodeChatCompletion } from "./chat-completion";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const read = (rel: string) => readFileSync(here(rel), "utf8").trim();
 
 const L0 = read("../../prompts/l0-core.md");
+const TYPE_ROUTE = read("../../prompts/type-route.md");
+const TYPE_ROUTE_RENDER = read("../../prompts/type-route-render.md");
+const TYPE_ROUTE_PLAN = read("../../prompts/type-route-plan.md");
 const LOW = read("../../prompts/l1-low.md");
 const MEDIUM = read("../../prompts/l1-medium.md");
 const TYPE_PROMPTS: Partial<Record<DiagramType, string>> = {
@@ -37,7 +46,8 @@ const TYPE_PROMPTS: Partial<Record<DiagramType, string>> = {
   "stateDiagram-v2": read("../../prompts/l2-statediagram.md"),
 };
 /**
- * High is two calls. The plan pass runs WITHOUT L0, because L0 opens with
+ * High's plan/render path is two calls after the optional routing call. The
+ * plan pass runs WITHOUT L0, because L0 opens with
  * "Return ```mermaid fences and nothing else" and an earlier instruction beats
  * a later contradicting one — measured three times on this corpus. Prompted
  * with L0 the plan pass returns a diagram, which is the one thing it must not
@@ -74,6 +84,9 @@ interface Pair {
   raw: string;
   /** high only: what the plan pass returned, so a bad diagram can be blamed. */
   plan?: string;
+  /** low/medium only: the routing pass, retained to diagnose count/type misses. */
+  route?: string;
+  routeTypes?: DiagramType[];
   /** Counted here so stage 2 does not have to re-derive them for the report. */
   classDefs: number;
   subgraphs: number;
@@ -114,7 +127,12 @@ const fences = (raw: string): string[] =>
 
 const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
 
-async function call(system: string, user: string, model: string) {
+async function call(
+  system: string,
+  user: string,
+  model: string,
+  maxTokens = 2048,
+) {
   const base = process.env.HARNESS_CPA_URL ?? "http://127.0.0.1:8317/v1";
   const key = process.env.HARNESS_CPA_KEY;
   const t0 = Date.now();
@@ -127,7 +145,7 @@ async function call(system: string, user: string, model: string) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2048,
+        max_tokens: maxTokens,
         temperature: 0.1,
         messages: [
           { role: "system", content: system },
@@ -136,12 +154,11 @@ async function call(system: string, user: string, model: string) {
       }),
       signal: AbortSignal.timeout(90_000),
     });
-    const j = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
+    const decoded = decodeChatCompletion(res.status, res.ok, await res.text());
     return {
-      text: j.choices?.[0]?.message?.content ?? "",
+      text: decoded.text,
       ms: Date.now() - t0,
+      ...(decoded.error ? { error: decoded.error } : {}),
     };
   } catch (e) {
     return {
@@ -190,7 +207,7 @@ async function main() {
     "high-render.append.md",
     HIGH_RENDER,
   );
-  const typePrompt = onlyType
+  const fixedTypePrompt = onlyType
     ? [
         `## Tuning target: ${onlyType}`,
         `For this one-type tuning run, make ${onlyType} the primary editable fence when the request describes that model. If the source explicitly asks for a separate companion view, keep that view in its own fence; do not replace the requested ${onlyType} fence with another diagram type.`,
@@ -200,6 +217,17 @@ async function main() {
         .join("\n\n")
     : "";
 
+  const guidanceFor = (types: DiagramType[]): string =>
+    uniqueRoutedTypes(types)
+      .flatMap((type) => {
+        const prompt = TYPE_PROMPTS[type]?.trim();
+        return prompt ? [`## Type guidance: ${type}`, prompt] : [];
+      })
+      .join("\n\n");
+
+  const routedViews = (types: DiagramType[]): string =>
+    types.map((type) => `TYPE ${type}`).join("\n");
+
   // `--corpus long` swaps the eight hand-picked short entries for the ten
   // long-form ones. The short set cannot separate Medium from High: High's
   // two passes only pay for themselves when one pass would lose track, and
@@ -207,8 +235,18 @@ async function main() {
   const corpus = arg("corpus", "picks");
   const sample = Number(arg("sample", "0"));
   const seed = Number(arg("seed", "1"));
+  const requestedIds = (arg("ids") ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
   let picked: Transcript[];
-  if (corpus === "long") {
+  if (requestedIds.length) {
+    picked = requestedIds.map((id) => {
+      const transcript = ALL_TRANSCRIPTS.find((entry) => entry.id === id);
+      if (!transcript) throw new Error(`no transcript ${id}`);
+      return transcript;
+    });
+  } else if (corpus === "long") {
     picked = LONG_TRANSCRIPTS;
   } else if (corpus === "direct") {
     picked = DIRECT_TRANSCRIPTS;
@@ -346,6 +384,9 @@ async function main() {
    */
   const pairs: Pair[] = [];
   const CONC = Number(arg("concurrency", "8"));
+  if (!Number.isInteger(CONC) || CONC < 1) {
+    throw new Error("--concurrency must be a positive integer");
+  }
   let cursor = 0;
   await Promise.all(
     Array.from({ length: Math.min(CONC, jobs.length) }, async () => {
@@ -369,29 +410,96 @@ async function main() {
   }): Promise<Pair> {
     {
       let plan: string | undefined;
+      let route: string | undefined;
+      let routeTypes: DiagramType[] = onlyType ? [onlyType] : [];
       let r: { text: string; ms: number; error?: string };
       if (level === "high") {
-        const p = await call(highPlanPrompt, t.text, model);
-        plan = p.text;
-        // The render pass gets the ORIGINAL TEXT as well as the brief. Without
-        // it the brief had to enumerate every node, which turned the plan into
-        // a lossy transcription: measured, High's plans were 100% `node X` and
-        // `edge X to Y` lines with no decisions in them, and the drawn result
-        // was Low with two calls. Handing over the text lets the brief carry
-        // decisions only.
-        const d = await call(
-          [L0, highRenderPrompt, typePrompt].filter(Boolean).join("\n\n"),
-          `${t.text}\n\n## Brief\n\n${p.text}`,
-          model,
-        );
-        r = { text: d.text, ms: p.ms + d.ms, error: p.error ?? d.error };
+        let routeMs = 0;
+        let routeError: string | undefined;
+        if (!onlyType) {
+          const routed = await call(
+            [TYPE_ROUTE, ROUTE_LEVEL.high].join("\n\n"),
+            t.text,
+            model,
+            256,
+          );
+          route = routed.text;
+          routeTypes = parseRoutedTypes(route);
+          routeMs = routed.ms;
+          routeError = routed.error;
+        }
+        if (routeError) {
+          r = { text: "", ms: routeMs, error: `route: ${routeError}` };
+        } else {
+          const p = await call(
+            [highPlanPrompt, TYPE_ROUTE_PLAN].join("\n\n"),
+            `${t.text}\n\n## Routed views\n\n${routedViews(routeTypes)}`,
+            model,
+            1024,
+          );
+          plan = p.text;
+          if (!routeTypes.length) routeTypes = parseRoutedTypes(plan);
+          if (p.error) {
+            r = {
+              text: "",
+              ms: routeMs + p.ms,
+              error: `plan: ${p.error}`,
+            };
+          } else {
+            const dynamicTypePrompt = onlyType
+              ? fixedTypePrompt
+              : guidanceFor(routeTypes);
+            // The render pass gets the ORIGINAL TEXT as well as the brief.
+            // Without it the brief becomes a lossy node-by-node transcription.
+            const d = await call(
+              [L0, highRenderPrompt, dynamicTypePrompt]
+                .filter(Boolean)
+                .join("\n\n"),
+              `${t.text}\n\n## Routed views\n\n${routedViews(routeTypes)}\n\n## Brief\n\n${p.text}`,
+              model,
+            );
+            r = {
+              text: d.text,
+              ms: routeMs + p.ms + d.ms,
+              ...(d.error ? { error: `render: ${d.error}` } : {}),
+            };
+          }
+        }
       } else {
-        const l1 = level === "low" ? lowPrompt : mediumPrompt;
-        r = await call(
-          [L0, l1, typePrompt].filter(Boolean).join("\n\n"),
-          t.text,
-          model,
-        );
+        let routeMs = 0;
+        let routeError: string | undefined;
+        if (!onlyType) {
+          const routed = await call(
+            [TYPE_ROUTE, ROUTE_LEVEL[level]].join("\n\n"),
+            t.text,
+            model,
+            256,
+          );
+          route = routed.text;
+          routeTypes = parseRoutedTypes(route);
+          routeMs = routed.ms;
+          routeError = routed.error;
+        }
+        if (routeError) {
+          r = { text: "", ms: routeMs, error: `route: ${routeError}` };
+        } else {
+          const dynamicTypePrompt = onlyType
+            ? fixedTypePrompt
+            : guidanceFor(routeTypes);
+          const l1 = level === "low" ? lowPrompt : mediumPrompt;
+          const drawn = await call(
+            [L0, l1, TYPE_ROUTE_RENDER, dynamicTypePrompt]
+              .filter(Boolean)
+              .join("\n\n"),
+            `${t.text}\n\n## Routed views\n\n${routedViews(routeTypes)}`,
+            model,
+          );
+          r = {
+            text: drawn.text,
+            ms: routeMs + drawn.ms,
+            ...(drawn.error ? { error: `render: ${drawn.error}` } : {}),
+          };
+        }
       }
       const docs = fences(r.text);
       const all = docs.join("\n");
@@ -420,6 +528,8 @@ async function main() {
           count(all, /^\s*\w[\w\s]*-[->>x)-]+\s*\w[\w\s]*:\s*\S/gm),
         ms: r.ms,
         ...(plan !== undefined ? { plan } : {}),
+        ...(route !== undefined ? { route } : {}),
+        ...(routeTypes.length ? { routeTypes } : {}),
         ...(r.error ? { error: r.error } : {}),
       };
     }

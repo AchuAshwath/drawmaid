@@ -695,7 +695,7 @@ export const REPLACEMENT_TRANSCRIPTS: Transcript[] = [
     scenario:
       "tutorial recording: a warning about sample identifiers, then the sequencing lab schema",
     expectedType: "erDiagram",
-    expectedTypes: ["flowchart", "erDiagram"],
+    expectedTypes: ["erDiagram", "flowchart"],
     multiFrom: "medium",
     phenomena: [
       "multi-diagram",
@@ -737,7 +737,7 @@ export const REPLACEMENT_TRANSCRIPTS: Transcript[] = [
     scenario:
       "conveyancing escrow drawn as a process, then the marketplace hold drawn as an exchange",
     expectedType: "sequenceDiagram",
-    expectedTypes: ["flowchart", "sequenceDiagram"],
+    expectedTypes: ["sequenceDiagram", "flowchart"],
     multiFrom: "low",
     phenomena: [
       "multi-diagram",

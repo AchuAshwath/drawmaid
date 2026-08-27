@@ -50,6 +50,10 @@ export const ON_REQUEST_TYPES = [
 export type EditableType = (typeof EDITABLE_TYPES)[number];
 export type OnRequestType = (typeof ON_REQUEST_TYPES)[number];
 export type DiagramType = EditableType | OnRequestType;
+export const ALL_TYPES: readonly DiagramType[] = [
+  ...EDITABLE_TYPES,
+  ...ON_REQUEST_TYPES,
+];
 
 /**
  * How each type may be spelled at the start of a diagram, lowercased.

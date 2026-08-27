@@ -38,9 +38,9 @@ A brief of only `NO_DIAGRAM` returns that word and no fences.
 | one thing changing condition | `stateDiagram-v2` | the conditions, what moves it between them, where it starts and ends | `Idle --> Running : start` |
 
 Every type carries more than nodes and arrows. Ordering, numbering, a named
-stretch, a note against one participant, a divider between phases: whatever the
-type offers, it is available, and the brief said what the picture is for rather
-than which of them to use.
+stretch or a note against one participant can add depth when that type supports
+it. Use only the vocabulary of the current fence; a useful construct in one
+Mermaid type may be invalid in another.
 
 ## How much of it to draw
 
@@ -116,31 +116,8 @@ groups and at most three distinct fills. A group may contain several related
 nodes; if more would be useful, keep the three distinctions that answer the
 diagram's question and leave the rest plain.
 
-Five properties of a `classDef` reach the canvas. The rest are dropped.
-
-| in mermaid | on the canvas |
-| --- | --- |
-| `fill` | the shape's background |
-| `stroke` | its border colour |
-| `stroke-width` | its border thickness, in `px` |
-| `stroke-dasharray` | a dashed border |
-| `color` | the label's text colour |
-
-These pairs stay light enough for black text and dark enough for a visible
-border.
-
-| meaning | fill | stroke |
-| --- | --- | --- |
-| worked | `#b2f2bb` | `#2f9e44` |
-| failed | `#ffc9c9` | `#e03131` |
-| worth watching | `#ffec99` | `#f08c00` |
-| one kind | `#a5d8ff` | `#1971c2` |
-| another | `#eebefa` | `#9c36b5` |
-| another | `#c3fae8` | `#0ca678` |
-
-`classDef name fill:…,stroke:…,stroke-width:…` then `A:::name`, or
-`class A,B,C name` for several at once. One class per node: `class A one,two`
-silently applies neither.
+Styling syntax belongs to the current diagram type's guidance. Never borrow a
+styling construct from another type merely to satisfy the brief's meaning.
 
 ## Labels
 

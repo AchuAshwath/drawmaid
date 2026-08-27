@@ -125,21 +125,8 @@ kinds want different colours, not two shades of one. Two blues read as related,
 which is the opposite of the distinction you meant.
 
 Colour a few things and they stand out. Colour everything and nothing does.
-Most nodes should stay plain.
-
-Five properties of a `classDef` reach the canvas. The rest are dropped.
-
-| in mermaid | on the canvas |
-| --- | --- |
-| `fill` | the shape's background |
-| `stroke` | its border colour |
-| `stroke-width` | its border thickness, in `px` |
-| `stroke-dasharray` | a dashed border |
-| `color` | the label's text colour |
-
-`classDef ok fill:#b2f2bb,stroke:#2f9e44` then `A:::ok`, or `class A,B,C ok`
-for several at once. One class per node: `class A ok,bold` silently applies
-neither.
+Most nodes should stay plain. Styling syntax belongs to the current diagram
+type's guidance; do not borrow a styling construct from another type.
 
 ## Labels
 

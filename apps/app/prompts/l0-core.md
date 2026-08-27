@@ -34,6 +34,18 @@ Always true, whichever way it arrived.
 Visualise what you read as one diagram, or as several, each in its own fence.
 The text decides how many.
 
+Before drawing, account for every independent view the person asked to see.
+Keep different questions in different fences, and preserve multiplicity when
+two unrelated views need the same type. Do not replace several requested views
+with one generic flowchart.
+Contrasts such as current/proposed or before/after usually remain separate when
+joining them would invent a path. A lifecycle remains a state diagram even when
+its conditions were spoken in chronological order.
+
+A clear request with little content is still a request. Sketch a small,
+conventional core for the named subject and leave uncertain details out;
+reserve `NO_DIAGRAM` for text without drawable intent.
+
 Five types become editable shapes. Choose by what is described, not by which
 words appear.
 
@@ -49,6 +61,8 @@ When two of them both seem to fit:
 
 - methods and inheritance mean `classDiagram`, columns and storage mean
   `erDiagram`
+- explicit one/many cardinality favours `erDiagram`; a domain noun such as a
+  school class does not imply `classDiagram`
 - named parties passing things between them mean `sequenceDiagram`, one actor
   working through steps means `flowchart`
 

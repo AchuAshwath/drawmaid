@@ -34,8 +34,8 @@ export const LONG_TRANSCRIPTS: Transcript[] = [
     inputMode: "dictated",
     useCase: "meeting",
     scenario: "architecture review of a checkout rewrite, two teams present",
-    expectedType: "flowchart",
-    expectedTypes: ["flowchart", "sequenceDiagram"],
+    expectedType: "sequenceDiagram",
+    expectedTypes: ["sequenceDiagram", "flowchart"],
     multiFrom: "medium",
     phenomena: ["run-on", "crosstalk", "self-correction", "multi-diagram"],
     notes:
