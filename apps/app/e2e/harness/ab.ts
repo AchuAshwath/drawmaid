@@ -163,6 +163,17 @@ async function main() {
   const model: string = modelArg;
   const out = arg("out", here("out-ab/pairs.json")) as string;
   const onlyType = arg("type") as DiagramType | undefined;
+  const shardIndex = Number(arg("shard-index", "0"));
+  const shardCount = Number(arg("shard-count", "1"));
+  if (
+    !Number.isInteger(shardIndex) ||
+    !Number.isInteger(shardCount) ||
+    shardCount < 1 ||
+    shardIndex < 0 ||
+    shardIndex >= shardCount
+  ) {
+    throw new Error("--shard-index must be an integer in [0, --shard-count)");
+  }
   if (onlyType && !(EDITABLE_TYPES as readonly string[]).includes(onlyType)) {
     throw new Error(`--type must be one of: ${EDITABLE_TYPES.join(", ")}`);
   }
@@ -311,6 +322,16 @@ async function main() {
     );
   }
 
+  // Deterministic round-robin shards make the expanded run resumable. The
+  // corpus order is already seeded above, so every shard is disjoint and the
+  // aggregator can prove that no id/level pair was skipped or duplicated.
+  if (shardCount > 1) {
+    picked = picked.filter((_, i) => i % shardCount === shardIndex);
+    console.log(
+      `shard ${shardIndex + 1}/${shardCount}: ${picked.length} transcripts`,
+    );
+  }
+
   const jobs = picked.flatMap((t) => LEVELS.map((level) => ({ t, level })));
   console.log(
     `${picked.length} transcripts x ${LEVELS.length} levels = ${jobs.length} jobs`,
@@ -405,7 +426,25 @@ async function main() {
   }
 
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, JSON.stringify({ meta: { model }, pairs }, null, 2));
+  writeFileSync(
+    out,
+    JSON.stringify(
+      {
+        meta: {
+          model,
+          corpus,
+          sample,
+          seed,
+          shardIndex,
+          shardCount,
+          transcriptCount: picked.length,
+        },
+        pairs,
+      },
+      null,
+      2,
+    ),
+  );
 
   console.log(
     `\n${"id".padEnd(32)} ${"level".padEnd(7)} docs  classDef  styled  subgraph  edgeLbl  lines`,
