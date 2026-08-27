@@ -91,8 +91,9 @@ Edit one `*.append.md` file under
 `e2e/harness/tuning/variants/<type>/`, rerun with the same name, and compare
 `report.md`. Contracts are evidence checks, not a closed Mermaid vocabulary:
 they make Low/Medium/High differences measurable while leaving future models
-room to choose valid constructs. Palette contracts also cap accidental
-over-colouring rather than rewarding more colour.
+room to choose valid constructs. Palette checks reward useful grouping on dense
+schemas and flag accidental colour on small ones rather than rewarding more
+colour.
 
 `ab.ts` accepts `--type` and `--prompt-dir` for the underlying A/B run.
 Pass `--corpus balanced` for the cross-type sampler; the ER loop defaults to

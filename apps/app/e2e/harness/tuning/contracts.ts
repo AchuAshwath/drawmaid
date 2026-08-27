@@ -78,7 +78,16 @@ export function scoreColourRestraint(
       distinctFills: 0,
     };
   }
-  const perDoc = docs.map((code) => {
+  const erDocs = docs.filter((code) => /^\s*erDiagram\b/i.test(code));
+  if (erDocs.length === 0) {
+    return {
+      status: "plain",
+      entityCount: 0,
+      styledCount: 0,
+      distinctFills: 0,
+    };
+  }
+  const perDoc = erDocs.map((code) => {
     const entityCount = [...code.matchAll(/^\s*[A-Za-z_][A-Za-z0-9_]*\s*\{/gim)]
       .length;
     const styleLines = [...code.matchAll(/^\s*style\s+[^\n]+/gim)].map(
@@ -94,7 +103,7 @@ export function scoreColourRestraint(
     const status: ColourRestraintStatus =
       styledCount === 0
         ? "plain"
-        : styledCount > 3 || fills.size > 3
+        : fills.size > 3
           ? "over-colour"
           : entityCount <= 5
             ? "small-colour"
@@ -117,7 +126,7 @@ export function scoreColourRestraint(
     },
   );
   const allFills = new Set(
-    docs.flatMap((code) =>
+    erDocs.flatMap((code) =>
       [...code.matchAll(/^\s*style\s+[^\n]+/gim)].flatMap((m) => {
         const fill = /\bfill:\s*([^,\s]+)/i.exec(m[0]);
         return fill ? [fill[1].toLowerCase()] : [];
@@ -148,6 +157,20 @@ function countEvidence(code: string, patterns: string[]): number {
   );
 }
 
+function countSemanticColourGroups(code: string): number {
+  const erDocs = code
+    .split(/(?=^\s*erDiagram\b)/gim)
+    .filter((doc) => /^\s*erDiagram\b/i.test(doc));
+  return new Set(
+    erDocs.flatMap((doc) =>
+      [...doc.matchAll(/^\s*style\s+[^\n]+/gim)].flatMap((match) => {
+        const fill = /\bfill:\s*([^,\s]+)/i.exec(match[0]);
+        return fill ? [fill[1].toLowerCase()] : [];
+      }),
+    ),
+  ).size;
+}
+
 export function scoreContracts(
   id: string,
   level: TuningLevel,
@@ -157,7 +180,10 @@ export function scoreContracts(
   const contracts = contractManifest.types[type]?.contracts[level] ?? [];
   const features = contracts.map((contract) => {
     const evidence = firstEvidence(code, contract.any);
-    const count = countEvidence(code, contract.any);
+    const count =
+      type === "erDiagram" && contract.id === "semantic-colour"
+        ? countSemanticColourGroups(code)
+        : countEvidence(code, contract.any);
     const withinLimit =
       contract.maxMatches === undefined || count <= contract.maxMatches;
     return {

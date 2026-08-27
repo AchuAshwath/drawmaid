@@ -1,22 +1,13 @@
-## ER depth and validity note
+## ER colour-grouping experiment
 
-Make the relationship role readable and keep every relationship label in the
-stable quoted form (`: "role"`). When the source describes many-to-many data,
-make the join entity explicit: use a domain-appropriate third entity carrying
-the two references, then connect each parent to it. Preserve a join entity the
-source already provides and do not add a redundant one. When the source clearly
-gives entities different roles, a small palette may use Mermaid's native `style ENTITY
-fill:#...,stroke:#...` lines. Do not use `classDef`, and do not colour every
-table when the source gives no meaningful roles. A small, readable schema
-should stay plain even when roles differ; reserve two or three styles for a
-large or confusing schema where they reduce search time. When a diagram is
-pasted, preserve its entities and relationships;
-do not invent fields or tables that the source does not provide, except for the
-specific additions requested by the user.
-Before returning each ER fence, count the `style` lines and keep at most three
-styled entities; if there are more roles, keep the three most useful and leave
-the rest plain.
-Use one entity block per entity, with each field written as `<type> <name>` and
-an optional `PK` or `FK`; never emit a bare `PK`/`FK` row or inline field list.
-Keep entity names parser-safe: `CLASS` is reserved, so choose a clear
-domain-specific alternative such as `COURSE_CLASS`.
+For this experiment, keep a schema that fits comfortably without zooming
+(roughly six entities or fewer) plain: emit no `style` lines at all, even when
+the relationship count is high; count the entities before returning and remove
+any ER `style` lines if there are six or fewer. When a schema is dense, prefer one or
+two restrained shared-fill groups when entities clearly share a conceptual kind
+or responsibility, so the groups aid scanning; do not give every table a
+different colour. Keep at most two or three such groups, reusing each group's
+fill across its entities, and leave the rest plain when grouping would not help.
+The literal uppercase entity token `CLASS` is forbidden by Mermaid: scan the
+finished ER fence and replace it everywhere with a parser-safe domain name such
+as `GYM_CLASS` before returning.

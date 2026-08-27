@@ -88,6 +88,28 @@ describe("visual tuning contracts", () => {
     });
   });
 
+  it("treats repeated fills as one semantic colour group", () => {
+    const result = scoreContracts(
+      "er-case",
+      "high",
+      [
+        "erDiagram",
+        "style CUSTOMER fill:#a5d8ff",
+        "style ACCOUNT fill:#a5d8ff",
+        "style ORDER fill:#eebefa",
+        'CUSTOMER ||--o{ ORDER : "places"',
+      ].join("\n"),
+      "erDiagram",
+    );
+    expect(
+      result.features.find((f) => f.id === "semantic-colour"),
+    ).toMatchObject({
+      passed: true,
+      count: 2,
+      maxMatches: 3,
+    });
+  });
+
   it("flags colour on a small ER schema while allowing it on a dense one", () => {
     expect(
       scoreColourRestraint(
@@ -116,5 +138,32 @@ describe("visual tuning contracts", () => {
         "erDiagram",
       ).status,
     ).toBe("purposeful-scale");
+    expect(
+      scoreColourRestraint(
+        [
+          [
+            "erDiagram",
+            ...Array.from({ length: 7 }, (_, i) => `E${i} { string id PK }`),
+            "style E0 fill:#a5d8ff",
+            "style E1 fill:#a5d8ff",
+            "style E2 fill:#a5d8ff",
+            "style E3 fill:#eebefa",
+          ].join("\n"),
+        ],
+        "erDiagram",
+      ).status,
+    ).toBe("purposeful-scale");
+  });
+
+  it("does not count colours from a companion non-ER fence", () => {
+    expect(
+      scoreColourRestraint(
+        [
+          "erDiagram\nA ||--o{ B : has",
+          "flowchart TD\nX --> Y\nclassDef accent fill:#a5d8ff",
+        ],
+        "erDiagram",
+      ).status,
+    ).toBe("plain");
   });
 });

@@ -112,9 +112,9 @@ Use it only for a distinction the source supports, with one restrained palette
 of at most three accents. If colour does not make a dense diagram easier to
 read, plain is the right High result; decoration is a regression.
 Before returning a fence, count its colour rules: keep at most three styled
-nodes and at most three distinct fills. If more would be useful, keep the
-three distinctions that answer the diagram's question and leave the rest
-plain.
+groups and at most three distinct fills. A group may contain several related
+nodes; if more would be useful, keep the three distinctions that answer the
+diagram's question and leave the rest plain.
 
 Five properties of a `classDef` reach the canvas. The rest are dropped.
 
