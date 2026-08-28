@@ -176,7 +176,7 @@ export function PromptSettingsMenu({
           setActivePanel(null);
         }}
       >
-        <span className="truncate">{triggerLabel}</span>
+        <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
       </Button>
 
@@ -229,7 +229,7 @@ export function PromptSettingsMenu({
           {activePanel === "model" && (
             <div
               ref={submenuRef}
-              className={`${PANEL_CLASS} absolute top-0 max-h-[300px] w-[220px] overflow-y-auto ${
+              className={`${PANEL_CLASS} absolute top-0 max-h-[224px] w-[220px] overflow-y-auto overscroll-contain ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               }`}
               style={{ transform: `translateY(${submenuOffset}px)` }}
