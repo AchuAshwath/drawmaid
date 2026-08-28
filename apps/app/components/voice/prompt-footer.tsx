@@ -1,23 +1,18 @@
 import { CenteredStrip } from "@/components/centered-strip";
 import { usePromptFooterState } from "@/lib/voice/use-prompt-footer-state";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
-import { ModelSelector } from "@/components/ai-config/model-selector";
+import {
+  PromptSettingsMenu,
+  type VisualLevelControl,
+} from "@/components/voice/prompt-settings-menu";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
-import {
-  isVisualLevel,
-  VISUAL_LEVELS,
-  type VisualLevel,
-} from "@/lib/llm/visual-level";
 import { useState } from "react";
 
-export type PromptFooterMode = "auto" | "normal";
+export type { VisualLevelControl } from "@/components/voice/prompt-settings-menu";
 
-export interface VisualLevelControl {
-  value: VisualLevel;
-  onChange: (level: VisualLevel) => void;
-}
+export type PromptFooterMode = "auto" | "normal";
 
 export interface PromptFooterProps {
   prompt: string;
@@ -191,36 +186,14 @@ export function PromptFooter({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {visualLevelControl && (
-                <select
-                  value={visualLevelControl.value}
-                  onChange={(event) => {
-                    const level = event.target.value;
-                    if (isVisualLevel(level)) {
-                      visualLevelControl.onChange(level);
-                    }
-                  }}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-                  aria-label="Visual level"
-                >
-                  {VISUAL_LEVELS.map((level) => (
-                    <option key={level} value={level}>
-                      {level.charAt(0).toUpperCase() + level.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {webLLMModels?.length ||
-              localModels?.length ||
-              localServerConfigured ? (
-                <ModelSelector
-                  webLLMModels={webLLMModels || []}
-                  localModels={localModels || []}
-                  currentModel={currentModel || "Select model"}
-                  onSelectModel={onSelectModel || (() => {})}
-                  localServerConfigured={localServerConfigured}
-                />
-              ) : null}
+              <PromptSettingsMenu
+                webLLMModels={webLLMModels}
+                localModels={localModels}
+                currentModel={currentModel}
+                onSelectModel={onSelectModel}
+                localServerConfigured={localServerConfigured}
+                visualLevelControl={visualLevelControl}
+              />
               <Button
                 type="button"
                 onClick={mode === "auto" ? handleKeep : onGenerate}

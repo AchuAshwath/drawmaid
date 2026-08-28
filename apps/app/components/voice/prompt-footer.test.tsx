@@ -44,10 +44,6 @@ vi.mock("@repo/ui", () => ({
     classes.filter(Boolean).join(" "),
 }));
 
-vi.mock("@/components/ai-config/model-selector", () => ({
-  ModelSelector: () => null,
-}));
-
 vi.mock("@/components/voice/voice-input-button", () => ({
   VoiceInputButton: () => null,
 }));
@@ -69,10 +65,12 @@ function createProps(
 }
 
 describe("PromptFooter visual level control", () => {
-  it("renders the control only when the caller provides it", () => {
+  it("renders the settings control only when the caller provides it", () => {
     const { rerender } = render(<PromptFooter {...createProps()} />);
 
-    expect(screen.queryByRole("combobox", { name: "Visual level" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Model and visual settings" }),
+    ).toBeNull();
 
     rerender(
       <PromptFooter
@@ -86,41 +84,9 @@ describe("PromptFooter visual level control", () => {
     );
 
     expect(
-      (
-        screen.getByRole("combobox", {
-          name: "Visual level",
-        }) as HTMLSelectElement
-      ).value,
-    ).toBe("medium");
-  });
-
-  it("offers every visual level and reports only valid changes", () => {
-    const onChange = vi.fn();
-    render(
-      <PromptFooter
-        {...createProps({
-          visualLevelControl: { value: "low", onChange },
-        })}
-      />,
-    );
-    const select = screen.getByRole("combobox", {
-      name: "Visual level",
-    }) as HTMLSelectElement;
-
-    expect(
-      [...select.options].map((option) => [option.value, option.text]),
-    ).toEqual([
-      ["low", "Low"],
-      ["medium", "Medium"],
-      ["high", "High"],
-    ]);
-
-    fireEvent.change(select, { target: { value: "cinematic" } });
-    expect(onChange).not.toHaveBeenCalled();
-
-    fireEvent.change(select, { target: { value: "high" } });
-    expect(onChange).toHaveBeenCalledOnce();
-    expect(onChange).toHaveBeenCalledWith("high");
+      screen.getByRole("button", { name: "Model and visual settings" })
+        .textContent,
+    ).toContain("Medium");
   });
 
   it("preserves the normal generate and auto-mode Keep actions", () => {
