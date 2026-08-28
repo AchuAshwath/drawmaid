@@ -10,6 +10,8 @@ Voice and text to Excalidraw diagrams using local AI. Generate beautiful diagram
 - **Local Server Support** — Connect to CLIProxyAPI, Ollama, LM Studio, vLLM, or any OpenAI-compatible API
 - **Works Offline** — Once downloaded, WebLLM works without internet
 - **Excalidraw Integration** — Full Excalidraw editing capabilities after generation
+- **Eleven Mermaid Types** — Create editable flowchart, sequence, class, ER, and state diagrams, or explicitly request Gantt, pie, mindmap, git graph, journey, and timeline diagrams as images
+- **Auto-mode Checkpoints** — Keep a completed diagram and start a new voice or text diagram without refreshing the canvas
 
 ## Quick Start
 

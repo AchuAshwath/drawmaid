@@ -8,17 +8,17 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Bug Fixes" },
-        { "type": "perf", "section": "Performance Improvements" },
+        { "type": "feat", "section": "Major features" },
+        { "type": "fix", "section": "Improvements" },
+        { "type": "perf", "section": "Performance" },
         { "type": "revert", "section": "Reverts" },
         { "type": "docs", "section": "Documentation" },
-        { "type": "style", "section": "Styles" },
-        { "type": "chore", "section": "Miscellaneous Chores" },
-        { "type": "refactor", "section": "Code Refactoring" },
-        { "type": "test", "section": "Tests" },
-        { "type": "build", "section": "Build System" },
-        { "type": "ci", "section": "Continuous Integration" }
+        { "type": "refactor", "section": "Architecture and refactoring" },
+        { "type": "style", "section": "Styles", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Build system", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true }
       ]
     }
   }

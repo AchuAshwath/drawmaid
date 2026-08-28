@@ -36,6 +36,20 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 # Database: bun db:{push,generate,studio,seed} (append :staging or :prod)
 ```
 
+## Releases
+
+- Plan every feature release around user-facing conventional commits. Commit
+  subjects should describe the value delivered (for example,
+  `feat(diagram): support eleven Mermaid diagram types`) rather than only the
+  internal implementation.
+- Add a concise `### Release Note` section to normal feature PRs.
+- Release Please PR titles, bodies, and generated changelog structure are
+  machine-readable and load-bearing. Never rewrite a generated Release Please
+  PR body; customize future output through commit conventions and
+  `release-please-config.json`.
+- Before merging a release PR, verify that its tag and GitHub Release will be
+  created and that the changelog reflects the intended user-facing scope.
+
 ## Browser Testing
 
 - Use the installed system Google Chrome for Playwright runs; do not download or
