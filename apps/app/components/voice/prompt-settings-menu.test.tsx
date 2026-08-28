@@ -98,6 +98,7 @@ describe("PromptSettingsMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
     const modelsMenu = screen.getByRole("menu", { name: "Models" });
     expect(modelsMenu.className).toContain("max-h-[136px]");
+    expect(modelsMenu.className).toContain("dm-excalidraw-scroll");
     expect(
       screen.getByRole("menuitemradio", { name: "model-b" }).className,
     ).toContain("w-[calc(100%-2px)]");

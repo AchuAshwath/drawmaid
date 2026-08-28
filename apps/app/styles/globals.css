@@ -245,6 +245,28 @@
     outline: transparent;
     box-shadow: 0 0 0 1px var(--dm-brand-hover, var(--primary, var(--ring)));
   }
+
+  /* Model lists stay compact while keeping the scroll affordance visible. */
+  .dm-excalidraw-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--dm-surface-high, var(--border)) transparent;
+    scrollbar-gutter: stable;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar-track {
+    background: var(--dm-surface-high, var(--border));
+    border-radius: 3px;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar-thumb {
+    background: var(--dm-on-surface, var(--muted-foreground));
+    border: 1px solid var(--dm-surface-high, var(--border));
+    border-radius: 3px;
+  }
 }
 
 /* Bridge Excalidraw theme → Drawmaid theme.
