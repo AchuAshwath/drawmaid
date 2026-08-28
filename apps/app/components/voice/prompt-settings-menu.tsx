@@ -57,9 +57,8 @@ export function PromptSettingsMenu({
   const [open, setOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
   const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("left");
-  const [menuOffset, setMenuOffset] = useState(0);
+  const [submenuOffset, setSubmenuOffset] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
 
   const modelOptions = useMemo(() => {
@@ -123,36 +122,32 @@ export function PromptSettingsMenu({
     if (!open || !activePanel || typeof window === "undefined") {
       // Reset the collision offset when no submenu is active.
       // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setMenuOffset(0);
+      setSubmenuOffset(0);
       return;
     }
 
-    const menu = menuRef.current;
     const submenu = submenuRef.current;
-    if (!menu || !submenu) return;
+    if (!submenu) return;
 
     const updateOffset = () => {
       // A panel switch reuses this inline transform for one render. Clear it
       // while measuring so the new panel is positioned from its natural anchor.
-      // The whole group moves together so the parent rows and submenu never
-      // drift apart when the list has to clear the viewport edge.
-      const previousTransform = menu.style.transform;
-      menu.style.transform = "none";
-      const menuRect = menu.getBoundingClientRect();
-      const submenuRect = submenu.getBoundingClientRect();
-      const top = Math.min(menuRect.top, submenuRect.top);
-      const bottom = Math.max(menuRect.bottom, submenuRect.bottom);
+      // Keep this correction on the submenu so the Model/Effort selector stays
+      // anchored while switching between panels with different heights.
+      const previousTransform = submenu.style.transform;
+      submenu.style.transform = "none";
+      const rect = submenu.getBoundingClientRect();
       let offset = 0;
-      if (bottom > window.innerHeight - VIEWPORT_MARGIN) {
-        offset -= bottom - (window.innerHeight - VIEWPORT_MARGIN);
+      if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN) {
+        offset -= rect.bottom - (window.innerHeight - VIEWPORT_MARGIN);
       }
-      if (top + offset < VIEWPORT_MARGIN) {
-        offset += VIEWPORT_MARGIN - (top + offset);
+      if (rect.top + offset < VIEWPORT_MARGIN) {
+        offset += VIEWPORT_MARGIN - (rect.top + offset);
       }
-      menu.style.transform = previousTransform;
+      submenu.style.transform = previousTransform;
       // Keep the submenu inside the viewport when the footer is near an edge.
       // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setMenuOffset(offset);
+      setSubmenuOffset(offset);
     };
 
     updateOffset();
@@ -164,6 +159,7 @@ export function PromptSettingsMenu({
 
   const togglePanel = (panel: Exclude<SettingsPanel, null>) => {
     setOpen(true);
+    setSubmenuOffset(0);
     setActivePanel((current) => (current === panel ? null : panel));
   };
 
@@ -201,11 +197,9 @@ export function PromptSettingsMenu({
 
       {open && (
         <div
-          ref={menuRef}
           className={`absolute bottom-full z-50 mb-4 ${
             menuPlacement === "right" ? "left-0" : "right-0"
           }`}
-          style={{ transform: `translateY(${menuOffset}px)` }}
           role="presentation"
         >
           <div
@@ -253,6 +247,7 @@ export function PromptSettingsMenu({
               className={`${PANEL_CLASS} dm-excalidraw-scroll absolute top-0 max-h-[136px] w-[220px] overflow-y-auto overscroll-contain ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               }`}
+              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Models"
             >
@@ -307,6 +302,7 @@ export function PromptSettingsMenu({
               className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               } ${activePanel === "visual" ? "top-[34px]" : "top-0"}`}
+              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Effort levels"
             >
