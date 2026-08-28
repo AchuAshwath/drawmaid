@@ -192,6 +192,32 @@ describe("extractIntent - Entity Extraction", () => {
 });
 
 describe("extractIntent - Full Integration", () => {
+  it("exposes diagram intent without dropping direction or entities", () => {
+    const explicit = extractIntent(
+      "draw an entity relationship diagram for users and orders",
+    );
+
+    expect(explicit).toEqual(
+      expect.objectContaining({
+        diagramIntent: { type: "erDiagram", source: "explicit" },
+        direction: null,
+        entities: [],
+      }),
+    );
+
+    const heuristic = extractIntent(
+      "the browser calls the API and gets a response",
+    );
+
+    expect(heuristic).toEqual(
+      expect.objectContaining({
+        diagramIntent: { type: "sequenceDiagram", source: "heuristic" },
+        direction: null,
+        entities: ["browser", "calls", "api", "gets", "response"],
+      }),
+    );
+  });
+
   it("extracts diagram type and direction", () => {
     const result = extractIntent(
       "user login make it a sequence diagram left to right",
@@ -232,6 +258,7 @@ describe("buildUserPrompt", () => {
   it("includes diagram type when detected", () => {
     const intent: Intent = {
       diagramType: "sequenceDiagram",
+      diagramIntent: null,
       direction: null,
       entities: [],
     };
@@ -246,6 +273,7 @@ describe("buildUserPrompt", () => {
   it("includes direction when detected", () => {
     const intent: Intent = {
       diagramType: null,
+      diagramIntent: null,
       direction: "LR",
       entities: [],
     };
@@ -259,6 +287,7 @@ describe("buildUserPrompt", () => {
   it("includes entities as nodes for short inputs", () => {
     const intent: Intent = {
       diagramType: null,
+      diagramIntent: null,
       direction: null,
       entities: ["user", "login", "dashboard"],
     };
@@ -272,6 +301,7 @@ describe("buildUserPrompt", () => {
   it("includes entities when present in intent", () => {
     const intent: Intent = {
       diagramType: "flowchart",
+      diagramIntent: null,
       direction: "TD",
       entities: ["User", "Login", "Dashboard"],
     };
@@ -287,6 +317,7 @@ describe("buildUserPrompt", () => {
   it("combines all extracted info", () => {
     const intent: Intent = {
       diagramType: "sequenceDiagram",
+      diagramIntent: null,
       direction: "LR",
       entities: ["user", "server"],
     };

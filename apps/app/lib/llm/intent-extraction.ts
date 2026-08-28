@@ -1,15 +1,17 @@
-import { getDiagramConfig } from "./diagram-config";
+import { getDiagramPromptConfig } from "./diagram-prompt-config";
 import {
   DIAGRAM_TYPE_KEYWORDS,
   DIRECTION_KEYWORDS,
   COMMON_FILTER,
 } from "../constants";
+import { detectDiagramIntent, type DiagramIntent } from "@/lib/diagram";
 
 import USER_PROMPT_RULES from "../../prompts/user-prompt-rules.md?raw";
 import RECOVERY_PROMPT_RULES from "../../prompts/recovery-prompt-rules.md?raw";
 
 export interface Intent {
   diagramType: string | null;
+  readonly diagramIntent: DiagramIntent | null;
   direction: string | null;
   entities: string[];
 }
@@ -131,6 +133,7 @@ export function extractIntent(transcript: string): Intent {
   }
 
   const diagramType = extractDiagramType(transcript);
+  const diagramIntent = detectDiagramIntent(transcript);
   const direction = extractDirection(transcript);
 
   // Only extract entities for short inputs (optimization)
@@ -139,7 +142,7 @@ export function extractIntent(transcript: string): Intent {
     entities = extractEntitiesNative(transcript);
   }
 
-  const result = { diagramType, direction, entities };
+  const result = { diagramType, diagramIntent, direction, entities };
 
   // Add to cache with size limit
   if (intentCache.size >= MAX_CACHE_SIZE) {
@@ -155,8 +158,15 @@ export function buildUserPrompt(
   originalTranscript: string,
   intent: Intent,
 ): string {
-  const config = getDiagramConfig(intent.diagramType);
-  const diagramType = intent.diagramType || "flowchart";
+  const selectedDiagramType = intent.diagramIntent?.type ?? intent.diagramType;
+  const config =
+    selectedDiagramType === null
+      ? getDiagramPromptConfig("flowchart")
+      : getDiagramPromptConfig(selectedDiagramType);
+  if (!config) {
+    throw new Error(`No diagram configuration for ${selectedDiagramType}`);
+  }
+  const diagramType = selectedDiagramType || "flowchart";
   const direction = intent.direction || "TD";
 
   const firstLine =
@@ -282,13 +292,22 @@ export interface ErrorRecoveryContext {
   failedMermaidCode: string;
   errorMessage: string;
   diagramType: string | null;
+  diagramIntent?: DiagramIntent | null;
 }
 
 export function buildErrorRecoveryPrompt(
   context: ErrorRecoveryContext,
 ): string {
-  const diagramType = context.diagramType || "flowchart";
-  const config = getDiagramConfig(context.diagramType);
+  const selectedDiagramType =
+    context.diagramIntent?.type ?? context.diagramType;
+  const diagramType = selectedDiagramType || "flowchart";
+  const config =
+    selectedDiagramType === null
+      ? getDiagramPromptConfig("flowchart")
+      : getDiagramPromptConfig(selectedDiagramType);
+  if (!config) {
+    throw new Error(`No diagram configuration for ${selectedDiagramType}`);
+  }
   const firstLine =
     diagramType === "flowchart" ? `${diagramType} TD` : diagramType;
 
