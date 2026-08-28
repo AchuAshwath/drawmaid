@@ -399,7 +399,7 @@ export function AIConfigPopup({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="dm-excalidraw-surface flex max-h-[85vh] flex-col rounded-xl border-0 p-0 sm:max-w-[560px]"
+          className="dm-excalidraw-surface flex h-[85vh] max-h-[85vh] flex-col gap-0 rounded-xl border-0 p-0 sm:max-w-[560px]"
           aria-describedby="ai-config-description"
         >
           <DialogHeader className="gap-1 px-5 pt-5">
@@ -413,7 +413,7 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 custom-scrollbar">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 space-y-3 custom-scrollbar">
             <div
               role="tablist"
               aria-label="AI configuration mode"
@@ -957,7 +957,7 @@ export function AIConfigPopup({
               )}
           </div>
 
-          <DialogFooter className="gap-2 border-t border-[var(--dm-surface-high,var(--border))] px-5 py-3 sm:gap-0">
+          <DialogFooter className="gap-2 px-5 py-2 sm:gap-0">
             <Button
               variant="ghost"
               size="sm"
