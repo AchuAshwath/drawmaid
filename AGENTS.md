@@ -36,6 +36,13 @@ bun ui:add <component>         # Add shadcn/ui component to packages/ui
 # Database: bun db:{push,generate,studio,seed} (append :staging or :prod)
 ```
 
+## Browser Testing
+
+- Use the installed system Google Chrome for Playwright runs; do not download or
+  install Playwright-managed Chromium binaries.
+- Configure browser tests with Playwright's `channel: "chrome"` when a real
+  browser is required.
+
 ## Architecture
 
 - Three workers: web (edge router), app (SPA assets), api (Hono server).

@@ -3,6 +3,7 @@ import {
   convertToExcalidrawElements,
 } from "@excalidraw/excalidraw";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
+import type { DiagramDocument } from "@/lib/diagram";
 
 interface ExcalidrawElement {
   id: string;
@@ -132,19 +133,31 @@ function positionElementsAtViewportCenter(
  * current viewport.
  *
  * @param api - The Excalidraw canvas API
- * @param mermaidCode - The Mermaid diagram code
+ * @param document - The typed Mermaid diagram document
  * @param options.replace - If true, removes the previous auto-mode diagram before inserting
  */
 export async function insertMermaidIntoCanvas(
   api: ExcalidrawCanvasApi,
-  mermaidCode: string,
+  document: DiagramDocument,
   options?: { replace?: boolean },
 ): Promise<void> {
-  const { elements: skeleton, files } =
-    await parseMermaidToExcalidraw(mermaidCode);
+  const { elements: skeleton, files } = await parseMermaidToExcalidraw(
+    document.code,
+  );
   const newElements = convertToExcalidrawElements(skeleton, {
     regenerateIds: true,
   }) as ExcalidrawElement[];
+
+  const isImageOnlyResult =
+    newElements.length === 1 && newElements[0]?.type === "image";
+  if (
+    document.capability === "editable" &&
+    (newElements.length === 0 || isImageOnlyResult)
+  ) {
+    throw new Error(
+      `Editable ${document.type} diagram did not produce usable editable canvas elements`,
+    );
+  }
 
   const appState = api.getAppState();
   const containerDims = getContainerDimensions();
