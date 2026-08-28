@@ -1,9 +1,5 @@
 import { getDiagramPromptConfig } from "./diagram-prompt-config";
-import {
-  DIAGRAM_TYPE_KEYWORDS,
-  DIRECTION_KEYWORDS,
-  COMMON_FILTER,
-} from "../constants";
+import { DIRECTION_KEYWORDS, COMMON_FILTER } from "../constants";
 import { detectDiagramIntent, type DiagramIntent } from "@/lib/diagram";
 
 import USER_PROMPT_RULES from "../../prompts/user-prompt-rules.md?raw";
@@ -45,7 +41,6 @@ function buildKeywordRegex(keywords: Record<string, string[]>): {
   return { regex, keyMap };
 }
 
-const DIAGRAM_TYPE_SEARCH = buildKeywordRegex(DIAGRAM_TYPE_KEYWORDS);
 const DIRECTION_SEARCH = buildKeywordRegex(DIRECTION_KEYWORDS);
 
 function findKeywordBackwards(
@@ -76,11 +71,6 @@ function findKeywordBackwards(
   // Return the last match (backwards scan)
   matches.sort((a, b) => b.position - a.position);
   return matches[0];
-}
-
-function extractDiagramType(transcript: string): string | null {
-  const result = findKeywordBackwards(transcript, DIAGRAM_TYPE_SEARCH);
-  return result?.key ?? null;
 }
 
 function extractDirection(transcript: string): string | null {
@@ -132,8 +122,10 @@ export function extractIntent(transcript: string): Intent {
     return intentCache.get(transcript)!;
   }
 
-  const diagramType = extractDiagramType(transcript);
   const diagramIntent = detectDiagramIntent(transcript);
+  // Keep the legacy diagnostic field as a projection of the authoritative
+  // typed intent; never run a second keyword classifier.
+  const diagramType = diagramIntent?.type ?? null;
   const direction = extractDirection(transcript);
 
   // Only extract entities for short inputs (optimization)

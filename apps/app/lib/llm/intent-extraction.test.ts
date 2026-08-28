@@ -6,7 +6,7 @@ import {
   type Intent,
 } from "./intent-extraction";
 
-describe("extractIntent - Diagram Type (Backwards Scan)", () => {
+describe("extractIntent - Diagram Type", () => {
   describe("should return null when no diagram keyword found", () => {
     it("empty transcript", () => {
       const result = extractIntent("");
@@ -78,14 +78,14 @@ describe("extractIntent - Diagram Type (Backwards Scan)", () => {
   });
 
   describe("single keyword variants", () => {
-    it("sequence keyword alone", () => {
+    it("ambiguous sequence keyword alone", () => {
       const result = extractIntent("make it a sequence");
-      expect(result.diagramType).toBe("sequenceDiagram");
+      expect(result.diagramType).toBeNull();
     });
 
-    it("class keyword alone", () => {
+    it("ambiguous class keyword alone", () => {
       const result = extractIntent("draw a class");
-      expect(result.diagramType).toBe("classDiagram");
+      expect(result.diagramType).toBeNull();
     });
   });
 });
