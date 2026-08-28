@@ -59,6 +59,9 @@ describe("PromptSettingsMenu", () => {
       screen.getByRole("button", { name: "Model and visual settings" }),
     );
     fireEvent.click(screen.getByRole("menuitem", { name: /Visual level/ }));
+    const visualMenu = screen.getByRole("menu", { name: "Visual levels" });
+    expect(visualMenu.querySelector("p")).toBeNull();
+    expect(visualMenu.className).toContain("top-[34px]");
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Medium" }));
 
     expect(onChange).toHaveBeenCalledWith("medium");

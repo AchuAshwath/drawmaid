@@ -150,8 +150,8 @@ export function PromptSettingsMenu({
 
       {open && (
         <div
-          className={`absolute bottom-full z-50 mb-2 flex items-end gap-1 ${
-            menuPlacement === "right" ? "left-0" : "right-0 flex-row-reverse"
+          className={`absolute bottom-full z-50 mb-2 ${
+            menuPlacement === "right" ? "left-0" : "right-0"
           }`}
           role="presentation"
         >
@@ -196,7 +196,9 @@ export function PromptSettingsMenu({
 
           {activePanel === "model" && (
             <div
-              className={`${PANEL_CLASS} max-h-[300px] w-[220px] overflow-y-auto`}
+              className={`${PANEL_CLASS} absolute top-0 max-h-[300px] w-[220px] overflow-y-auto ${
+                menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
+              }`}
               role="menu"
               aria-label="Models"
             >
@@ -255,13 +257,12 @@ export function PromptSettingsMenu({
 
           {activePanel === "visual" && visualLevelControl && (
             <div
-              className={`${PANEL_CLASS} w-[160px]`}
+              className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
+                menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
+              } ${activePanel === "visual" ? "top-[34px]" : "top-0"}`}
               role="menu"
               aria-label="Visual levels"
             >
-              <p className="px-3 py-2 text-sm text-muted-foreground">
-                Visual level
-              </p>
               {VISUAL_LEVELS.map((level) => (
                 <button
                   key={level}
