@@ -74,6 +74,8 @@ const EXCALIDRAW_CONTROL = "dm-excalidraw-control";
 const EXCALIDRAW_CARD = "dm-excalidraw-card";
 const EXCALIDRAW_INPUT = "dm-excalidraw-input";
 const EXCALIDRAW_TAB = "dm-excalidraw-tab";
+const EXCALIDRAW_MENU_ITEM =
+  "dm-excalidraw-menu-item flex h-8 w-full items-center gap-2 px-2 py-0 text-left text-sm";
 
 function isLocalServerType(value: string): value is LocalServerType {
   return SERVER_PRESETS.some((preset) => preset.type === value);
@@ -415,21 +417,29 @@ export function AIConfigPopup({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 custom-scrollbar">
-            <div className="flex gap-2">
+            <div
+              role="tablist"
+              aria-label="AI configuration mode"
+              className="dm-excalidraw-surface flex gap-1 p-1"
+            >
               <Button
                 variant="ghost"
                 size="sm"
+                role="tab"
+                aria-selected={activeTab === "webllm"}
                 onClick={() => handleTabChange("webllm")}
                 disabled={isWebLLMDisabled}
-                className={`${EXCALIDRAW_CONTROL} flex-1 ${activeTab === "webllm" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : ""}`}
+                className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${activeTab === "webllm" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
               >
                 WebLLM
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
+                role="tab"
+                aria-selected={activeTab === "local"}
                 onClick={() => handleTabChange("local")}
-                className={`${EXCALIDRAW_CONTROL} flex-1 ${activeTab === "local" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : ""}`}
+                className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${activeTab === "local" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Local Server
               </Button>
@@ -493,13 +503,19 @@ export function AIConfigPopup({
                   </div>
                 )}
 
-                <div className="flex gap-1 border-b border-[var(--dm-surface-high,var(--border))] pb-1">
+                <div
+                  role="tablist"
+                  aria-label="AI provider"
+                  className="dm-excalidraw-surface flex gap-1 p-1"
+                >
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={webllmSubTab === "available"}
                     onClick={() => setWebllmSubTab("available")}
-                    className={`${EXCALIDRAW_TAB} flex-1 text-sm font-medium ${
+                    className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${
                       webllmSubTab === "available"
-                        ? "border-b-2 border-primary text-primary"
+                        ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -507,10 +523,12 @@ export function AIConfigPopup({
                   </button>
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={webllmSubTab === "downloaded"}
                     onClick={() => setWebllmSubTab("downloaded")}
-                    className={`${EXCALIDRAW_TAB} flex-1 text-sm font-medium ${
+                    className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${
                       webllmSubTab === "downloaded"
-                        ? "border-b-2 border-primary text-primary"
+                        ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -640,7 +658,24 @@ export function AIConfigPopup({
               <div className="space-y-3">
                 {/* Server Type Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Provider</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Provider</label>
+                    <div className="group relative">
+                      <Info
+                        className="h-4 w-4 cursor-help text-muted-foreground"
+                        aria-label="Provider details"
+                      />
+                      <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        {
+                          SERVER_PRESETS.find(
+                            (preset) =>
+                              preset.type ===
+                              (config as LocalServerConfig).serverType,
+                          )?.description
+                        }
+                      </div>
+                    </div>
+                  </div>
                   <Select
                     value={
                       (config as LocalServerConfig).serverType || "cliproxyapi"
@@ -687,14 +722,6 @@ export function AIConfigPopup({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {
-                      SERVER_PRESETS.find(
-                        (p) =>
-                          p.type === (config as LocalServerConfig).serverType,
-                      )?.description
-                    }
-                  </p>
                 </div>
 
                 {/* Server URL */}
@@ -728,13 +755,6 @@ export function AIConfigPopup({
                     }}
                     className={EXCALIDRAW_INPUT}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Default:{" "}
-                    {SERVER_PRESETS.find(
-                      (p) =>
-                        p.type === (config as LocalServerConfig).serverType,
-                    )?.defaultUrl || "Not set"}
-                  </p>
                 </div>
 
                 {/* Advanced Settings */}
@@ -742,16 +762,20 @@ export function AIConfigPopup({
                   <button
                     type="button"
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    aria-expanded={showAdvanced}
+                    className={`${EXCALIDRAW_MENU_ITEM} justify-between text-muted-foreground hover:text-foreground`}
                   >
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
-                    />
-                    Advanced Settings
+                    <span className="flex items-center gap-2">
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                      />
+                      Advanced Settings
+                    </span>
+                    <span className="text-xs opacity-70">Optional</span>
                   </button>
 
                   {showAdvanced && (
-                    <div className="space-y-2 pt-2">
+                    <div className="space-y-2 border-l border-[var(--dm-surface-high,var(--border))] pl-3 pt-1">
                       <label className="text-sm font-medium">
                         API Key (optional)
                       </label>
