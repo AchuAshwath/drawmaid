@@ -15,7 +15,7 @@ Voice and text to Excalidraw diagrams using local AI. Generate beautiful diagram
 
 ### Option 1: WebLLM (No Setup Required)
 
-1. Visit [https://app.drawmaid.ashwath.space/](https://app.drawmaid.ashwath.space/)
+1. Visit [https://drawmaid.achuashwath.dev/](https://drawmaid.achuashwath.dev/)
 2. Download a WebLLM model (recommended: Qwen2.5-Coder-1.5B)
 3. Start generating diagrams!
 
