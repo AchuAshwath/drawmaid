@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.2...drawmaid-v0.1.3) (2026-08-28)
+
+
+### Documentation
+
+* **release:** document diagram support and release conventions ([#69](https://github.com/AchuAshwath/drawmaid/issues/69)) ([5a2f13a](https://github.com/AchuAshwath/drawmaid/commit/5a2f13a27f47c7eb524a4bc3bc0d62bd92c0c0d2))
+
 ## [0.1.2](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.1...drawmaid-v0.1.2) (2026-08-28)
 
 ### Major features
