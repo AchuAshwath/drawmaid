@@ -421,7 +421,7 @@ export function AIConfigPopup({
             <div
               role="tablist"
               aria-label="AI configuration mode"
-              className="dm-excalidraw-surface flex gap-1 p-1"
+              className="flex items-center gap-1"
             >
               <Button
                 variant="ghost"
@@ -430,21 +430,18 @@ export function AIConfigPopup({
                 aria-selected={activeTab === "webllm"}
                 onClick={() => handleTabChange("webllm")}
                 disabled={isWebLLMDisabled}
-                className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${activeTab === "webllm" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
+                className={`${EXCALIDRAW_CONTROL} h-8 flex-1 text-sm font-medium ${activeTab === "webllm" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
               >
                 WebLLM
               </Button>
-              <Separator
-                orientation="vertical"
-                className="mx-1 h-5 bg-[var(--dm-surface-high,var(--border))]"
-              />
+              <Separator orientation="vertical" className="mx-1 h-5" />
               <Button
                 variant="ghost"
                 size="sm"
                 role="tab"
                 aria-selected={activeTab === "local"}
                 onClick={() => handleTabChange("local")}
-                className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${activeTab === "local" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
+                className={`${EXCALIDRAW_CONTROL} h-8 flex-1 text-sm font-medium ${activeTab === "local" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Local Server
               </Button>
@@ -777,10 +774,22 @@ export function AIConfigPopup({
                   </button>
 
                   {showAdvanced && (
-                    <div className="space-y-2 border-l border-[var(--dm-surface-high,var(--border))] pl-3 pt-1">
-                      <label className="text-sm font-medium">
-                        API Key (optional)
-                      </label>
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">
+                          API Key (optional)
+                        </label>
+                        <div className="group relative">
+                          <Info
+                            className="h-4 w-4 cursor-help text-muted-foreground"
+                            aria-label="API key details"
+                          />
+                          <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                            Required if your proxy or server has authentication
+                            enabled.
+                          </div>
+                        </div>
+                      </div>
                       <Input
                         type="password"
                         placeholder="sk-..."
@@ -805,10 +814,6 @@ export function AIConfigPopup({
                         }}
                         className={EXCALIDRAW_INPUT}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Required if your proxy or server has authentication
-                        enabled
-                      </p>
                     </div>
                   )}
                 </div>
