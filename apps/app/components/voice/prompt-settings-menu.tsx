@@ -301,7 +301,7 @@ export function PromptSettingsMenu({
               ref={submenuRef}
               className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
-              } top-0`}
+              } top-[34px]`}
               style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Effort levels"
