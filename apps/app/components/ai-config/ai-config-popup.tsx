@@ -46,7 +46,6 @@ import {
 import {
   AlertCircle,
   Check,
-  ChevronDown,
   Download,
   Info,
   Loader2,
@@ -75,8 +74,6 @@ const EXCALIDRAW_CONTROL = "dm-excalidraw-control";
 const EXCALIDRAW_CARD = "dm-excalidraw-card";
 const EXCALIDRAW_INPUT = "dm-excalidraw-input";
 const EXCALIDRAW_TAB = "dm-excalidraw-tab";
-const EXCALIDRAW_MENU_ITEM =
-  "dm-excalidraw-menu-item flex h-8 w-full items-center gap-2 px-2 py-0 text-left text-sm";
 
 function isLocalServerType(value: string): value is LocalServerType {
   return SERVER_PRESETS.some((preset) => preset.type === value);
@@ -113,7 +110,6 @@ export function AIConfigPopup({
   const [connectionStatus, setConnectionStatus] = useState<
     "idle" | "connecting" | "connected" | "error"
   >("idle");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [customModelMode, setCustomModelMode] = useState(false);
 
   // Load WebLLM models on mount
@@ -759,63 +755,50 @@ export function AIConfigPopup({
                   />
                 </div>
 
-                {/* Advanced Settings */}
+                {/* API key */}
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    aria-expanded={showAdvanced}
-                    className={`${EXCALIDRAW_MENU_ITEM} justify-between text-muted-foreground hover:text-foreground`}
-                  >
-                    <span>Advanced Settings</span>
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {showAdvanced && (
-                    <div className="space-y-2 pt-1">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium">
-                          API Key (optional)
-                        </label>
-                        <div className="group relative">
-                          <Info
-                            className="h-4 w-4 cursor-help text-muted-foreground"
-                            aria-label="API key details"
-                          />
-                          <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                            Required if your proxy or server has authentication
-                            enabled.
-                          </div>
-                        </div>
-                      </div>
-                      <Input
-                        type="password"
-                        placeholder="sk-..."
-                        value={(config as LocalServerConfig).apiKey || ""}
-                        onChange={(e) => {
-                          const newApiKey = e.target.value;
-                          setConfig(
-                            (prev) =>
-                              ({
-                                ...prev,
-                                apiKey: newApiKey,
-                              }) as LocalServerConfig,
-                          );
-                        }}
-                        onBlur={(e) => {
-                          if (config.type === "local") {
-                            const url =
-                              (config as LocalServerConfig).url ||
-                              "http://127.0.0.1:8317/v1";
-                            handleFetchModels(url, e.target.value);
-                          }
-                        }}
-                        className={EXCALIDRAW_INPUT}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">
+                      API Key{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (optional)
+                      </span>
+                    </label>
+                    <div className="group relative">
+                      <Info
+                        className="h-4 w-4 cursor-help text-muted-foreground"
+                        aria-label="API key details"
                       />
+                      <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        Required if your proxy or server has authentication
+                        enabled.
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="sk-..."
+                    value={(config as LocalServerConfig).apiKey || ""}
+                    onChange={(e) => {
+                      const newApiKey = e.target.value;
+                      setConfig(
+                        (prev) =>
+                          ({
+                            ...prev,
+                            apiKey: newApiKey,
+                          }) as LocalServerConfig,
+                      );
+                    }}
+                    onBlur={(e) => {
+                      if (config.type === "local") {
+                        const url =
+                          (config as LocalServerConfig).url ||
+                          "http://127.0.0.1:8317/v1";
+                        handleFetchModels(url, e.target.value);
+                      }
+                    }}
+                    className={EXCALIDRAW_INPUT}
+                  />
                 </div>
 
                 {/* Model Selection */}

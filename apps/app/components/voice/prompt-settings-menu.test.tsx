@@ -96,9 +96,11 @@ describe("PromptSettingsMenu", () => {
       screen.getByRole("button", { name: "Model and visual settings" }),
     );
     fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
-    expect(screen.getByRole("menu", { name: "Models" }).className).toContain(
-      "max-h-[136px]",
-    );
+    const modelsMenu = screen.getByRole("menu", { name: "Models" });
+    expect(modelsMenu.className).toContain("max-h-[136px]");
+    expect(
+      screen.getByRole("menuitemradio", { name: "model-b" }).className,
+    ).toContain("w-[calc(100%-2px)]");
     fireEvent.click(screen.getByRole("menuitemradio", { name: "model-b" }));
 
     expect(onSelectModel).toHaveBeenCalledWith("model-b");

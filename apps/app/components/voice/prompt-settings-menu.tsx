@@ -29,7 +29,7 @@ const CONTROL_CLASS =
   "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
 const PANEL_CLASS = "dm-excalidraw-surface p-0.5";
 const ROW_CLASS =
-  "dm-excalidraw-menu-item flex h-8 min-h-8 w-full items-center gap-[10px] px-2 py-0 text-left text-sm text-foreground hover:text-accent-foreground";
+  "dm-excalidraw-menu-item flex h-8 min-h-8 w-[calc(100%-2px)] items-center gap-[10px] px-2 py-0 text-left text-sm text-foreground hover:text-accent-foreground";
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
