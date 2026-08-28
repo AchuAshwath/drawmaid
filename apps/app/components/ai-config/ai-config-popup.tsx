@@ -71,6 +71,8 @@ const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";
 
 const EXCALIDRAW_CONTROL = "dm-excalidraw-control";
+const EXCALIDRAW_OUTLINE_CONTROL =
+  "dm-excalidraw-control border border-[var(--dm-input-border,var(--border))] bg-transparent";
 const EXCALIDRAW_CARD = "dm-excalidraw-card";
 const EXCALIDRAW_INPUT = "dm-excalidraw-input";
 const EXCALIDRAW_TAB = "dm-excalidraw-tab";
@@ -399,7 +401,7 @@ export function AIConfigPopup({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="dm-excalidraw-surface flex h-[85vh] max-h-[85vh] flex-col gap-0 rounded-xl border-0 p-0 sm:max-w-[560px]"
+          className="dm-excalidraw-surface flex h-[640px] max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 sm:max-w-[560px]"
           aria-describedby="ai-config-description"
         >
           <DialogHeader className="gap-1 px-5 pt-5">
@@ -413,13 +415,7 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
 
-          <div
-            className={`min-h-0 flex-1 px-5 py-3 space-y-3 ${
-              activeTab === "webllm"
-                ? "overflow-y-auto custom-scrollbar"
-                : "overflow-visible"
-            }`}
-          >
+          <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible px-5 py-3">
             <div
               role="tablist"
               aria-label="AI configuration mode"
@@ -450,7 +446,7 @@ export function AIConfigPopup({
             </div>
 
             {activeTab === "webllm" && (
-              <div className="space-y-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
                 <WebGPUBanner onConfigureClick={() => {}} />
 
                 {!downloadedModels.includes(
@@ -480,7 +476,7 @@ export function AIConfigPopup({
                           )
                         }
                         disabled={downloadingModel !== null}
-                        className={`${EXCALIDRAW_CONTROL} gap-1`}
+                        className={`${EXCALIDRAW_OUTLINE_CONTROL} gap-1`}
                       >
                         <Download className="h-3 w-3" />
                         Download
@@ -525,6 +521,7 @@ export function AIConfigPopup({
                   >
                     Available ({filteredAvailableModels.length})
                   </button>
+                  <Separator orientation="vertical" className="mx-1 h-5" />
                   <button
                     type="button"
                     role="tab"
@@ -546,11 +543,11 @@ export function AIConfigPopup({
                     placeholder="Search models..."
                     value={modelSearch}
                     onChange={(e) => setModelSearch(e.target.value)}
-                    className={`${EXCALIDRAW_INPUT} h-8 pl-8`}
+                    className={`${EXCALIDRAW_INPUT} h-8 border border-[var(--dm-input-border,var(--border))] pl-8`}
                   />
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2 min-h-0 custom-scrollbar">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll custom-scrollbar">
                   {webllmSubTab === "available" &&
                     filteredAvailableModels.map((model) => (
                       <div
@@ -571,7 +568,7 @@ export function AIConfigPopup({
                           size="sm"
                           onClick={() => handleDownloadClick(model.id)}
                           disabled={isDownloadingThis}
-                          className={`${EXCALIDRAW_CONTROL} ml-2 shrink-0 gap-1`}
+                          className={`${EXCALIDRAW_OUTLINE_CONTROL} ml-2 shrink-0 gap-1`}
                         >
                           <Download className="h-3 w-3" />
                           Download
@@ -967,7 +964,7 @@ export function AIConfigPopup({
               )}
           </div>
 
-          <DialogFooter className="gap-2 px-5 py-2 sm:gap-0">
+          <DialogFooter className="gap-2 px-5 pb-4 pt-2 sm:gap-0">
             <Button
               variant="ghost"
               size="sm"
