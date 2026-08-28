@@ -90,4 +90,19 @@ describe("PromptSettingsMenu", () => {
 
     expect(onSelectModel).toHaveBeenCalledWith("model-b");
   });
+
+  it("keeps the model option visible while the model list is loading", () => {
+    render(
+      <PromptSettingsMenu
+        currentModel="model-a"
+        visualLevelControl={{ value: "low", onChange: vi.fn() }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Model and visual settings" }),
+    );
+
+    expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
+  });
 });

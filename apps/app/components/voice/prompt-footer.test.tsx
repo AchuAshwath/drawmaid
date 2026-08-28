@@ -93,7 +93,12 @@ describe("PromptFooter visual level control", () => {
     const onGenerate = vi.fn();
     const normal = render(<PromptFooter {...createProps({ onGenerate })} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Generate diagram" }));
+    const generateButton = screen.getByRole("button", {
+      name: "Generate diagram",
+    });
+    expect(generateButton.className).toContain("h-8 w-8");
+    expect(generateButton.className).toContain("shadow-none");
+    fireEvent.click(generateButton);
     expect(onGenerate).toHaveBeenCalledOnce();
 
     normal.unmount();

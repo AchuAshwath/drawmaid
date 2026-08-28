@@ -185,7 +185,7 @@ export function PromptFooter({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <PromptSettingsMenu
                 webLLMModels={webLLMModels}
                 localModels={localModels}
@@ -204,6 +204,7 @@ export function PromptFooter({
                 }
                 variant="default"
                 size="icon"
+                className="h-8 w-8 shrink-0 rounded-md shadow-none hover:brightness-110"
                 aria-label={
                   mode === "auto"
                     ? "Keep this diagram and start a new one"
@@ -218,9 +219,9 @@ export function PromptFooter({
                 }
               >
                 {mode === "auto" ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5" />
                 ) : (
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5" />
                 )}
               </Button>
             </div>

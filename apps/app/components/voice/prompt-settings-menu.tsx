@@ -29,7 +29,7 @@ const CONTROL_CLASS =
 const PANEL_CLASS =
   "rounded-xl border border-border bg-[var(--toolbar-bg,var(--card))] p-1 shadow-xl";
 const ROW_CLASS =
-  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
+  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-inset";
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -60,7 +60,8 @@ export function PromptSettingsMenu({
     });
   }, [localModels, webLLMModels]);
 
-  const hasModelOption = modelOptions.length > 0 || localServerConfigured;
+  const hasModelOption =
+    Boolean(currentModel) || modelOptions.length > 0 || localServerConfigured;
   const modelLabel = currentModel
     ? displayModelName(currentModel)
     : "Select model";
@@ -118,7 +119,7 @@ export function PromptSettingsMenu({
         type="button"
         variant="ghost"
         size="sm"
-        className={`${CONTROL_CLASS} max-w-[220px] gap-2 px-3 text-xs`}
+        className={`${CONTROL_CLASS} max-w-[220px] shrink-0 gap-2 px-3 text-xs`}
         aria-label="Model and visual settings"
         aria-haspopup="menu"
         aria-expanded={open}
