@@ -25,11 +25,10 @@ export interface PromptSettingsMenuProps {
 type SettingsPanel = "model" | "visual" | null;
 
 const CONTROL_CLASS =
-  "h-8 border-0 bg-[var(--toolbar-button-bg,var(--toolbar-bg,var(--secondary)))] text-[var(--toolbar-button-color,var(--foreground))] shadow-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
-const PANEL_CLASS =
-  "rounded-xl border border-border bg-[var(--toolbar-bg,var(--card))] p-1 shadow-xl";
+  "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
+const PANEL_CLASS = "dm-excalidraw-surface p-1";
 const ROW_CLASS =
-  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-inset";
+  "dm-excalidraw-menu-item flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-foreground hover:text-accent-foreground";
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -119,7 +118,7 @@ export function PromptSettingsMenu({
         type="button"
         variant="ghost"
         size="sm"
-        className={`${CONTROL_CLASS} max-w-[220px] shrink-0 gap-2 px-3 text-xs`}
+        className={`${CONTROL_CLASS} w-[220px] shrink-0 justify-between gap-2 px-3 text-xs`}
         aria-label="Model and visual settings"
         aria-haspopup="menu"
         aria-expanded={open}

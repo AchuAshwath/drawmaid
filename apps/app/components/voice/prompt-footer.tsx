@@ -104,7 +104,7 @@ export function PromptFooter({
           />
         </div>
       )}
-      <div className="rounded-lg bg-[var(--toolbar-bg,var(--card))] p-2 shadow-[0_2px_4px_rgba(0,0,0,0.04),0_-2px_4px_rgba(0,0,0,0.04),2px_0_4px_rgba(0,0,0,0.04),-2px_0_4px_rgba(0,0,0,0.04)] w-full max-w-[550px]">
+      <div className="dm-excalidraw-surface w-full max-w-[550px] border-0 p-2">
         <div className="flex w-full flex-col gap-2">
           {!isCollapsed && (
             <div className="relative">

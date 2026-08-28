@@ -110,6 +110,116 @@
   --ring: oklch(0.65 0.15 280);
 }
 
+/* Shared chrome for controls that float over the Excalidraw canvas. Keep the
+ * rhythm deliberately small and predictable: 32px controls, 8px gaps, and
+ * the same surface/button colors that Excalidraw exposes at runtime. */
+@layer components {
+  .dm-excalidraw-surface {
+    border: 0 !important;
+    border-radius: var(--dm-radius-lg, 0.5rem);
+    background-color: var(
+      --dm-island-bg,
+      var(--toolbar-bg, var(--card, var(--background)))
+    ) !important;
+    color: var(
+      --dm-on-surface,
+      var(--toolbar-button-color, var(--foreground))
+    ) !important;
+    box-shadow: var(
+      --dm-shadow-island,
+      0 0 1px rgb(0 0 0 / 0.17),
+      0 0 3px rgb(0 0 0 / 0.08),
+      0 7px 14px rgb(0 0 0 / 0.05)
+    ) !important;
+  }
+
+  .dm-excalidraw-card {
+    border: 1px solid var(--dm-surface-high, var(--border, oklch(0.9 0 0)));
+    border-radius: var(--dm-radius-md, 0.375rem);
+    background-color: var(
+      --dm-surface-low,
+      var(
+        --toolbar-button-bg,
+        var(--toolbar-bg, var(--card, var(--background)))
+      )
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+  }
+
+  .dm-excalidraw-control {
+    min-height: var(--dm-button-size, 2rem);
+    border-radius: var(--dm-radius-lg, 0.5rem);
+    background-color: var(
+      --toolbar-button-bg,
+      var(--toolbar-bg, var(--secondary))
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+    box-shadow: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-control:hover {
+    filter: brightness(1.1);
+  }
+
+  .dm-excalidraw-control:focus-visible,
+  .dm-excalidraw-menu-item:focus-visible,
+  .dm-excalidraw-tab:focus-visible {
+    outline: transparent;
+    box-shadow: 0 0 0 1px var(--dm-brand-hover, var(--primary, var(--ring)));
+  }
+
+  .dm-excalidraw-menu-item {
+    min-height: var(--dm-button-size, 2rem);
+    margin: 1px;
+    border: 1px solid transparent;
+    border-radius: var(--dm-radius-md, 0.375rem);
+    outline: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-menu-item:hover,
+  .dm-excalidraw-menu-item[aria-checked="true"] {
+    background-color: var(
+      --dm-surface-high,
+      var(--toolbar-button-bg, var(--accent))
+    );
+  }
+
+  .dm-excalidraw-tab {
+    min-height: var(--dm-button-size, 2rem);
+    border-radius: var(--dm-radius-md, 0.375rem);
+    outline: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-input {
+    min-height: var(--dm-button-size, 2rem);
+    border: 1px solid var(--dm-input-border, var(--border, var(--input)));
+    border-radius: var(--dm-radius-md, 0.375rem);
+    background-color: var(
+      --dm-input-bg,
+      var(--toolbar-button-bg, var(--background))
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+    box-shadow: none;
+  }
+
+  .dm-excalidraw-input:focus-visible {
+    outline: transparent;
+    box-shadow: 0 0 0 1px var(--dm-brand-hover, var(--primary, var(--ring)));
+  }
+}
+
 /* Bridge Excalidraw theme → Drawmaid theme.
  * Excalidraw defines its own CSS variables (e.g. --color-primary) on the
  * `.excalidraw` root; we mirror those into `--dm-*` tokens that the rest

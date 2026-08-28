@@ -151,6 +151,32 @@ export function useExcalidrawThemeBridge() {
 
       if (primary) root.style.setProperty("--primary", primary);
       if (surfaceLowest) root.style.setProperty("--background", surfaceLowest);
+
+      // Preserve the measured Excalidraw primitives for custom chrome. These
+      // are more precise than approximating the values with shadcn defaults.
+      const measuredTokens: Record<string, string> = {
+        "--island-bg-color": "--dm-island-bg",
+        "--input-bg-color": "--dm-input-bg",
+        "--input-border-color": "--dm-input-border",
+        "--input-hover-bg-color": "--dm-input-hover-bg",
+        "--shadow-island": "--dm-shadow-island",
+        "--default-button-size": "--dm-button-size",
+        "--default-icon-size": "--dm-icon-size",
+        "--border-radius-md": "--dm-radius-md",
+        "--border-radius-lg": "--dm-radius-lg",
+        "--space-factor": "--dm-space-factor",
+        "--color-surface-high": "--dm-surface-high",
+        "--color-surface-low": "--dm-surface-low",
+        "--color-surface-primary-container": "--dm-primary-container",
+        "--color-on-surface": "--dm-on-surface",
+        "--color-brand-hover": "--dm-brand-hover",
+        "--focus-highlight-color": "--dm-focus-highlight",
+      };
+
+      for (const [source, target] of Object.entries(measuredTokens)) {
+        const value = tryGetVar(source);
+        if (value) root.style.setProperty(target, value);
+      }
     };
 
     // Retry until Excalidraw is mounted

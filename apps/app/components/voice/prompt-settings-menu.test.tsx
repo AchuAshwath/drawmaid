@@ -30,9 +30,13 @@ describe("PromptSettingsMenu", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Model and visual settings" }),
-    );
+    const trigger = screen.getByRole("button", {
+      name: "Model and visual settings",
+    });
+    expect(trigger.className).toContain("dm-excalidraw-control");
+    expect(trigger.className).toContain("w-[220px]");
+
+    fireEvent.click(trigger);
 
     expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: /Visual level/ })).toBeTruthy();

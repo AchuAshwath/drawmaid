@@ -70,6 +70,15 @@ type WebLLMTabType = "available" | "downloaded";
 const TEST_PROMPT =
   "Introduce yourself and tell me what you can help me create. Keep it brief (2-3 sentences).";
 
+const EXCALIDRAW_CONTROL = "dm-excalidraw-control";
+const EXCALIDRAW_CARD = "dm-excalidraw-card";
+const EXCALIDRAW_INPUT = "dm-excalidraw-input";
+const EXCALIDRAW_TAB = "dm-excalidraw-tab";
+
+function isLocalServerType(value: string): value is LocalServerType {
+  return SERVER_PRESETS.some((preset) => preset.type === value);
+}
+
 export function AIConfigPopup({
   open,
   onOpenChange,
@@ -391,10 +400,10 @@ export function AIConfigPopup({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="flex max-h-[85vh] flex-col p-0 sm:max-w-[560px]"
+          className="dm-excalidraw-surface flex max-h-[85vh] flex-col rounded-xl border-0 p-0 sm:max-w-[560px]"
           aria-describedby="ai-config-description"
         >
-          <DialogHeader className="px-6 pt-6">
+          <DialogHeader className="gap-1 px-5 pt-5">
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
               AI Configuration
@@ -405,37 +414,39 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 custom-scrollbar">
             <div className="flex gap-2">
               <Button
-                variant={activeTab === "webllm" ? "default" : "outline"}
+                variant="ghost"
                 size="sm"
                 onClick={() => handleTabChange("webllm")}
                 disabled={isWebLLMDisabled}
-                className="flex-1"
+                className={`${EXCALIDRAW_CONTROL} flex-1 ${activeTab === "webllm" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : ""}`}
               >
                 WebLLM
               </Button>
               <Button
-                variant={activeTab === "local" ? "default" : "outline"}
+                variant="ghost"
                 size="sm"
                 onClick={() => handleTabChange("local")}
-                className="flex-1"
+                className={`${EXCALIDRAW_CONTROL} flex-1 ${activeTab === "local" ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]" : ""}`}
               >
                 Local Server
               </Button>
             </div>
 
             {activeTab === "webllm" && (
-              <div className="space-y-4">
-                <div className="rounded-lg border bg-muted/50 p-3">
+              <div className="space-y-3">
+                <div className={`${EXCALIDRAW_CARD} p-3`}>
                   <WebGPUBanner onConfigureClick={() => {}} />
                 </div>
 
                 {!downloadedModels.includes(
                   "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC",
                 ) && (
-                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div
+                    className={`${EXCALIDRAW_CARD} border-primary/30 bg-primary/5 p-3`}
+                  >
                     <p className="text-sm font-medium text-primary mb-2">
                       Recommended Model
                     </p>
@@ -449,7 +460,7 @@ export function AIConfigPopup({
                         </p>
                       </div>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={() =>
                           handleDownloadClick(
@@ -457,7 +468,7 @@ export function AIConfigPopup({
                           )
                         }
                         disabled={downloadingModel !== null}
-                        className="gap-1"
+                        className={`${EXCALIDRAW_CONTROL} gap-1`}
                       >
                         <Download className="h-3 w-3" />
                         Download
@@ -484,11 +495,11 @@ export function AIConfigPopup({
                   </div>
                 )}
 
-                <div className="flex gap-2 border-b pb-2">
+                <div className="flex gap-1 border-b border-[var(--dm-surface-high,var(--border))] pb-1">
                   <button
                     type="button"
                     onClick={() => setWebllmSubTab("available")}
-                    className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+                    className={`${EXCALIDRAW_TAB} flex-1 text-sm font-medium ${
                       webllmSubTab === "available"
                         ? "border-b-2 border-primary text-primary"
                         : "text-muted-foreground hover:text-foreground"
@@ -499,7 +510,7 @@ export function AIConfigPopup({
                   <button
                     type="button"
                     onClick={() => setWebllmSubTab("downloaded")}
-                    className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+                    className={`${EXCALIDRAW_TAB} flex-1 text-sm font-medium ${
                       webllmSubTab === "downloaded"
                         ? "border-b-2 border-primary text-primary"
                         : "text-muted-foreground hover:text-foreground"
@@ -515,7 +526,7 @@ export function AIConfigPopup({
                     placeholder="Search models..."
                     value={modelSearch}
                     onChange={(e) => setModelSearch(e.target.value)}
-                    className="h-8 pl-8"
+                    className={`${EXCALIDRAW_INPUT} h-8 pl-8`}
                   />
                 </div>
 
@@ -524,7 +535,7 @@ export function AIConfigPopup({
                     filteredAvailableModels.map((model) => (
                       <div
                         key={model.id}
-                        className="flex items-center justify-between rounded-lg border p-3"
+                        className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3`}
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
@@ -536,11 +547,11 @@ export function AIConfigPopup({
                           </p>
                         </div>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleDownloadClick(model.id)}
                           disabled={isDownloadingThis}
-                          className="ml-2 shrink-0 gap-1"
+                          className={`${EXCALIDRAW_CONTROL} ml-2 shrink-0 gap-1`}
                         >
                           <Download className="h-3 w-3" />
                           Download
@@ -563,7 +574,7 @@ export function AIConfigPopup({
                         return (
                           <div
                             key={model.id}
-                            className={`flex items-center justify-between rounded-lg border p-3 ${
+                            className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3 ${
                               isSelected ? "border-primary bg-primary/5" : ""
                             }`}
                           >
@@ -583,7 +594,7 @@ export function AIConfigPopup({
                             <div className="flex gap-1 ml-2 shrink-0">
                               {!isSelected && (
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() =>
                                     setConfig({
@@ -591,17 +602,17 @@ export function AIConfigPopup({
                                       modelId: model.id,
                                     })
                                   }
-                                  className="gap-1"
+                                  className={`${EXCALIDRAW_CONTROL} gap-1`}
                                 >
                                   Select
                                 </Button>
                               )}
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => handleTestClick(model.id)}
                                 disabled={testStatus === "testing"}
-                                className="gap-1"
+                                className={`${EXCALIDRAW_CONTROL} gap-1`}
                               >
                                 {testStatus === "testing" ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -614,7 +625,7 @@ export function AIConfigPopup({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteClick(model.id)}
-                                className="text-destructive hover:text-destructive"
+                                className={`${EXCALIDRAW_CONTROL} text-destructive hover:text-destructive`}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -628,16 +639,17 @@ export function AIConfigPopup({
             )}
 
             {activeTab === "local" && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Server Type Selection */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Provider</label>
-                  <select
+                  <Select
                     value={
                       (config as LocalServerConfig).serverType || "cliproxyapi"
                     }
-                    onChange={(e) => {
-                      const serverType = e.target.value as LocalServerType;
+                    onValueChange={(value) => {
+                      if (!isLocalServerType(value)) return;
+                      const serverType = value;
                       const preset = SERVER_PRESETS.find(
                         (p) => p.type === serverType,
                       );
@@ -660,15 +672,23 @@ export function AIConfigPopup({
                         );
                       }
                     }}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                   >
-                    {SERVER_PRESETS.map((preset) => (
-                      <option key={preset.type} value={preset.type}>
-                        {preset.name}
-                        {preset.recommended ? " (Recommended)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className={EXCALIDRAW_INPUT}>
+                      <SelectValue placeholder="Select a provider" />
+                    </SelectTrigger>
+                    <SelectContent className="dm-excalidraw-surface max-h-[240px] border-0">
+                      {SERVER_PRESETS.map((preset) => (
+                        <SelectItem
+                          key={preset.type}
+                          value={preset.type}
+                          className="dm-excalidraw-menu-item"
+                        >
+                          {preset.name}
+                          {preset.recommended ? " (Recommended)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
                     {
                       SERVER_PRESETS.find(
@@ -685,7 +705,7 @@ export function AIConfigPopup({
                     <label className="text-sm font-medium">Server URL</label>
                     <div className="group relative">
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                      <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                         {getServerHelpText(
                           (config as LocalServerConfig).serverType,
                         )}
@@ -708,6 +728,7 @@ export function AIConfigPopup({
                         (config as LocalServerConfig).apiKey,
                       );
                     }}
+                    className={EXCALIDRAW_INPUT}
                   />
                   <p className="text-xs text-muted-foreground">
                     Default:{" "}
@@ -758,6 +779,7 @@ export function AIConfigPopup({
                             handleFetchModels(url, e.target.value);
                           }
                         }}
+                        className={EXCALIDRAW_INPUT}
                       />
                       <p className="text-xs text-muted-foreground">
                         Required if your proxy or server has authentication
@@ -774,7 +796,7 @@ export function AIConfigPopup({
                       <label className="text-sm font-medium">Model</label>
                       <div className="group relative">
                         <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        <div className="pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 rounded-md border bg-background p-2 text-xs text-muted-foreground shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="dm-excalidraw-card pointer-events-none absolute left-full top-0 z-10 ml-2 w-72 p-2 text-xs text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                           For best results, use fast models with good
                           instruction following:
                           <ul className="mt-1 list-disc pl-4 space-y-0.5">
@@ -811,7 +833,7 @@ export function AIConfigPopup({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                        className={`${EXCALIDRAW_CONTROL} h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground`}
                         onClick={() => {
                           if (config.type === "local") {
                             const local = config as LocalServerConfig;
@@ -846,10 +868,10 @@ export function AIConfigPopup({
                         );
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={EXCALIDRAW_INPUT}>
                         <SelectValue placeholder="Select a model..." />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[240px]">
+                      <SelectContent className="dm-excalidraw-surface max-h-[240px] border-0">
                         {(config as LocalServerConfig).model &&
                           !localModels.some(
                             (m) => m.id === (config as LocalServerConfig).model,
@@ -857,12 +879,17 @@ export function AIConfigPopup({
                             <SelectItem
                               key={(config as LocalServerConfig).model}
                               value={(config as LocalServerConfig).model}
+                              className="dm-excalidraw-menu-item"
                             >
                               {(config as LocalServerConfig).model} (Current)
                             </SelectItem>
                           )}
                         {localModels.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
+                          <SelectItem
+                            key={model.id}
+                            value={model.id}
+                            className="dm-excalidraw-menu-item"
+                          >
                             {model.name}
                           </SelectItem>
                         ))}
@@ -882,6 +909,7 @@ export function AIConfigPopup({
                             }) as LocalServerConfig,
                         );
                       }}
+                      className={EXCALIDRAW_INPUT}
                     />
                   )}
                   <p className="text-xs text-muted-foreground">
@@ -894,7 +922,7 @@ export function AIConfigPopup({
             )}
 
             {testError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              <div className="dm-excalidraw-card flex items-center gap-2 border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{testError}</span>
               </div>
@@ -903,7 +931,7 @@ export function AIConfigPopup({
             {activeTab === "local" &&
               connectionStatus === "connected" &&
               (config as LocalServerConfig).model && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <div className="dm-excalidraw-card border-primary/30 bg-primary/5 p-3">
                   <div className="flex items-center gap-2 text-sm text-primary mb-1 font-medium">
                     <Check className="h-4 w-4 shrink-0" />
                     <span>Ready — {(config as LocalServerConfig).model}</span>
@@ -917,12 +945,12 @@ export function AIConfigPopup({
               )}
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 px-6 py-4 border-t">
+          <DialogFooter className="gap-2 border-t border-[var(--dm-surface-high,var(--border))] px-5 py-3 sm:gap-0">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={handleReset}
-              className="gap-2"
+              className={`${EXCALIDRAW_CONTROL} gap-2`}
             >
               <RotateCcw className="h-4 w-4" />
               Reset
@@ -930,11 +958,11 @@ export function AIConfigPopup({
             <div className="flex gap-2">
               {activeTab === "local" && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={handleTestLocal}
                   disabled={testStatus === "testing"}
-                  className="gap-2"
+                  className={`${EXCALIDRAW_CONTROL} gap-2`}
                 >
                   {testStatus === "testing" ? (
                     <>
@@ -950,7 +978,7 @@ export function AIConfigPopup({
                 size="sm"
                 onClick={handleSave}
                 disabled={saving}
-                className="gap-2"
+                className={`${EXCALIDRAW_CONTROL} bg-primary text-primary-foreground gap-2`}
               >
                 {saving ? (
                   <>
@@ -971,7 +999,7 @@ export function AIConfigPopup({
         open={!!showDownloadConfirm}
         onOpenChange={(open) => !open && handleCancelDownload()}
       >
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="dm-excalidraw-surface border-0 sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Download Model?</DialogTitle>
             <DialogDescription>
@@ -980,11 +1008,17 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={handleCancelDownload}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={EXCALIDRAW_CONTROL}
+              onClick={handleCancelDownload}
+            >
               Cancel
             </Button>
             <Button
               size="sm"
+              className={`${EXCALIDRAW_CONTROL} bg-primary text-primary-foreground`}
               onClick={() =>
                 showDownloadConfirm && confirmDownload(showDownloadConfirm)
               }
@@ -1000,7 +1034,7 @@ export function AIConfigPopup({
         open={!!showDeleteConfirm}
         onOpenChange={(open) => !open && handleCancelDelete()}
       >
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="dm-excalidraw-surface border-0 sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Delete Model?</DialogTitle>
             <DialogDescription>
@@ -1009,12 +1043,18 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={handleCancelDelete}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={EXCALIDRAW_CONTROL}
+              onClick={handleCancelDelete}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
               size="sm"
+              className={EXCALIDRAW_CONTROL}
               onClick={() =>
                 showDeleteConfirm && confirmDelete(showDeleteConfirm)
               }
