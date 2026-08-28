@@ -57,8 +57,9 @@ export function PromptSettingsMenu({
   const [open, setOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
   const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("left");
-  const [submenuOffset, setSubmenuOffset] = useState(0);
+  const [menuOffset, setMenuOffset] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
 
   const modelOptions = useMemo(() => {
@@ -122,31 +123,36 @@ export function PromptSettingsMenu({
     if (!open || !activePanel || typeof window === "undefined") {
       // Reset the collision offset when no submenu is active.
       // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setSubmenuOffset(0);
+      setMenuOffset(0);
       return;
     }
 
+    const menu = menuRef.current;
     const submenu = submenuRef.current;
-    if (!submenu) return;
+    if (!menu || !submenu) return;
 
     const updateOffset = () => {
       // A panel switch reuses this inline transform for one render. Clear it
-      // while measuring so the new panel is positioned from its own natural
-      // anchor rather than inheriting the previous panel's collision offset.
-      const previousTransform = submenu.style.transform;
-      submenu.style.transform = "none";
-      const rect = submenu.getBoundingClientRect();
+      // while measuring so the new panel is positioned from its natural anchor.
+      // The whole group moves together so the parent rows and submenu never
+      // drift apart when the list has to clear the viewport edge.
+      const previousTransform = menu.style.transform;
+      menu.style.transform = "none";
+      const menuRect = menu.getBoundingClientRect();
+      const submenuRect = submenu.getBoundingClientRect();
+      const top = Math.min(menuRect.top, submenuRect.top);
+      const bottom = Math.max(menuRect.bottom, submenuRect.bottom);
       let offset = 0;
-      if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN) {
-        offset -= rect.bottom - (window.innerHeight - VIEWPORT_MARGIN);
+      if (bottom > window.innerHeight - VIEWPORT_MARGIN) {
+        offset -= bottom - (window.innerHeight - VIEWPORT_MARGIN);
       }
-      if (rect.top + offset < VIEWPORT_MARGIN) {
-        offset += VIEWPORT_MARGIN - (rect.top + offset);
+      if (top + offset < VIEWPORT_MARGIN) {
+        offset += VIEWPORT_MARGIN - (top + offset);
       }
-      submenu.style.transform = previousTransform;
+      menu.style.transform = previousTransform;
       // Keep the submenu inside the viewport when the footer is near an edge.
       // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-      setSubmenuOffset(offset);
+      setMenuOffset(offset);
     };
 
     updateOffset();
@@ -195,9 +201,11 @@ export function PromptSettingsMenu({
 
       {open && (
         <div
-          className={`absolute bottom-full z-50 mb-2 ${
+          ref={menuRef}
+          className={`absolute bottom-full z-50 mb-4 ${
             menuPlacement === "right" ? "left-0" : "right-0"
           }`}
+          style={{ transform: `translateY(${menuOffset}px)` }}
           role="presentation"
         >
           <div
@@ -245,7 +253,6 @@ export function PromptSettingsMenu({
               className={`${PANEL_CLASS} dm-excalidraw-scroll absolute top-0 max-h-[136px] w-[220px] overflow-y-auto overscroll-contain ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               }`}
-              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Models"
             >
@@ -300,7 +307,6 @@ export function PromptSettingsMenu({
               className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               } ${activePanel === "visual" ? "top-[34px]" : "top-0"}`}
-              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Effort levels"
             >
