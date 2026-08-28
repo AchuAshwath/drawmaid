@@ -437,9 +437,7 @@ export function AIConfigPopup({
 
             {activeTab === "webllm" && (
               <div className="space-y-3">
-                <div className={`${EXCALIDRAW_CARD} p-3`}>
-                  <WebGPUBanner onConfigureClick={() => {}} />
-                </div>
+                <WebGPUBanner onConfigureClick={() => {}} />
 
                 {!downloadedModels.includes(
                   "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC",

@@ -86,6 +86,33 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Fallbacks used before the theme bridge observes Excalidraw. */
+:root {
+  --dm-island-bg: #ffffff;
+  --dm-input-bg: #ffffff;
+  --dm-input-border: #ced4da;
+  --dm-button-size: 2rem;
+  --dm-icon-size: 1rem;
+  --dm-radius-md: 0.375rem;
+  --dm-radius-lg: 0.5rem;
+  --dm-surface-high: #f1f0ff;
+  --dm-surface-low: #ececf4;
+  --dm-primary-container: #e0dfff;
+  --dm-on-surface: #1b1b1f;
+  --dm-brand-hover: #5753d0;
+}
+
+.dark {
+  --dm-island-bg: #232329;
+  --dm-input-bg: #121212;
+  --dm-input-border: #2e2e2e;
+  --dm-surface-high: hsl(245 10% 21%);
+  --dm-surface-low: hsl(240 8% 15%);
+  --dm-primary-container: #403e6a;
+  --dm-on-surface: #e3e3e8;
+  --dm-brand-hover: #bbb8ff;
+}
+
 /* Excalidraw uses .theme--dark on its container; sync our theme vars so all editor chrome matches */
 .theme--dark {
   /* Default fallback - will be overridden by useExcalidrawThemeBridge */

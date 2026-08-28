@@ -1,6 +1,6 @@
 import { Button } from "@repo/ui";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LocalModel, WebLLMModelInfo } from "@/lib/ai-config/types";
 import {
   isVisualLevel,
@@ -23,6 +23,7 @@ export interface PromptSettingsMenuProps {
 }
 
 type SettingsPanel = "model" | "visual" | null;
+type MenuPlacement = "left" | "right";
 
 const CONTROL_CLASS =
   "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
@@ -48,6 +49,7 @@ export function PromptSettingsMenu({
 }: PromptSettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
+  const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("left");
   const rootRef = useRef<HTMLDivElement>(null);
 
   const modelOptions = useMemo(() => {
@@ -92,6 +94,21 @@ export function PromptSettingsMenu({
     };
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    const root = rootRef.current;
+    if (!root) return;
+
+    const { left } = root.getBoundingClientRect();
+    const menuWidth = 260 + 4 + 280;
+    // Placement is derived from the current viewport after the menu opens.
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setMenuPlacement(
+      left + menuWidth <= window.innerWidth - 8 ? "right" : "left",
+    );
+  }, [open]);
+
   if (!hasModelOption && !visualLevelControl) return null;
 
   const togglePanel = (panel: Exclude<SettingsPanel, null>) => {
@@ -133,7 +150,9 @@ export function PromptSettingsMenu({
 
       {open && (
         <div
-          className="absolute bottom-full right-0 z-50 mb-2 flex items-end gap-1"
+          className={`absolute bottom-full z-50 mb-2 flex items-end gap-1 ${
+            menuPlacement === "right" ? "left-0" : "right-0 flex-row-reverse"
+          }`}
           role="presentation"
         >
           <div

@@ -108,5 +108,10 @@ describe("PromptSettingsMenu", () => {
     );
 
     expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
+
+    const menu = screen.getByRole("presentation");
+    const placementBeforeSubmenu = menu.className;
+    fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
+    expect(menu.className).toBe(placementBeforeSubmenu);
   });
 });
