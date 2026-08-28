@@ -75,7 +75,6 @@ const EXCALIDRAW_OUTLINE_CONTROL =
   "dm-excalidraw-control border border-[var(--dm-input-border,var(--border))] bg-transparent";
 const EXCALIDRAW_CARD = "dm-excalidraw-card";
 const EXCALIDRAW_INPUT = "dm-excalidraw-input";
-const EXCALIDRAW_TAB = "dm-excalidraw-tab";
 
 function isLocalServerType(value: string): value is LocalServerType {
   return SERVER_PRESETS.some((preset) => preset.type === value);
@@ -86,7 +85,9 @@ export function AIConfigPopup({
   onOpenChange,
   onModelDownloaded,
 }: AIConfigPopupProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("webllm");
+  const [activeTab, setActiveTab] = useState<TabType>(() =>
+    loadConfig().type === "local" ? "local" : "webllm",
+  );
   const [webllmSubTab, setWebllmSubTab] = useState<WebLLMTabType>("available");
   const [config, setConfig] = useState<AIConfig>(() => loadConfig());
   const [testStatus, setTestStatus] = useState<TestConnectionStatus>("idle");
@@ -504,153 +505,159 @@ export function AIConfigPopup({
                 )}
 
                 <div
-                  role="tablist"
-                  aria-label="AI provider"
-                  className="dm-excalidraw-surface flex gap-1 p-1"
+                  className={`${EXCALIDRAW_CARD} flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-2`}
                 >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={webllmSubTab === "available"}
-                    onClick={() => setWebllmSubTab("available")}
-                    className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${
-                      webllmSubTab === "available"
-                        ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
+                  <div
+                    role="tablist"
+                    aria-label="AI provider"
+                    className="flex items-center gap-1"
                   >
-                    Available ({filteredAvailableModels.length})
-                  </button>
-                  <Separator orientation="vertical" className="mx-1 h-5" />
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={webllmSubTab === "downloaded"}
-                    onClick={() => setWebllmSubTab("downloaded")}
-                    className={`${EXCALIDRAW_TAB} h-8 flex-1 text-sm font-medium ${
-                      webllmSubTab === "downloaded"
-                        ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Downloaded ({filteredDownloadedList.length})
-                  </button>
-                </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      role="tab"
+                      aria-selected={webllmSubTab === "available"}
+                      onClick={() => setWebllmSubTab("available")}
+                      className={`${EXCALIDRAW_CONTROL} h-8 flex-1 text-sm font-medium ${
+                        webllmSubTab === "available"
+                          ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Available ({filteredAvailableModels.length})
+                    </Button>
+                    <Separator orientation="vertical" className="mx-1 h-5" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      role="tab"
+                      aria-selected={webllmSubTab === "downloaded"}
+                      onClick={() => setWebllmSubTab("downloaded")}
+                      className={`${EXCALIDRAW_CONTROL} h-8 flex-1 text-sm font-medium ${
+                        webllmSubTab === "downloaded"
+                          ? "bg-[var(--dm-primary-container,var(--dm-surface-high,var(--accent)))] text-[var(--dm-on-surface,var(--foreground))]"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Downloaded ({filteredDownloadedList.length})
+                    </Button>
+                  </div>
 
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search models..."
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    className={`${EXCALIDRAW_INPUT} h-8 border border-[var(--dm-input-border,var(--border))] pl-8`}
-                  />
-                </div>
+                  <div className="relative shrink-0">
+                    <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search models..."
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      className={`${EXCALIDRAW_INPUT} h-8 border border-[var(--dm-input-border,var(--border))] pl-8`}
+                    />
+                  </div>
 
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll custom-scrollbar">
-                  {webllmSubTab === "available" &&
-                    filteredAvailableModels.map((model) => (
-                      <div
-                        key={model.id}
-                        className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {model.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            ~{model.vramMB} MB
-                            {model.lowResource && " • Low resource"}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownloadClick(model.id)}
-                          disabled={isDownloadingThis}
-                          className={`${EXCALIDRAW_OUTLINE_CONTROL} ml-2 shrink-0 gap-1`}
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-1 custom-scrollbar">
+                    {webllmSubTab === "available" &&
+                      filteredAvailableModels.map((model) => (
+                        <div
+                          key={model.id}
+                          className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3`}
                         >
-                          <Download className="h-3 w-3" />
-                          Download
-                        </Button>
-                      </div>
-                    ))}
-
-                  {webllmSubTab === "downloaded" &&
-                    (filteredDownloadedList.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        {modelSearch
-                          ? "No models match your search"
-                          : "No downloaded models yet"}
-                      </p>
-                    ) : (
-                      filteredDownloadedList.map((model) => {
-                        const isSelected =
-                          config.type === "webllm" &&
-                          (config as WebLLMConfig).modelId === model.id;
-                        return (
-                          <div
-                            key={model.id}
-                            className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3 ${
-                              isSelected ? "border-primary bg-primary/5" : ""
-                            }`}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {model.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              ~{model.vramMB} MB
+                              {model.lowResource && " • Low resource"}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadClick(model.id)}
+                            disabled={isDownloadingThis}
+                            className={`${EXCALIDRAW_OUTLINE_CONTROL} ml-2 shrink-0 gap-1`}
                           >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium truncate">
-                                  {model.name}
+                            <Download className="h-3 w-3" />
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+
+                    {webllmSubTab === "downloaded" &&
+                      (filteredDownloadedList.length === 0 ? (
+                        <p className="py-4 text-center text-sm text-muted-foreground">
+                          {modelSearch
+                            ? "No models match your search"
+                            : "No downloaded models yet"}
+                        </p>
+                      ) : (
+                        filteredDownloadedList.map((model) => {
+                          const isSelected =
+                            config.type === "webllm" &&
+                            (config as WebLLMConfig).modelId === model.id;
+                          return (
+                            <div
+                              key={model.id}
+                              className={`${EXCALIDRAW_CARD} flex items-center justify-between p-3 ${
+                                isSelected ? "border-primary bg-primary/5" : ""
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate text-sm font-medium">
+                                    {model.name}
+                                  </p>
+                                  {isSelected && (
+                                    <Check className="h-3 w-3 text-primary" />
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  ~{model.vramMB} MB
                                 </p>
-                                {isSelected && (
-                                  <Check className="h-3 w-3 text-primary" />
-                                )}
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                ~{model.vramMB} MB
-                              </p>
-                            </div>
-                            <div className="flex gap-1 ml-2 shrink-0">
-                              {!isSelected && (
+                              <div className="ml-2 flex shrink-0 gap-1">
+                                {!isSelected && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setConfig({
+                                        type: "webllm",
+                                        modelId: model.id,
+                                      })
+                                    }
+                                    className={`${EXCALIDRAW_CONTROL} gap-1`}
+                                  >
+                                    Select
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() =>
-                                    setConfig({
-                                      type: "webllm",
-                                      modelId: model.id,
-                                    })
-                                  }
+                                  onClick={() => handleTestClick(model.id)}
+                                  disabled={testStatus === "testing"}
                                   className={`${EXCALIDRAW_CONTROL} gap-1`}
                                 >
-                                  Select
+                                  {testStatus === "testing" ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Play className="h-3 w-3" />
+                                  )}
+                                  Test
                                 </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleTestClick(model.id)}
-                                disabled={testStatus === "testing"}
-                                className={`${EXCALIDRAW_CONTROL} gap-1`}
-                              >
-                                {testStatus === "testing" ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Play className="h-3 w-3" />
-                                )}
-                                Test
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteClick(model.id)}
-                                className={`${EXCALIDRAW_CONTROL} text-destructive hover:text-destructive`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(model.id)}
+                                  className={`${EXCALIDRAW_CONTROL} text-destructive hover:text-destructive`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
-                    ))}
+                          );
+                        })
+                      ))}
+                  </div>
                 </div>
               </div>
             )}
