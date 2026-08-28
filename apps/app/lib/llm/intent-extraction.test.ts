@@ -22,6 +22,12 @@ describe("extractIntent - Diagram Type", () => {
       const result = extractIntent("draw user authentication system");
       expect(result.diagramType).toBeNull();
     });
+
+    it("does not reinterpret an unrequested timeline as a sequence diagram", () => {
+      const result = extractIntent("timeline of releases");
+      expect(result.diagramIntent).toBeNull();
+      expect(result.diagramType).toBeNull();
+    });
   });
 
   describe("should detect diagram type from keyword anywhere", () => {
