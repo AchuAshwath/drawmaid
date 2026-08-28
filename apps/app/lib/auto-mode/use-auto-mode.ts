@@ -3,10 +3,12 @@ import { AutoModeEngine } from "@/lib/auto-mode/core";
 import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
+  type InsertMermaidResult,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
 import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
 import { buildUserPrompt, extractIntent } from "@/lib/llm/intent-extraction";
-import { SYSTEM_PROMPT } from "@/lib/llm/mermaid-llm";
+import { SYSTEM_PROMPT, type GenerateOptions } from "@/lib/llm/mermaid-llm";
+import { getVisualLevelPolicy, type VisualLevel } from "@/lib/llm/visual-level";
 import {
   createDrawmaidError,
   type DrawmaidError,
@@ -17,17 +19,14 @@ interface UseAutoModeOptions {
   excalidrawApiRef: React.MutableRefObject<ExcalidrawCanvasApi | null>;
   generate: (
     prompt: string,
-    options: {
-      systemPrompt: string;
-      modelId?: string;
-      useLocalServer?: boolean;
-    },
+    options: GenerateOptions,
   ) => Promise<string | null>;
   currentModel: string;
   localModels: { id: string }[];
   isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
   transcript: string;
+  visualLevel: VisualLevel;
   onError?: (error: DrawmaidError) => void;
   onGeneratingChange?: (generating: boolean) => void;
 }
@@ -35,13 +34,24 @@ interface UseAutoModeOptions {
 interface UseAutoModeReturn {
   isGenerating: boolean;
   resetSession: () => void;
+  invalidateCurrentGeneration: () => void;
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
-  const { excalidrawApiRef, isAutoMode, transcript } = options;
+  const {
+    excalidrawApiRef,
+    isAutoMode,
+    transcript,
+    visualLevel,
+    isLocalServerConfigured,
+  } = options;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const engineRef = useRef<AutoModeEngine | null>(null);
+  const generationEpochRef = useRef(0);
+  const taskEpochRef = useRef(new WeakMap<object, number>());
+  const previousVisualLevelRef = useRef(visualLevel);
+  const previousLocalModeRef = useRef(Boolean(options.isLocalServerConfigured));
   const lastProcessedRef = useRef("");
   const optionsRef = useRef(options);
   const transcriptRef = useRef(transcript);
@@ -55,17 +65,18 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onError,
         onGeneratingChange,
         currentModel: model,
-        localModels: models,
         generate: gen,
         isLocalServerConfigured,
+        visualLevel: taskVisualLevel,
       } = optionsRef.current;
+
+      const taskEpoch = generationEpochRef.current;
+      taskEpochRef.current.set(task, taskEpoch);
 
       setIsGenerating(true);
       onGeneratingChange?.(true);
 
-      const isLocal =
-        isLocalServerConfigured || models.some((m) => m.id === model);
-      const useLocal = isLocal;
+      const useLocal = Boolean(isLocalServerConfigured);
       const intent = extractIntent(task.transcript);
 
       logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} started`, {
@@ -76,22 +87,39 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       });
 
       try {
-        const userPrompt = buildUserPrompt(task.transcript, intent);
+        const userPrompt = useLocal
+          ? task.transcript
+          : buildUserPrompt(task.transcript, intent);
+        const localPolicy = getVisualLevelPolicy(taskVisualLevel);
 
-        const result = await gen(userPrompt, {
-          systemPrompt: SYSTEM_PROMPT,
-          modelId: model,
-          useLocalServer: useLocal,
-          disableAbort: true,
-          timeoutMs: useLocal ? 30000 : 15000,
-        } as Parameters<typeof gen>[1]);
+        const result = await gen(
+          userPrompt,
+          useLocal
+            ? {
+                ...localPolicy.localGeneration,
+                modelId: model,
+                useLocalServer: true,
+                disableAbort: true,
+              }
+            : {
+                systemPrompt: SYSTEM_PROMPT,
+                modelId: model,
+                useLocalServer: false,
+                disableAbort: true,
+                timeoutMs: 15000,
+              },
+        );
 
-        logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} completed`, {
-          outputLength: result?.length ?? 0,
-        });
+        if (taskEpoch === generationEpochRef.current) {
+          logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} completed`, {
+            outputLength: result?.length ?? 0,
+          });
+        }
 
         return result;
       } catch (error) {
+        if (taskEpoch !== generationEpochRef.current) return null;
+
         const message =
           error instanceof Error ? error.message : "Generation failed";
         logError(
@@ -117,8 +145,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onError?.(drawmaidError);
         return null;
       } finally {
-        setIsGenerating(false);
-        onGeneratingChange?.(false);
+        if (taskEpoch === generationEpochRef.current) {
+          setIsGenerating(false);
+          onGeneratingChange?.(false);
+        }
       }
     },
     [],
@@ -129,20 +159,28 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       result: string | null,
       task: { transcript: string; id?: number },
     ) => {
+      const taskEpoch = taskEpochRef.current.get(task);
+      if (taskEpoch === undefined || taskEpoch !== generationEpochRef.current) {
+        return;
+      }
+
       const {
         onError,
         currentModel: model,
-        localModels: models,
+        isLocalServerConfigured,
       } = optionsRef.current;
       const api = excalidrawApiRef.current;
       if (!result || !api) {
+        taskEpochRef.current.delete(task);
         return;
       }
 
       const intent = extractIntent(task.transcript);
-      const isLocal = models.some((m) => m.id === model);
-      const useLocal = isLocal && models.length > 0;
+      const useLocal = Boolean(isLocalServerConfigured);
       let normalizedCode: string | null = null;
+      const insertionState: { result: InsertMermaidResult | null } = {
+        result: null,
+      };
 
       try {
         const policyResult = await applyDiagramOutputPolicy(
@@ -158,10 +196,21 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
                 "CANVAS",
                 `Inserting diagram for task #${task.id ?? "?"}`,
               );
-              await insertMermaidIntoCanvas(api, document, { replace: true });
+              insertionState.result = await insertMermaidIntoCanvas(
+                api,
+                document,
+                {
+                  replace: true,
+                  isStillCurrent: () =>
+                    taskEpochRef.current.get(task) === taskEpoch &&
+                    generationEpochRef.current === taskEpoch,
+                },
+              );
             },
           },
         );
+
+        if (insertionState.result === "stale") return;
 
         if (!policyResult.inserted) {
           if (policyResult.output.kind === "no-diagram") return;
@@ -195,6 +244,13 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         lastProcessedRef.current = task.transcript;
         logInfo("CANVAS", `Diagram rendered successfully on canvas`);
       } catch (error) {
+        if (
+          taskEpochRef.current.get(task) !== taskEpoch ||
+          generationEpochRef.current !== taskEpoch
+        ) {
+          return;
+        }
+
         const errorMessage =
           error instanceof Error ? error.message : "Failed to insert diagram";
         logError("CANVAS", `Canvas insertion error: ${errorMessage}`);
@@ -217,6 +273,8 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           },
         );
         onError?.(drawmaidError);
+      } finally {
+        taskEpochRef.current.delete(task);
       }
     },
     [excalidrawApiRef],
@@ -227,8 +285,35 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     lastProcessedRef.current = "";
   }, []);
 
+  const invalidateCurrentGeneration = useCallback(() => {
+    generationEpochRef.current++;
+    taskEpochRef.current = new WeakMap();
+    // This callback is also called from the level/provider transition effect;
+    // the synchronous state reset is intentional for its cancellation seam.
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    setIsGenerating(false);
+    optionsRef.current.onGeneratingChange?.(false);
+  }, []);
+
+  const createEngine = useCallback(() => {
+    const current = optionsRef.current;
+    const isLocal = Boolean(current.isLocalServerConfigured);
+    const config = isLocal
+      ? {
+          settlingMs: getVisualLevelPolicy(current.visualLevel).autoMode
+            .settlingMs,
+        }
+      : {};
+
+    const engine = new AutoModeEngine(config, handleGenerate, handleResult);
+    engine.start();
+    return engine;
+  }, [handleGenerate, handleResult]);
+
   useEffect(() => {
     if (!isAutoMode) {
+      generationEpochRef.current++;
+      taskEpochRef.current = new WeakMap();
       engineRef.current?.stop();
       engineRef.current = null;
       return;
@@ -236,8 +321,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
     if (!engineRef.current) {
       logInfo("AUTO_MODE", "Auto Mode engine started");
-      engineRef.current = new AutoModeEngine({}, handleGenerate, handleResult);
-      engineRef.current.start();
+      engineRef.current = createEngine();
     }
 
     engineRef.current.onTranscriptChange(transcript);
@@ -249,10 +333,38 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         engineRef.current = null;
       }
     };
-  }, [isAutoMode, transcript, handleGenerate, handleResult]);
+  }, [isAutoMode, transcript, createEngine]);
+
+  useEffect(() => {
+    const isLocal = Boolean(optionsRef.current.isLocalServerConfigured);
+    const visualLevelChanged = previousVisualLevelRef.current !== visualLevel;
+    const providerChanged = previousLocalModeRef.current !== isLocal;
+    if (!visualLevelChanged && !providerChanged) return;
+
+    previousVisualLevelRef.current = visualLevel;
+    previousLocalModeRef.current = isLocal;
+
+    if (!isLocal && !providerChanged) return;
+
+    invalidateCurrentGeneration();
+
+    if (!isAutoMode || !engineRef.current) return;
+
+    engineRef.current.stop();
+    engineRef.current = createEngine();
+    engineRef.current.onTranscriptChange(transcriptRef.current);
+  }, [
+    visualLevel,
+    isLocalServerConfigured,
+    isAutoMode,
+    createEngine,
+    invalidateCurrentGeneration,
+  ]);
 
   useEffect(() => {
     return () => {
+      generationEpochRef.current++;
+      taskEpochRef.current = new WeakMap();
       engineRef.current?.stop();
       engineRef.current = null;
     };
@@ -261,5 +373,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   return {
     isGenerating,
     resetSession,
+    invalidateCurrentGeneration,
   };
 }

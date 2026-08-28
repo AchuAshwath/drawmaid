@@ -5,9 +5,19 @@ import { ModelSelector } from "@/components/ai-config/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
+import {
+  isVisualLevel,
+  VISUAL_LEVELS,
+  type VisualLevel,
+} from "@/lib/llm/visual-level";
 import { useState } from "react";
 
 export type PromptFooterMode = "auto" | "normal";
+
+export interface VisualLevelControl {
+  value: VisualLevel;
+  onChange: (level: VisualLevel) => void;
+}
 
 export interface PromptFooterProps {
   prompt: string;
@@ -30,6 +40,7 @@ export interface PromptFooterProps {
   onSelectModel?: (modelId: string) => void;
   localServerConfigured?: boolean;
   onKeep?: () => void;
+  visualLevelControl?: VisualLevelControl;
 }
 
 export function PromptFooter({
@@ -53,6 +64,7 @@ export function PromptFooter({
   onSelectModel,
   localServerConfigured = false,
   onKeep,
+  visualLevelControl,
 }: PromptFooterProps) {
   const [voiceResetKey, setVoiceResetKey] = useState(0);
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
@@ -179,6 +191,25 @@ export function PromptFooter({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {visualLevelControl && (
+                <select
+                  value={visualLevelControl.value}
+                  onChange={(event) => {
+                    const level = event.target.value;
+                    if (isVisualLevel(level)) {
+                      visualLevelControl.onChange(level);
+                    }
+                  }}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                  aria-label="Visual level"
+                >
+                  {VISUAL_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              )}
               {webLLMModels?.length ||
               localModels?.length ||
               localServerConfigured ? (

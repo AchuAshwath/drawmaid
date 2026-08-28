@@ -1,0 +1,20 @@
+{
+  "low": {
+    "maxTokens": 1024,
+    "temperature": 0.1,
+    "timeoutMs": 30000,
+    "settlingMs": 1500
+  },
+  "medium": {
+    "maxTokens": 2048,
+    "temperature": 0.1,
+    "timeoutMs": 30000,
+    "settlingMs": 1500
+  },
+  "high": {
+    "maxTokens": 2048,
+    "temperature": 0.1,
+    "timeoutMs": 30000,
+    "settlingMs": 4500
+  }
+}

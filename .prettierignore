@@ -21,3 +21,5 @@
 /.husky
 *.hbs
 CHANGELOG.md
+# Authored LLM prompt assets are byte-stable policy inputs.
+/apps/app/prompts/*.md

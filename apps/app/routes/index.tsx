@@ -21,6 +21,13 @@ import {
   SYSTEM_PROMPT,
 } from "@/lib/llm/mermaid-llm";
 import {
+  getVisualLevelPolicy,
+  isVisualLevel,
+  loadVisualLevel,
+  saveVisualLevel,
+  type VisualLevel,
+} from "@/lib/llm/visual-level";
+import {
   createDrawmaidError,
   formatErrorForCopy,
   type DrawmaidError,
@@ -51,7 +58,7 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 
@@ -93,15 +100,13 @@ function Home() {
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
   const [localServerConfigured, setLocalServerConfigured] = useState(false);
+  const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
+    loadVisualLevel(),
+  );
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
   const [webLLMModels, setWebLLMModels] = useState<WebLLMModelInfo[]>([]);
-
-  const localModelIds = useMemo(
-    () => new Set(localModels.map((m) => m.id)),
-    [localModels],
-  );
 
   // Load WebLLM models on mount
   useEffect(() => {
@@ -119,6 +124,7 @@ function Home() {
   const {
     isGenerating: autoModeGenerating,
     resetSession: resetAutoModeSession,
+    invalidateCurrentGeneration,
   } = useAutoMode({
     excalidrawApiRef,
     generate,
@@ -127,6 +133,7 @@ function Home() {
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
+    visualLevel,
     onError: (drawmaidError) => {
       setError(drawmaidError.message);
       setErrorContext(drawmaidError);
@@ -151,8 +158,7 @@ function Home() {
       recoverySucceeded?: boolean;
     },
   ) => {
-    const useLocalServer =
-      localServerConfigured || localModelIds.has(currentModel);
+    const useLocalServer = localServerConfigured;
 
     const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
@@ -248,6 +254,13 @@ function Home() {
     saveAutoModePreference(newMode === "auto");
   };
 
+  const handleVisualLevelChange = (level: VisualLevel) => {
+    if (!isVisualLevel(level)) return;
+    invalidateCurrentGeneration();
+    setVisualLevel(level);
+    saveVisualLevel(level);
+  };
+
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -268,19 +281,32 @@ function Home() {
     let mermaidOutput: string | null = null;
 
     const intent = extractIntent(prompt);
-    const userPrompt = buildUserPrompt(prompt, intent);
 
     // Determine which provider to use based on selected model/config
-    const useLocalServer =
-      localServerConfigured || localModelIds.has(currentModel);
+    const useLocalServer = localServerConfigured;
+    const localPolicy = useLocalServer
+      ? getVisualLevelPolicy(visualLevel).localGeneration
+      : null;
+    const userPrompt = useLocalServer
+      ? prompt
+      : buildUserPrompt(prompt, intent);
 
     try {
-      mermaidOutput = await generate(userPrompt, {
-        systemPrompt: SYSTEM_PROMPT,
-        modelId: currentModel,
-        useLocalServer,
-        timeoutMs: useLocalServer ? 30000 : 15000,
-      });
+      mermaidOutput = await generate(
+        userPrompt,
+        useLocalServer
+          ? {
+              ...localPolicy,
+              modelId: currentModel,
+              useLocalServer: true,
+            }
+          : {
+              systemPrompt: SYSTEM_PROMPT,
+              modelId: currentModel,
+              useLocalServer: false,
+              timeoutMs: 15000,
+            },
+      );
     } catch (err) {
       setIsGenerating(false);
       if (isAbortError(err)) return;
@@ -355,13 +381,22 @@ function Home() {
               diagramType: intent.diagramType,
               diagramIntent: intent.diagramIntent,
             });
-            return generate(errorPrompt, {
-              systemPrompt: SYSTEM_PROMPT,
-              maxTokens: 1024,
-              modelId: currentModel,
-              useLocalServer,
-              timeoutMs: useLocalServer ? 30000 : 15000,
-            });
+            return generate(
+              errorPrompt,
+              useLocalServer
+                ? {
+                    ...localPolicy,
+                    modelId: currentModel,
+                    useLocalServer: true,
+                  }
+                : {
+                    systemPrompt: SYSTEM_PROMPT,
+                    maxTokens: 1024,
+                    modelId: currentModel,
+                    useLocalServer: false,
+                    timeoutMs: 15000,
+                  },
+            );
           },
           insert: async (document) => {
             normalizedCode = document.code;
@@ -584,6 +619,11 @@ function Home() {
             currentModel={currentModel}
             onSelectModel={handleSelectModel}
             localServerConfigured={localServerConfigured}
+            visualLevelControl={
+              localServerConfigured
+                ? { value: visualLevel, onChange: handleVisualLevelChange }
+                : undefined
+            }
           />
         </div>
       </div>
