@@ -97,7 +97,7 @@ describe("PromptSettingsMenu", () => {
     );
     fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
     expect(screen.getByRole("menu", { name: "Models" }).className).toContain(
-      "max-h-[224px]",
+      "max-h-[136px]",
     );
     fireEvent.click(screen.getByRole("menuitemradio", { name: "model-b" }));
 

@@ -229,7 +229,7 @@ export function PromptSettingsMenu({
           {activePanel === "model" && (
             <div
               ref={submenuRef}
-              className={`${PANEL_CLASS} absolute top-0 max-h-[224px] w-[220px] overflow-y-auto overscroll-contain ${
+              className={`${PANEL_CLASS} absolute top-0 max-h-[136px] w-[220px] overflow-y-auto overscroll-contain ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               }`}
               style={{ transform: `translateY(${submenuOffset}px)` }}
