@@ -75,6 +75,7 @@ describe("PromptFooter effort control", () => {
     rerender(
       <PromptFooter
         {...createProps({
+          currentModel: "gemini-3.6-flash-high",
           visualLevelControl: {
             value: "medium",
             onChange: vi.fn(),
@@ -83,10 +84,15 @@ describe("PromptFooter effort control", () => {
       />,
     );
 
+    const settingsText = screen.getByRole("button", {
+      name: "Model and effort settings",
+    }).textContent;
+    expect(settingsText).toContain("gemini-3.6-flash-high");
+    expect(settingsText).toContain("Medium");
     expect(
       screen.getByRole("button", { name: "Model and effort settings" })
         .textContent,
-    ).toContain("Medium");
+    ).not.toContain("·");
   });
 
   it("preserves the normal generate and auto-mode Keep actions", () => {

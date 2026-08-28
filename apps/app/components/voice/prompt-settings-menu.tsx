@@ -75,9 +75,6 @@ export function PromptSettingsMenu({
   const modelLabel = currentModel
     ? displayModelName(currentModel)
     : "Select model";
-  const triggerLabel = visualLevelControl
-    ? `${modelLabel} · ${visualLevelLabel(visualLevelControl.value)}`
-    : modelLabel;
 
   useEffect(() => {
     if (!open) return;
@@ -191,7 +188,12 @@ export function PromptSettingsMenu({
           setActivePanel(null);
         }}
       >
-        <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+        <span className="min-w-0 flex-1 truncate">{modelLabel}</span>
+        {visualLevelControl && (
+          <span className="shrink-0 font-normal text-muted-foreground">
+            {visualLevelLabel(visualLevelControl.value)}
+          </span>
+        )}
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
       </Button>
 
