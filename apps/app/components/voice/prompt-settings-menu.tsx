@@ -32,8 +32,14 @@ const PANEL_CLASS = "dm-excalidraw-surface p-0.5";
 const ROW_CLASS =
   "dm-excalidraw-menu-item flex h-8 min-h-8 w-[calc(100%-2px)] items-center gap-[10px] px-2 py-0 text-left text-sm text-foreground hover:text-accent-foreground";
 
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+const VISUAL_LEVEL_LABELS: Record<VisualLevel, string> = {
+  low: "Light",
+  medium: "Medium",
+  high: "High",
+};
+
+function visualLevelLabel(level: VisualLevel): string {
+  return VISUAL_LEVEL_LABELS[level];
 }
 
 function displayModelName(model: string): string {
@@ -70,7 +76,7 @@ export function PromptSettingsMenu({
     ? displayModelName(currentModel)
     : "Select model";
   const triggerLabel = visualLevelControl
-    ? `${modelLabel} · ${titleCase(visualLevelControl.value)}`
+    ? `${modelLabel} · ${visualLevelLabel(visualLevelControl.value)}`
     : modelLabel;
 
   useEffect(() => {
@@ -175,7 +181,7 @@ export function PromptSettingsMenu({
         variant="ghost"
         size="sm"
         className={`${CONTROL_CLASS} w-[180px] shrink-0 justify-between gap-2 px-3 text-sm`}
-        aria-label="Model and visual settings"
+        aria-label="Model and effort settings"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => {
@@ -197,7 +203,7 @@ export function PromptSettingsMenu({
           <div
             className={`${PANEL_CLASS} w-[180px]`}
             role="menu"
-            aria-label="Model and visual settings"
+            aria-label="Model and effort settings"
           >
             {hasModelOption && (
               <button
@@ -224,9 +230,9 @@ export function PromptSettingsMenu({
                 aria-expanded={activePanel === "visual"}
                 onClick={() => togglePanel("visual")}
               >
-                <span>Visual level</span>
+                <span>Effort</span>
                 <span className="ml-auto text-muted-foreground">
-                  {titleCase(visualLevelControl.value)}
+                  {visualLevelLabel(visualLevelControl.value)}
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
@@ -296,7 +302,7 @@ export function PromptSettingsMenu({
               } ${activePanel === "visual" ? "top-[34px]" : "top-0"}`}
               style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
-              aria-label="Visual levels"
+              aria-label="Effort levels"
             >
               {VISUAL_LEVELS.map((level) => (
                 <button
@@ -307,7 +313,7 @@ export function PromptSettingsMenu({
                   className={ROW_CLASS}
                   onClick={() => selectVisualLevel(level)}
                 >
-                  <span>{titleCase(level)}</span>
+                  <span>{visualLevelLabel(level)}</span>
                   {visualLevelControl.value === level && (
                     <Check className="ml-auto h-4 w-4 shrink-0" />
                   )}

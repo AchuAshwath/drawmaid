@@ -64,12 +64,12 @@ function createProps(
   };
 }
 
-describe("PromptFooter visual level control", () => {
+describe("PromptFooter effort control", () => {
   it("renders the settings control only when the caller provides it", () => {
     const { rerender } = render(<PromptFooter {...createProps()} />);
 
     expect(
-      screen.queryByRole("button", { name: "Model and visual settings" }),
+      screen.queryByRole("button", { name: "Model and effort settings" }),
     ).toBeNull();
 
     rerender(
@@ -84,7 +84,7 @@ describe("PromptFooter visual level control", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Model and visual settings" })
+      screen.getByRole("button", { name: "Model and effort settings" })
         .textContent,
     ).toContain("Medium");
   });

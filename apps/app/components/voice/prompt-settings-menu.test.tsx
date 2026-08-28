@@ -21,7 +21,7 @@ vi.mock("@repo/ui", () => ({
 afterEach(cleanup);
 
 describe("PromptSettingsMenu", () => {
-  it("opens Model and Visual level as settings rows", () => {
+  it("opens Model and Effort as settings rows", () => {
     render(
       <PromptSettingsMenu
         currentModel="5.6 Luna"
@@ -31,7 +31,7 @@ describe("PromptSettingsMenu", () => {
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Model and visual settings",
+      name: "Model and effort settings",
     });
     expect(trigger.className).toContain("dm-excalidraw-control");
     expect(trigger.className).toContain("w-[180px]");
@@ -39,14 +39,14 @@ describe("PromptSettingsMenu", () => {
     fireEvent.click(trigger);
 
     expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /Visual level/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Effort/ })).toBeTruthy();
     expect(
-      screen.getByRole("menu", { name: "Model and visual settings" }).className,
+      screen.getByRole("menu", { name: "Model and effort settings" }).className,
     ).toContain("w-[180px]");
     expect(screen.queryByTestId("brain-icon")).toBeNull();
   });
 
-  it("selects a visual level from the nested options", () => {
+  it("selects an effort from the nested options", () => {
     const onChange = vi.fn();
     render(
       <PromptSettingsMenu
@@ -56,12 +56,13 @@ describe("PromptSettingsMenu", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Model and visual settings" }),
+      screen.getByRole("button", { name: "Model and effort settings" }),
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: /Visual level/ }));
-    const visualMenu = screen.getByRole("menu", { name: "Visual levels" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Effort/ }));
+    const visualMenu = screen.getByRole("menu", { name: "Effort levels" });
     expect(visualMenu.querySelector("p")).toBeNull();
     expect(visualMenu.className).toContain("top-[34px]");
+    expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Medium" }));
 
     expect(onChange).toHaveBeenCalledWith("medium");
@@ -93,7 +94,7 @@ describe("PromptSettingsMenu", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Model and visual settings" }),
+      screen.getByRole("button", { name: "Model and effort settings" }),
     );
     fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
     const modelsMenu = screen.getByRole("menu", { name: "Models" });
@@ -116,7 +117,7 @@ describe("PromptSettingsMenu", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Model and visual settings" }),
+      screen.getByRole("button", { name: "Model and effort settings" }),
     );
 
     expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
