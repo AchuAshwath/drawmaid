@@ -24,6 +24,7 @@ export interface PromptSettingsMenuProps {
 
 type SettingsPanel = "model" | "visual" | null;
 type MenuPlacement = "left" | "right";
+const VIEWPORT_MARGIN = 12;
 
 const CONTROL_CLASS =
   "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
@@ -123,14 +124,20 @@ export function PromptSettingsMenu({
     if (!submenu) return;
 
     const updateOffset = () => {
+      // A panel switch reuses this inline transform for one render. Clear it
+      // while measuring so the new panel is positioned from its own natural
+      // anchor rather than inheriting the previous panel's collision offset.
+      const previousTransform = submenu.style.transform;
+      submenu.style.transform = "none";
       const rect = submenu.getBoundingClientRect();
       let offset = 0;
-      if (rect.bottom > window.innerHeight - 8) {
-        offset -= rect.bottom - (window.innerHeight - 8);
+      if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN) {
+        offset -= rect.bottom - (window.innerHeight - VIEWPORT_MARGIN);
       }
-      if (rect.top + offset < 8) {
-        offset += 8 - (rect.top + offset);
+      if (rect.top + offset < VIEWPORT_MARGIN) {
+        offset += VIEWPORT_MARGIN - (rect.top + offset);
       }
+      submenu.style.transform = previousTransform;
       // Keep the submenu inside the viewport when the footer is near an edge.
       // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setSubmenuOffset(offset);
