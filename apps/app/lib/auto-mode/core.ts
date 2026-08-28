@@ -66,6 +66,22 @@ export class AutoModeEngine {
     this.state.mermaidStackHead = 0;
   }
 
+  /**
+   * Starts a fresh transcript session without stopping auto mode or removing
+   * diagrams already placed on the canvas. This is the explicit checkpoint
+   * boundary used by the prompt footer.
+   */
+  resetSession(): void {
+    if (this.settlingTimeoutId !== null) {
+      clearTimeout(this.settlingTimeoutId);
+      this.settlingTimeoutId = null;
+    }
+    this.lastTriggeredText = "";
+    this.lastTriggeredTimestamp = Date.now();
+    this.pendingTranscript = null;
+    this.state.lastProcessedTranscript = "";
+  }
+
   onTranscriptChange(transcript: string): void {
     if (!this.isStarted) return;
 

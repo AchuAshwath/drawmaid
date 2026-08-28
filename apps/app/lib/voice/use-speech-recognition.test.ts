@@ -7,6 +7,8 @@ import { useSpeechRecognition } from "./use-speech-recognition";
 
 // Mock SpeechRecognition
 class MockSpeechRecognition {
+  static latest: MockSpeechRecognition | null = null;
+
   lang = "en-US";
   continuous = true;
   interimResults = true;
@@ -14,6 +16,10 @@ class MockSpeechRecognition {
   onresult: ((ev: SpeechRecognitionEvent) => void) | null = null;
   onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null = null;
   onend: ((ev: Event) => void) | null = null;
+
+  constructor() {
+    MockSpeechRecognition.latest = this;
+  }
 
   start = vi.fn(() => {
     setTimeout(() => {
@@ -49,6 +55,7 @@ describe("useSpeechRecognition", () => {
     vi.useRealTimers();
     delete globalObj.SpeechRecognition;
     delete globalObj.webkitSpeechRecognition;
+    MockSpeechRecognition.latest = null;
   });
 
   it("reports isSupported=true when SpeechRecognition exists", () => {
@@ -98,6 +105,42 @@ describe("useSpeechRecognition", () => {
     });
 
     expect(result.current.isListening).toBe(false);
+  });
+
+  it("preserves the transcript when the microphone is paused and resumed", () => {
+    const { result } = renderHook(() => useSpeechRecognition());
+
+    act(() => {
+      result.current.start();
+      vi.advanceTimersByTime(50);
+    });
+
+    const recognition = MockSpeechRecognition.latest;
+    expect(recognition).not.toBeNull();
+
+    act(() => {
+      recognition?.onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "first diagram", confidence: 1 },
+            length: 1,
+            isFinal: true,
+          },
+        ],
+      } as unknown as SpeechRecognitionEvent);
+    });
+    expect(result.current.transcript).toBe("first diagram");
+
+    act(() => {
+      result.current.stop();
+      vi.advanceTimersByTime(50);
+      result.current.start();
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(result.current.isListening).toBe(true);
+    expect(result.current.transcript).toBe("first diagram");
   });
 
   it("handles terminal errors (not-allowed) by disabling auto-restart", async () => {

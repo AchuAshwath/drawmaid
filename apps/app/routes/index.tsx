@@ -4,6 +4,7 @@ import { WebGPUBanner } from "@/components/webgpu-banner";
 import { useAutoMode } from "@/lib/auto-mode";
 import {
   insertMermaidIntoCanvas,
+  clearAutoModeElementIds,
   type ExcalidrawCanvasApi,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
 import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
@@ -115,7 +116,10 @@ function Home() {
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
-  const { isGenerating: autoModeGenerating } = useAutoMode({
+  const {
+    isGenerating: autoModeGenerating,
+    resetSession: resetAutoModeSession,
+  } = useAutoMode({
     excalidrawApiRef,
     generate,
     currentModel,
@@ -538,6 +542,10 @@ function Home() {
             mode={mode}
             onModeChange={handleModeChange}
             onGenerate={handleGenerate}
+            onKeep={() => {
+              clearAutoModeElementIds();
+              resetAutoModeSession();
+            }}
             generateDisabled={
               mode === "auto" ||
               !prompt ||

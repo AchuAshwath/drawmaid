@@ -34,6 +34,7 @@ interface UseAutoModeOptions {
 
 interface UseAutoModeReturn {
   isGenerating: boolean;
+  resetSession: () => void;
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
@@ -221,6 +222,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     [excalidrawApiRef],
   );
 
+  const resetSession = useCallback(() => {
+    engineRef.current?.resetSession();
+    lastProcessedRef.current = "";
+  }, []);
+
   useEffect(() => {
     if (!isAutoMode) {
       engineRef.current?.stop();
@@ -254,5 +260,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   return {
     isGenerating,
+    resetSession,
   };
 }

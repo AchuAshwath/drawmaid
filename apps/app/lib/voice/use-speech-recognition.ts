@@ -82,6 +82,7 @@ export interface UseSpeechRecognitionReturn {
   start: () => void;
   stop: () => void;
   toggle: () => void;
+  reset: () => void;
 }
 
 function getSpeechRecognitionCtor() {
@@ -325,9 +326,6 @@ export function useSpeechRecognition(
     logInfo("STT", "User toggled ON voice input");
     clearRestartTimer();
     consecutiveErrorsRef.current = 0;
-    committedTranscriptRef.current = "";
-    activeInterimRef.current = "";
-    setTranscript("");
     shouldListenRef.current = true;
     startRecognition("user-start");
   }, [clearRestartTimer, startRecognition]);
@@ -340,9 +338,13 @@ export function useSpeechRecognition(
     cleanupInstance();
     statusRef.current = "idle";
     setIsListening(false);
+  }, [clearRestartTimer, cleanupInstance]);
+
+  const reset = useCallback(() => {
     committedTranscriptRef.current = "";
     activeInterimRef.current = "";
-  }, [clearRestartTimer, cleanupInstance]);
+    setTranscript("");
+  }, []);
 
   const toggle = useCallback(() => {
     if (shouldListenRef.current) {
@@ -400,5 +402,5 @@ export function useSpeechRecognition(
     };
   }, [clearRestartTimer, cleanupInstance]);
 
-  return { isSupported, isListening, transcript, start, stop, toggle };
+  return { isSupported, isListening, transcript, start, stop, toggle, reset };
 }
