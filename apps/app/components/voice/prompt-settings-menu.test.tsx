@@ -61,7 +61,7 @@ describe("PromptSettingsMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Effort/ }));
     const visualMenu = screen.getByRole("menu", { name: "Effort levels" });
     expect(visualMenu.querySelector("p")).toBeNull();
-    expect(visualMenu.className).toContain("top-[34px]");
+    expect(visualMenu.className).toContain("top-0");
     expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Medium" }));
 
