@@ -55,7 +55,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 interface AIConfigPopupProps {
@@ -90,6 +90,7 @@ export function AIConfigPopup({
   );
   const [webllmSubTab, setWebllmSubTab] = useState<WebLLMTabType>("available");
   const [config, setConfig] = useState<AIConfig>(() => loadConfig());
+  const localDraftRef = useRef<LocalServerConfig | null>(null);
   const [testStatus, setTestStatus] = useState<TestConnectionStatus>("idle");
   const [testError, setTestError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -131,6 +132,7 @@ export function AIConfigPopup({
       loadConfigAsync().then((loadedConfig) => {
         setConfig(loadedConfig);
         if (loadedConfig.type === "local") {
+          localDraftRef.current = loadedConfig;
           setActiveTab("local");
           handleFetchModels(loadedConfig.url, loadedConfig.apiKey);
         } else {
@@ -243,6 +245,13 @@ export function AIConfigPopup({
     setTestStatus("idle");
 
     if (tab === "local" && config.type !== "local") {
+      const savedLocalDraft = localDraftRef.current;
+      if (savedLocalDraft) {
+        setConfig(savedLocalDraft);
+        handleFetchModels(savedLocalDraft.url, savedLocalDraft.apiKey);
+        return;
+      }
+
       const defaultPreset = SERVER_PRESETS.find((preset) => preset.recommended);
       const nextConfig: LocalServerConfig = {
         type: "local",
@@ -253,6 +262,9 @@ export function AIConfigPopup({
       setConfig(nextConfig);
       handleFetchModels(nextConfig.url, nextConfig.apiKey);
     } else if (tab === "webllm" && config.type !== "webllm") {
+      if (config.type === "local") {
+        localDraftRef.current = config;
+      }
       const downloaded = getDownloadedModels();
       const nextModel = downloaded[0] || DEFAULT_CONFIG.modelId;
       setConfig({
@@ -380,6 +392,7 @@ export function AIConfigPopup({
 
   const handleReset = () => {
     resetConfig();
+    localDraftRef.current = null;
     setConfig(DEFAULT_CONFIG);
     setActiveTab("webllm");
     setTestStatus("idle");
