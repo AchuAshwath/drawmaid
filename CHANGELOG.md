@@ -2,10 +2,21 @@
 
 ## [0.1.2](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.1...drawmaid-v0.1.2) (2026-08-28)
 
+### Major features
 
-### Features
+* **Mermaid diagrams:** add support for eleven diagram types: editable flowchart, sequence, class, ER, and state diagrams, plus explicitly requested image-only Gantt, pie, mindmap, git graph, journey, and timeline diagrams.
 
-* **llm:** promote authoritative diagram type handling ([7a8517f](https://github.com/AchuAshwath/drawmaid/commit/7a8517fe80c37fb9b5e86af77f386a0603cfd0c0))
+### Improvements
+
+* **output handling:** recognize complete Mermaid and generic code fences as well as unwrapped output, preserve multi-document order, and distinguish refusals, malformed output, unknown declarations, mismatches, and unrequested images.
+* **canvas safety:** validate converter capabilities before mutating the canvas so editable requests cannot silently become flat images.
+* **auto mode:** add a check-mark checkpoint that clears the current prompt and voice transcript, resets replacement state, and starts the next diagram beside the previous one.
+* **voice input:** preserve the transcript when the microphone is paused and resumed, while keeping Normal mode behavior unchanged.
+
+### Architecture and reliability
+
+* **diagram policy:** replace duplicated type maps and legacy normalizers with one authoritative typed registry shared by generation, recovery, and canvas insertion.
+* **verification:** add interface-level behavior tests and real-browser converter conformance coverage using installed system Google Chrome.
 
 ## [0.1.1](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.0...drawmaid-v0.1.1) (2026-08-17)
 
