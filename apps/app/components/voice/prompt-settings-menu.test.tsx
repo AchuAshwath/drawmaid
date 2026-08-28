@@ -40,6 +40,9 @@ describe("PromptSettingsMenu", () => {
 
     expect(screen.getByRole("menuitem", { name: /Model/ })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: /Visual level/ })).toBeTruthy();
+    expect(
+      screen.getByRole("menu", { name: "Model and visual settings" }).className,
+    ).toContain("w-[180px]");
     expect(screen.queryByTestId("brain-icon")).toBeNull();
   });
 

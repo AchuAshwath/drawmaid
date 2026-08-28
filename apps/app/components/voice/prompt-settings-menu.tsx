@@ -27,7 +27,7 @@ type MenuPlacement = "left" | "right";
 
 const CONTROL_CLASS =
   "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
-const PANEL_CLASS = "dm-excalidraw-surface p-1";
+const PANEL_CLASS = "dm-excalidraw-surface p-0.5";
 const ROW_CLASS =
   "dm-excalidraw-menu-item flex h-8 min-h-8 w-full items-center gap-[10px] px-2 py-0 text-left text-sm text-foreground hover:text-accent-foreground";
 
@@ -101,7 +101,7 @@ export function PromptSettingsMenu({
     if (!root) return;
 
     const { left } = root.getBoundingClientRect();
-    const menuWidth = 224 + 4 + 240;
+    const menuWidth = 180 + 4 + 220;
     // Placement is derived from the current viewport after the menu opens.
     // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setMenuPlacement(
@@ -156,7 +156,7 @@ export function PromptSettingsMenu({
           role="presentation"
         >
           <div
-            className={`${PANEL_CLASS} w-[224px]`}
+            className={`${PANEL_CLASS} w-[180px]`}
             role="menu"
             aria-label="Model and visual settings"
           >
@@ -170,7 +170,7 @@ export function PromptSettingsMenu({
                 onClick={() => togglePanel("model")}
               >
                 <span>Model</span>
-                <span className="ml-auto max-w-[130px] truncate text-muted-foreground">
+                <span className="ml-auto min-w-0 max-w-[86px] truncate text-muted-foreground">
                   {modelLabel}
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -196,7 +196,7 @@ export function PromptSettingsMenu({
 
           {activePanel === "model" && (
             <div
-              className={`${PANEL_CLASS} max-h-[300px] w-[240px] overflow-y-auto`}
+              className={`${PANEL_CLASS} max-h-[300px] w-[220px] overflow-y-auto`}
               role="menu"
               aria-label="Models"
             >
@@ -255,7 +255,7 @@ export function PromptSettingsMenu({
 
           {activePanel === "visual" && visualLevelControl && (
             <div
-              className={`${PANEL_CLASS} w-[168px]`}
+              className={`${PANEL_CLASS} w-[160px]`}
               role="menu"
               aria-label="Visual levels"
             >
