@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.1...drawmaid-v0.1.2) (2026-08-28)
+
+
+### Features
+
+* **llm:** promote authoritative diagram type handling ([7a8517f](https://github.com/AchuAshwath/drawmaid/commit/7a8517fe80c37fb9b5e86af77f386a0603cfd0c0))
+
 ## [0.1.1](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.0...drawmaid-v0.1.1) (2026-08-17)
 
 
