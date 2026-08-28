@@ -41,6 +41,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Separator,
 } from "@repo/ui";
 import {
   AlertCircle,
@@ -433,6 +434,10 @@ export function AIConfigPopup({
               >
                 WebLLM
               </Button>
+              <Separator
+                orientation="vertical"
+                className="mx-1 h-5 bg-[var(--dm-surface-high,var(--border))]"
+              />
               <Button
                 variant="ghost"
                 size="sm"
@@ -765,13 +770,10 @@ export function AIConfigPopup({
                     aria-expanded={showAdvanced}
                     className={`${EXCALIDRAW_MENU_ITEM} justify-between text-muted-foreground hover:text-foreground`}
                   >
-                    <span className="flex items-center gap-2">
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
-                      />
-                      Advanced Settings
-                    </span>
-                    <span className="text-xs opacity-70">Optional</span>
+                    <span>Advanced Settings</span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                    />
                   </button>
 
                   {showAdvanced && (
