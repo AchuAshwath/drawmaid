@@ -181,6 +181,28 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
       engine.stop();
     });
 
+    it("allows the same transcript to trigger after an explicit session reset", async () => {
+      const engine = new AutoModeEngine(
+        { settlingMs: 1500 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start();
+
+      engine.onTranscriptChange("create diagram");
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      engine.resetSession();
+      engine.onTranscriptChange("create diagram");
+      vi.advanceTimersByTime(1500);
+      await Promise.resolve();
+
+      expect(mockGenerate).toHaveBeenCalledTimes(2);
+      engine.stop();
+    });
+
     it("cancels pending settling timers on stop()", async () => {
       const engine = new AutoModeEngine(
         { settlingMs: 1500 },

@@ -4,8 +4,11 @@ import { WebGPUBanner } from "@/components/webgpu-banner";
 import { useAutoMode } from "@/lib/auto-mode";
 import {
   insertMermaidIntoCanvas,
+  clearAutoModeElementIds,
   type ExcalidrawCanvasApi,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
+import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
+import { resolveDiagramOutput, type DiagramOutput } from "@/lib/diagram";
 import {
   buildErrorRecoveryPrompt,
   buildUserPrompt,
@@ -17,7 +20,6 @@ import {
   isTimeoutError,
   SYSTEM_PROMPT,
 } from "@/lib/llm/mermaid-llm";
-import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import {
   createDrawmaidError,
   formatErrorForCopy,
@@ -52,6 +54,13 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
+
+function describeDiagramOutput(output: DiagramOutput): string {
+  if (output.kind === "broken") {
+    return `Could not resolve Mermaid output (${output.reason})`;
+  }
+  return `Diagram output was not inserted (${output.kind})`;
+}
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -107,7 +116,10 @@ function Home() {
   const { isSupported, status, loadProgress, generate } = useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
-  const { isGenerating: autoModeGenerating } = useAutoMode({
+  const {
+    isGenerating: autoModeGenerating,
+    resetSession: resetAutoModeSession,
+  } = useAutoMode({
     excalidrawApiRef,
     generate,
     currentModel,
@@ -319,161 +331,91 @@ function Home() {
       return;
     }
 
-    let mermaidCode: string | null = null;
+    let normalizedCode: string | null = null;
+    let recoveryAttempted = false;
     try {
-      mermaidCode = normalizeMermaid(mermaidOutput, intent.diagramType);
-      if (!mermaidCode) {
-        setIsGenerating(false);
-        setIsProcessing(false);
-        const errorMessage =
-          "Could not parse LLM output into valid mermaid code";
-        handleError("normalize", "normalization_failed", errorMessage, {
-          intent,
-          rawLLMOutput: mermaidOutput,
-        });
+      const policyResult = await applyDiagramOutputPolicy(
+        {
+          raw: mermaidOutput,
+          intent: intent.diagramIntent,
+          recovery: "once",
+        },
+        {
+          recover: async (raw) => {
+            recoveryAttempted = true;
+            const brokenOutput = resolveDiagramOutput(
+              raw,
+              intent.diagramIntent,
+            );
+            const errorMessage = describeDiagramOutput(brokenOutput);
+            const errorPrompt = buildErrorRecoveryPrompt({
+              originalInput: prompt,
+              failedMermaidCode: raw ?? "",
+              errorMessage,
+              diagramType: intent.diagramType,
+              diagramIntent: intent.diagramIntent,
+            });
+            return generate(errorPrompt, {
+              systemPrompt: SYSTEM_PROMPT,
+              maxTokens: 1024,
+              modelId: currentModel,
+              useLocalServer,
+              timeoutMs: useLocalServer ? 30000 : 15000,
+            });
+          },
+          insert: async (document) => {
+            normalizedCode = document.code;
+            await insertMermaidIntoCanvas(api, document);
+          },
+        },
+      );
 
-        const errorPrompt = buildErrorRecoveryPrompt({
-          originalInput: prompt,
-          failedMermaidCode: mermaidOutput,
-          errorMessage,
-          diagramType: intent.diagramType,
-        });
-
-        try {
-          setIsProcessing(true);
-          const recoveredOutput = await generate(errorPrompt, {
-            systemPrompt: SYSTEM_PROMPT,
-            maxTokens: 1024,
-            modelId: currentModel,
-            useLocalServer,
-            timeoutMs: useLocalServer ? 30000 : 15000,
-          });
-
-          if (!recoveredOutput?.trim()) {
-            setIsGenerating(false);
-            setIsProcessing(false);
-            return;
-          }
-
-          mermaidCode = normalizeMermaid(recoveredOutput, intent.diagramType);
-          if (!mermaidCode) {
-            setIsGenerating(false);
-            setIsProcessing(false);
-            return;
-          }
-
-          await insertMermaidIntoCanvas(api, mermaidCode);
-          setIsGenerating(false);
-          setIsProcessing(false);
-          return;
-        } catch {
-          setIsGenerating(false);
-          setIsProcessing(false);
-          return;
-        }
-      }
-      await insertMermaidIntoCanvas(api, mermaidCode);
       setIsGenerating(false);
       setIsProcessing(false);
+      if (!policyResult.inserted) {
+        handleError(
+          recoveryAttempted ? "recovery" : "normalize",
+          recoveryAttempted ? "recovery_failed" : "normalization_failed",
+          describeDiagramOutput(policyResult.output),
+          {
+            intent,
+            rawLLMOutput: mermaidOutput,
+            normalizedCode,
+            recoveryAttempted: policyResult.recoveryAttempted,
+            recoverySucceeded: false,
+          },
+        );
+        return;
+      }
+      return;
     } catch (err) {
       setIsGenerating(false);
       setIsProcessing(false);
+      if (isAbortError(err)) return;
       const errorMessage = err instanceof Error ? err.message : String(err);
-
-      // Detect error stage based on error message content
       const isParseError =
         /parse|syntax|diagram|mermaid|expecting|reserved|keyword/i.test(
           errorMessage,
         );
-      const errorStage: DrawmaidError["stage"] = isParseError
-        ? "parse"
-        : "canvas_insert";
-      const errorType: DrawmaidError["errorType"] = isParseError
-        ? "syntax_error"
-        : "canvas_error";
+      const errorStage: DrawmaidError["stage"] = recoveryAttempted
+        ? "recovery"
+        : isParseError
+          ? "parse"
+          : "canvas_insert";
+      const errorType: DrawmaidError["errorType"] = recoveryAttempted
+        ? "recovery_failed"
+        : isParseError
+          ? "syntax_error"
+          : "canvas_error";
 
       handleError(errorStage, errorType, errorMessage, {
         intent,
         rawLLMOutput: mermaidOutput,
-        normalizedCode: mermaidCode,
+        normalizedCode,
         parseError: isParseError ? errorMessage : null,
+        recoveryAttempted,
+        recoverySucceeded: false,
       });
-
-      const errorPrompt = buildErrorRecoveryPrompt({
-        originalInput: prompt,
-        failedMermaidCode: mermaidCode || mermaidOutput,
-        errorMessage,
-        diagramType: intent.diagramType,
-      });
-
-      try {
-        const recoveredOutput = await generate(errorPrompt, {
-          systemPrompt: SYSTEM_PROMPT,
-          maxTokens: 512,
-          modelId: currentModel,
-          useLocalServer,
-          timeoutMs: useLocalServer ? 30000 : 15000,
-        });
-
-        if (!recoveredOutput?.trim()) {
-          handleError(
-            "recovery",
-            "recovery_failed",
-            "Could not fix diagram syntax. Please try a different description.",
-            {
-              intent,
-              rawLLMOutput: mermaidOutput,
-              normalizedCode: mermaidCode,
-              parseError: errorMessage,
-              recoveryAttempted: true,
-              recoverySucceeded: false,
-            },
-          );
-          return;
-        }
-
-        const recoveredCode = normalizeMermaid(
-          recoveredOutput,
-          intent.diagramType,
-        );
-        if (!recoveredCode) {
-          handleError(
-            "recovery",
-            "recovery_failed",
-            "Could not fix diagram syntax. Please try a different description.",
-            {
-              intent,
-              rawLLMOutput: mermaidOutput,
-              normalizedCode: mermaidCode,
-              parseError: errorMessage,
-              recoveryAttempted: true,
-              recoverySucceeded: false,
-            },
-          );
-          return;
-        }
-
-        await insertMermaidIntoCanvas(api, recoveredCode);
-      } catch (recoveryErr) {
-        setIsGenerating(false);
-        setIsProcessing(false);
-        if (isAbortError(recoveryErr)) return;
-        handleError(
-          "recovery",
-          "recovery_failed",
-          recoveryErr instanceof Error
-            ? recoveryErr.message
-            : "Could not add diagram to canvas. Check the diagram syntax.",
-          {
-            intent,
-            rawLLMOutput: mermaidOutput,
-            normalizedCode: mermaidCode,
-            parseError: errorMessage,
-            recoveryAttempted: true,
-            recoverySucceeded: false,
-          },
-        );
-      }
     }
   };
 
@@ -600,6 +542,10 @@ function Home() {
             mode={mode}
             onModeChange={handleModeChange}
             onGenerate={handleGenerate}
+            onKeep={() => {
+              clearAutoModeElementIds();
+              resetAutoModeSession();
+            }}
             generateDisabled={
               mode === "auto" ||
               !prompt ||

@@ -13,6 +13,7 @@ export interface VoiceInputButtonProps extends Omit<
   onRecognitionError?: (error: string) => void;
   onMicStateChange?: (isActive: boolean) => void;
   autoMode?: boolean;
+  resetKey?: number;
 }
 
 export function VoiceInputButton({
@@ -21,11 +22,12 @@ export function VoiceInputButton({
   onRecognitionError,
   onMicStateChange,
   autoMode,
+  resetKey,
   onClick,
   className,
   ...props
 }: VoiceInputButtonProps) {
-  const { isSupported, isListening, toggle } = useSpeechRecognition({
+  const { isSupported, isListening, toggle, reset } = useSpeechRecognition({
     lang,
     onTranscript,
     onError: onRecognitionError,
@@ -37,6 +39,10 @@ export function VoiceInputButton({
   useEffect(() => {
     onMicStateChange?.(isListening);
   }, [isListening, onMicStateChange]);
+
+  useEffect(() => {
+    if (resetKey !== undefined) reset();
+  }, [reset, resetKey]);
 
   if (!isSupported) return null;
 

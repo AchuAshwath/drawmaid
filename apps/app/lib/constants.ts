@@ -1,29 +1,4 @@
-// Diagram Type Keywords for backwards scan detection
-export const DIAGRAM_TYPE_KEYWORDS: Record<string, string[]> = {
-  flowchart: ["flowchart", "flow chart", "flow", "process", "decision tree"],
-  sequenceDiagram: [
-    "sequence diagram",
-    "sequencing",
-    "sequence",
-    "interactions",
-    "message flow",
-    "process order",
-    "timeline",
-    "call flow",
-    "request response",
-  ],
-  classDiagram: [
-    "class diagram",
-    "class",
-    "classes",
-    "oop",
-    "object oriented",
-    "uml class",
-    "inheritance",
-  ],
-};
-
-// Direction Keywords for backwards scan detection
+// Direction keywords used by intent extraction.
 export const DIRECTION_KEYWORDS: Record<string, string[]> = {
   LR: [
     "left to right",

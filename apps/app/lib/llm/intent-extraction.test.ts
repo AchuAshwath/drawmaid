@@ -6,7 +6,7 @@ import {
   type Intent,
 } from "./intent-extraction";
 
-describe("extractIntent - Diagram Type (Backwards Scan)", () => {
+describe("extractIntent - Diagram Type", () => {
   describe("should return null when no diagram keyword found", () => {
     it("empty transcript", () => {
       const result = extractIntent("");
@@ -20,6 +20,12 @@ describe("extractIntent - Diagram Type (Backwards Scan)", () => {
 
     it("no diagram keyword - only entities", () => {
       const result = extractIntent("draw user authentication system");
+      expect(result.diagramType).toBeNull();
+    });
+
+    it("does not reinterpret an unrequested timeline as a sequence diagram", () => {
+      const result = extractIntent("timeline of releases");
+      expect(result.diagramIntent).toBeNull();
       expect(result.diagramType).toBeNull();
     });
   });
@@ -78,14 +84,14 @@ describe("extractIntent - Diagram Type (Backwards Scan)", () => {
   });
 
   describe("single keyword variants", () => {
-    it("sequence keyword alone", () => {
+    it("ambiguous sequence keyword alone", () => {
       const result = extractIntent("make it a sequence");
-      expect(result.diagramType).toBe("sequenceDiagram");
+      expect(result.diagramType).toBeNull();
     });
 
-    it("class keyword alone", () => {
+    it("ambiguous class keyword alone", () => {
       const result = extractIntent("draw a class");
-      expect(result.diagramType).toBe("classDiagram");
+      expect(result.diagramType).toBeNull();
     });
   });
 });
@@ -192,6 +198,32 @@ describe("extractIntent - Entity Extraction", () => {
 });
 
 describe("extractIntent - Full Integration", () => {
+  it("exposes diagram intent without dropping direction or entities", () => {
+    const explicit = extractIntent(
+      "draw an entity relationship diagram for users and orders",
+    );
+
+    expect(explicit).toEqual(
+      expect.objectContaining({
+        diagramIntent: { type: "erDiagram", source: "explicit" },
+        direction: null,
+        entities: [],
+      }),
+    );
+
+    const heuristic = extractIntent(
+      "the browser calls the API and gets a response",
+    );
+
+    expect(heuristic).toEqual(
+      expect.objectContaining({
+        diagramIntent: { type: "sequenceDiagram", source: "heuristic" },
+        direction: null,
+        entities: ["browser", "calls", "api", "gets", "response"],
+      }),
+    );
+  });
+
   it("extracts diagram type and direction", () => {
     const result = extractIntent(
       "user login make it a sequence diagram left to right",
@@ -232,6 +264,7 @@ describe("buildUserPrompt", () => {
   it("includes diagram type when detected", () => {
     const intent: Intent = {
       diagramType: "sequenceDiagram",
+      diagramIntent: null,
       direction: null,
       entities: [],
     };
@@ -246,6 +279,7 @@ describe("buildUserPrompt", () => {
   it("includes direction when detected", () => {
     const intent: Intent = {
       diagramType: null,
+      diagramIntent: null,
       direction: "LR",
       entities: [],
     };
@@ -259,6 +293,7 @@ describe("buildUserPrompt", () => {
   it("includes entities as nodes for short inputs", () => {
     const intent: Intent = {
       diagramType: null,
+      diagramIntent: null,
       direction: null,
       entities: ["user", "login", "dashboard"],
     };
@@ -272,6 +307,7 @@ describe("buildUserPrompt", () => {
   it("includes entities when present in intent", () => {
     const intent: Intent = {
       diagramType: "flowchart",
+      diagramIntent: null,
       direction: "TD",
       entities: ["User", "Login", "Dashboard"],
     };
@@ -287,6 +323,7 @@ describe("buildUserPrompt", () => {
   it("combines all extracted info", () => {
     const intent: Intent = {
       diagramType: "sequenceDiagram",
+      diagramIntent: null,
       direction: "LR",
       entities: ["user", "server"],
     };

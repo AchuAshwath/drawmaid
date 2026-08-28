@@ -80,5 +80,103 @@
       "Relationships: <|-- (inheritance), --> (association), ..> (dependency)",
       "Use <<interface>> for interfaces"
     ]
+  },
+  "erDiagram": {
+    "id": "erDiagram",
+    "name": "Entity Relationship Diagram",
+    "nodeSyntax": "ENTITY { string id }",
+    "edgeSyntax": "CUSTOMER ||--o{ ORDER : places",
+    "reservedWords": ["erDiagram", "title", "direction"],
+    "examples": [
+      "erDiagram\nCUSTOMER ||--o{ ORDER : places\nCUSTOMER {\n  string id\n}"
+    ],
+    "tips": [
+      "Declare entities with uppercase names",
+      "Put attributes inside entity braces",
+      "Use ||--o{ and similar cardinality markers for relationships"
+    ]
+  },
+  "stateDiagram-v2": {
+    "id": "stateDiagram-v2",
+    "name": "State Diagram",
+    "nodeSyntax": "state \"Label\" as ID",
+    "edgeSyntax": "ID --> ID : transition",
+    "reservedWords": ["stateDiagram-v2", "stateDiagram", "state", "[*]"],
+    "examples": [
+      "stateDiagram-v2\n[*] --> Pending\nPending --> Paid : capture\nPaid --> [*]"
+    ],
+    "tips": [
+      "Use [*] for start and end states",
+      "Use arrows for transitions",
+      "Put transition labels after a colon"
+    ]
+  },
+  "gantt": {
+    "id": "gantt",
+    "name": "Gantt Chart",
+    "nodeSyntax": "section Name",
+    "edgeSyntax": "Task :done, taskId, 2026-09-01, 7d",
+    "reservedWords": ["gantt", "title", "section"],
+    "examples": [
+      "gantt\ntitle Release\ndateFormat YYYY-MM-DD\nsection Work\nBuild :2026-09-01, 7d"
+    ],
+    "tips": [
+      "Use sections to group tasks",
+      "Give each task a duration or date range"
+    ]
+  },
+  "pie": {
+    "id": "pie",
+    "name": "Pie Chart",
+    "nodeSyntax": "\"Label\" : value",
+    "edgeSyntax": "Each slice is a labeled value",
+    "reservedWords": ["pie", "title"],
+    "examples": ["pie title Budget\n  \"Build\" : 60\n  \"Test\" : 25"],
+    "tips": ["Use one quoted label and numeric value per slice"]
+  },
+  "mindmap": {
+    "id": "mindmap",
+    "name": "Mind Map",
+    "nodeSyntax": "root((Central idea))",
+    "edgeSyntax": "Indent child ideas beneath their parent",
+    "reservedWords": ["mindmap", "root"],
+    "examples": ["mindmap\n  root((Product))\n    Users\n    Platform"],
+    "tips": ["Start with one root", "Use indentation to express hierarchy"]
+  },
+  "gitGraph": {
+    "id": "gitGraph",
+    "name": "Git Graph",
+    "nodeSyntax": "commit id: \"Initial\"",
+    "edgeSyntax": "branch feature and checkout feature",
+    "reservedWords": ["gitGraph", "commit", "branch", "checkout"],
+    "examples": [
+      "gitGraph\n  commit id: \"Initial\"\n  branch feature\n  checkout feature\n  commit id: \"Work\""
+    ],
+    "tips": [
+      "Use commits to show history",
+      "Create and checkout branches explicitly"
+    ]
+  },
+  "journey": {
+    "id": "journey",
+    "name": "User Journey",
+    "nodeSyntax": "Task: score: Actor",
+    "edgeSyntax": "Group tasks in sections",
+    "reservedWords": ["journey", "title", "section"],
+    "examples": [
+      "journey\n  title User onboarding\n  section Signup\n    Create account: 5: User"
+    ],
+    "tips": ["Score tasks from 1 to 5", "Use sections for journey stages"]
+  },
+  "timeline": {
+    "id": "timeline",
+    "name": "Timeline",
+    "nodeSyntax": "Year : Event",
+    "edgeSyntax": "Events are ordered by their timeline entries",
+    "reservedWords": ["timeline", "title"],
+    "examples": [
+      "timeline\n  title Product history\n  2024 : Prototype\n  2025 : Public launch"
+    ],
+    "tips": ["Use one dated entry per line", "Keep events concise"]
   }
 }

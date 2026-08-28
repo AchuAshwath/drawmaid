@@ -76,7 +76,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@excalidraw/excalidraw": "^0.18.0",
-        "@excalidraw/mermaid-to-excalidraw": "^2.0.0",
+        "@excalidraw/mermaid-to-excalidraw": "2.2.2",
         "@mlc-ai/web-llm": "^0.2.80",
         "@radix-ui/react-checkbox": "^1.3.3",
         "@radix-ui/react-radio-group": "^1.3.8",
@@ -541,7 +541,7 @@
 
     "@excalidraw/markdown-to-text": ["@excalidraw/markdown-to-text@0.1.2", "", {}, "sha512-1nDXBNAojfi3oSFwJswKREkFm5wrSjqay81QlyRv2pkITG/XYB5v+oChENVBQLcxQwX4IUATWvXM5BcaNhPiIg=="],
 
-    "@excalidraw/mermaid-to-excalidraw": ["@excalidraw/mermaid-to-excalidraw@2.0.0", "", { "dependencies": { "@excalidraw/markdown-to-text": "0.1.2", "@mermaid-js/parser": "^0.6.3", "mermaid": "^11.12.1", "nanoid": "4.0.2" } }, "sha512-CheLVxrBEf9mDHX8O9rSeF7epANZxNDo8FckTo2khqFN9gbcyUrn9p0ZYyZ8iJ/X3cVk3TZwv9h3HS30PjRFGg=="],
+    "@excalidraw/mermaid-to-excalidraw": ["@excalidraw/mermaid-to-excalidraw@2.2.2", "", { "dependencies": { "@excalidraw/markdown-to-text": "0.1.2", "@mermaid-js/parser": "^0.6.3", "mermaid": "^11.12.1", "nanoid": "4.0.2" } }, "sha512-5VKQq5CdRocC82vOIUpQ5ufJOVV9FpBTdHGA+ULqazeIVV+cr299877omQCibsdS3Bpitz2fsnTwnIXEmLVDSg=="],
 
     "@excalidraw/random-username": ["@excalidraw/random-username@1.1.0", "", {}, "sha512-nULYsQxkWHnbmHvcs+efMkJ4/9TtvNyFeLyHdeGxW0zHs6P+jYVqcRff9A6Vq9w9JXeDRnRh2VKvTtS19GW2qA=="],
 

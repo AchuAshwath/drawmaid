@@ -3,8 +3,9 @@ import { usePromptFooterState } from "@/lib/voice/use-prompt-footer-state";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
 import { ModelSelector } from "@/components/ai-config/model-selector";
 import { Button, Switch, Textarea } from "@repo/ui";
-import { ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
+import { useState } from "react";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -28,6 +29,7 @@ export interface PromptFooterProps {
   currentModel?: string;
   onSelectModel?: (modelId: string) => void;
   localServerConfigured?: boolean;
+  onKeep?: () => void;
 }
 
 export function PromptFooter({
@@ -50,7 +52,9 @@ export function PromptFooter({
   currentModel,
   onSelectModel,
   localServerConfigured = false,
+  onKeep,
 }: PromptFooterProps) {
+  const [voiceResetKey, setVoiceResetKey] = useState(0);
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
     usePromptFooterState({
       mode,
@@ -59,6 +63,12 @@ export function PromptFooter({
       onGenerate,
       isGenerateDisabled: generateDisabled,
     });
+
+  const handleKeep = () => {
+    onPromptChange("");
+    onKeep?.();
+    setVoiceResetKey((key) => key + 1);
+  };
 
   return (
     <CenteredStrip className="flex-col gap-2 text-foreground">
@@ -97,7 +107,7 @@ export function PromptFooter({
                 onChange={(e) => onPromptChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe a diagram or use the mic..."
-                className="min-h-[22px] max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-auto custom-scrollbar break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[22px] max-h-[192px] min-w-0 w-full flex-1 resize-none border-0 bg-[var(--toolbar-bg,var(--card))] px-2.5 pr-12 py-0.5 text-sm leading-tight shadow-none placeholder:text-muted-foreground overflow-x-hidden overflow-y-auto custom-scrollbar break-words whitespace-pre-wrap focus-visible:ring-0 focus-visible:ring-offset-0"
                 wrap="hard"
                 style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
                 aria-label="Diagram description"
@@ -135,6 +145,7 @@ export function PromptFooter({
                 onTranscript={onTranscript}
                 onRecognitionError={onRecognitionError}
                 autoMode={mode === "auto"}
+                resetKey={voiceResetKey}
               />
               <div className="relative inline-flex h-6 w-[calc(3.5rem+1.25rem)] items-center rounded-full bg-input/50 px-0.5 overflow-hidden shadow-sm">
                 <Switch
@@ -181,16 +192,32 @@ export function PromptFooter({
               ) : null}
               <Button
                 type="button"
-                onClick={onGenerate}
-                disabled={generateDisabled}
+                onClick={mode === "auto" ? handleKeep : onGenerate}
+                disabled={
+                  mode === "auto"
+                    ? !prompt.trim() || generating
+                    : generateDisabled
+                }
                 variant="default"
                 size="icon"
-                aria-label={generating ? "Generating..." : "Generate diagram"}
+                aria-label={
+                  mode === "auto"
+                    ? "Keep this diagram and start a new one"
+                    : generating
+                      ? "Generating..."
+                      : "Generate diagram"
+                }
                 title={
-                  mode === "auto" ? "Submit disabled in auto mode" : undefined
+                  mode === "auto"
+                    ? "Keep this diagram and start a new one"
+                    : undefined
                 }
               >
-                <ArrowUp className="h-4 w-4" />
+                {mode === "auto" ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <ArrowUp className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>

@@ -4,9 +4,9 @@ import {
   insertMermaidIntoCanvas,
   type ExcalidrawCanvasApi,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
+import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
 import { buildUserPrompt, extractIntent } from "@/lib/llm/intent-extraction";
 import { SYSTEM_PROMPT } from "@/lib/llm/mermaid-llm";
-import { normalizeMermaid } from "@/lib/llm/normalize-mermaid";
 import {
   createDrawmaidError,
   type DrawmaidError,
@@ -34,6 +34,7 @@ interface UseAutoModeOptions {
 
 interface UseAutoModeReturn {
   isGenerating: boolean;
+  resetSession: () => void;
 }
 
 export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
@@ -141,40 +142,56 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const intent = extractIntent(task.transcript);
       const isLocal = models.some((m) => m.id === model);
       const useLocal = isLocal && models.length > 0;
-      const mermaidCode = normalizeMermaid(result, intent?.diagramType ?? null);
-
-      if (!mermaidCode) {
-        logWarn(
-          "AUTO_MODE",
-          `Could not normalize Mermaid from task #${task.id ?? "?"}`,
-          {
-            rawOutput: result.slice(0, 100),
-          },
-        );
-
-        const drawmaidError = createDrawmaidError(
-          "normalize",
-          "normalization_failed",
-          "Could not parse LLM output into valid mermaid code",
-          {
-            transcript: task.transcript,
-            intent,
-            generation: {
-              provider: useLocal ? "local" : "webllm",
-              model,
-              mode: "auto",
-              useLocalServer: useLocal,
-            },
-            rawLLMOutput: result,
-          },
-        );
-        onError?.(drawmaidError);
-        return;
-      }
+      let normalizedCode: string | null = null;
 
       try {
-        logInfo("CANVAS", `Inserting diagram for task #${task.id ?? "?"}`);
-        await insertMermaidIntoCanvas(api, mermaidCode, { replace: true });
+        const policyResult = await applyDiagramOutputPolicy(
+          {
+            raw: result,
+            intent: intent.diagramIntent,
+            recovery: "none",
+          },
+          {
+            insert: async (document) => {
+              normalizedCode = document.code;
+              logInfo(
+                "CANVAS",
+                `Inserting diagram for task #${task.id ?? "?"}`,
+              );
+              await insertMermaidIntoCanvas(api, document, { replace: true });
+            },
+          },
+        );
+
+        if (!policyResult.inserted) {
+          if (policyResult.output.kind === "no-diagram") return;
+          logWarn(
+            "AUTO_MODE",
+            `Could not resolve Mermaid from task #${task.id ?? "?"}`,
+            { rawOutput: result.slice(0, 100) },
+          );
+
+          const drawmaidError = createDrawmaidError(
+            "normalize",
+            "normalization_failed",
+            `Could not resolve Mermaid output (${policyResult.output.kind === "broken" ? policyResult.output.reason : policyResult.output.kind})`,
+            {
+              transcript: task.transcript,
+              intent,
+              generation: {
+                provider: useLocal ? "local" : "webllm",
+                model,
+                mode: "auto",
+                useLocalServer: useLocal,
+              },
+              rawLLMOutput: result,
+              normalizedCode,
+            },
+          );
+          onError?.(drawmaidError);
+          return;
+        }
+
         lastProcessedRef.current = task.transcript;
         logInfo("CANVAS", `Diagram rendered successfully on canvas`);
       } catch (error) {
@@ -196,7 +213,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
               useLocalServer: useLocal,
             },
             rawLLMOutput: result,
-            normalizedCode: mermaidCode,
+            normalizedCode,
           },
         );
         onError?.(drawmaidError);
@@ -204,6 +221,11 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     },
     [excalidrawApiRef],
   );
+
+  const resetSession = useCallback(() => {
+    engineRef.current?.resetSession();
+    lastProcessedRef.current = "";
+  }, []);
 
   useEffect(() => {
     if (!isAutoMode) {
@@ -238,5 +260,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
 
   return {
     isGenerating,
+    resetSession,
   };
 }
