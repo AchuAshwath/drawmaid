@@ -197,7 +197,7 @@ export function PromptSettingsMenu({
 
       {open && (
         <div
-          className={`absolute bottom-full z-50 mb-4 ${
+          className={`absolute bottom-full z-50 mb-5 ${
             menuPlacement === "right" ? "left-0" : "right-0"
           }`}
           role="presentation"
