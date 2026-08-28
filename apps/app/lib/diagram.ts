@@ -177,6 +177,39 @@ export interface DiagramIntent {
   readonly source: "explicit" | "heuristic";
 }
 
+export interface DiagramDocument {
+  readonly type: DiagramType;
+  readonly capability: DiagramCapability;
+  readonly code: string;
+}
+
+export type DiagramBrokenReason =
+  | "empty-output"
+  | "malformed-fence"
+  | "unknown-declaration"
+  | "no-known-declaration"
+  | "mixed-refusal";
+
+export type DiagramOutput =
+  | { readonly kind: "editable"; readonly document: DiagramDocument }
+  | { readonly kind: "image-only"; readonly document: DiagramDocument }
+  | { readonly kind: "no-diagram" }
+  | {
+      readonly kind: "multiple";
+      readonly documents: readonly DiagramDocument[];
+    }
+  | {
+      readonly kind: "wrong-type";
+      readonly requestedType: DiagramType;
+      readonly document: DiagramDocument;
+    }
+  | { readonly kind: "unrequested-image"; readonly document: DiagramDocument }
+  | {
+      readonly kind: "broken";
+      readonly reason: DiagramBrokenReason;
+      readonly declaration?: string;
+    };
+
 export function listDiagramDefinitions(): readonly DiagramDefinition[] {
   return DIAGRAM_REGISTRY;
 }
@@ -321,4 +354,174 @@ function findHeuristicIntent(text: string): DiagramIntent | null {
 export function detectDiagramIntent(text: string): DiagramIntent | null {
   const explicit = findLastExplicitIntent(text);
   return explicit ?? findHeuristicIntent(text);
+}
+
+interface FenceScan {
+  readonly documents: readonly string[];
+  readonly malformed: boolean;
+  readonly sawFence: boolean;
+}
+
+function scanFencedDocuments(raw: string): FenceScan {
+  const sawFence = raw.includes("```");
+  const documents: string[] = [];
+  let openStart: number | null = null;
+  let contentStart: number | null = null;
+  let offset = 0;
+  const lines = raw.split("\n");
+
+  for (const [index, line] of lines.entries()) {
+    const hasNewline = index < lines.length - 1;
+    const rawLine = hasNewline ? `${line}\n` : line;
+    const withoutCarriageReturn = line.endsWith("\r")
+      ? line.slice(0, -1)
+      : line;
+    const trimmed = withoutCarriageReturn.trim();
+
+    if (openStart === null) {
+      if (trimmed.startsWith("```")) {
+        openStart = offset;
+        contentStart = offset + rawLine.length;
+      }
+    } else if (trimmed === "```") {
+      documents.push(raw.slice(contentStart ?? offset, offset).trim());
+      openStart = null;
+      contentStart = null;
+    } else if (trimmed.startsWith("```")) {
+      return { documents: [], malformed: true, sawFence: true };
+    }
+
+    offset += rawLine.length;
+  }
+
+  return {
+    documents,
+    malformed: openStart !== null || (sawFence && documents.length === 0),
+    sawFence,
+  };
+}
+
+function findDeclaredDefinition(code: string): DiagramDefinition | null {
+  const firstLine = code
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  if (!firstLine) return null;
+
+  const lowerLine = firstLine.toLowerCase();
+  const declarations = DIAGRAM_REGISTRY.flatMap((definition) =>
+    definition.declarations.map((declaration) => ({
+      declaration: declaration.toLowerCase(),
+      definition,
+    })),
+  ).sort((a, b) => b.declaration.length - a.declaration.length);
+
+  for (const { declaration, definition } of declarations) {
+    if (!lowerLine.startsWith(declaration)) continue;
+    const next = lowerLine.slice(declaration.length);
+    if (next === "" || /^\s/.test(next)) return definition;
+  }
+
+  return null;
+}
+
+function documentFromCode(code: string): DiagramDocument | null {
+  const definition = findDeclaredDefinition(code);
+  if (!definition) return null;
+  return {
+    type: definition.type,
+    capability: definition.capability,
+    code,
+  };
+}
+
+function unknownDeclarationFromCode(code: string): string | null {
+  const firstLine = code
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  const token = firstLine?.match(/^[A-Za-z][A-Za-z0-9-]*/)?.[0];
+  if (!token) return null;
+  return /[A-Z-]/.test(token.slice(1)) ||
+    /(?:chart|diagram|graph|mindmap|journey|timeline)/i.test(token)
+    ? token
+    : null;
+}
+
+function extractBareDocument(raw: string): string | null {
+  const lines = raw.split("\n");
+  const starts: number[] = [];
+  let offset = 0;
+
+  for (const line of lines) {
+    const withoutCarriageReturn = line.endsWith("\r")
+      ? line.slice(0, -1)
+      : line;
+    if (findDeclaredDefinition(withoutCarriageReturn.trim())) {
+      starts.push(offset);
+    }
+    offset += line.length + 1;
+  }
+
+  return starts.length === 1 ? raw.slice(starts[0]).trim() : null;
+}
+
+export function resolveDiagramOutput(
+  raw: string | null | undefined,
+  intent: DiagramIntent | null,
+): DiagramOutput {
+  if (raw == null || raw.trim() === "") {
+    return { kind: "broken", reason: "empty-output" };
+  }
+  if (raw.trim() === "NO_DIAGRAM") {
+    return { kind: "no-diagram" };
+  }
+  if (/\bNO_DIAGRAM\b/.test(raw)) {
+    return { kind: "broken", reason: "mixed-refusal" };
+  }
+
+  const fenced = scanFencedDocuments(raw);
+  if (fenced.malformed) {
+    return { kind: "broken", reason: "malformed-fence" };
+  }
+
+  const codes = fenced.sawFence
+    ? fenced.documents
+    : (() => {
+        const bare = extractBareDocument(raw);
+        return bare ? [bare] : [];
+      })();
+  const documents: DiagramDocument[] = [];
+  for (const code of codes) {
+    const document = documentFromCode(code);
+    if (!document) {
+      const declaration = unknownDeclarationFromCode(code);
+      return declaration
+        ? { kind: "broken", reason: "unknown-declaration", declaration }
+        : { kind: "broken", reason: "no-known-declaration" };
+    }
+    documents.push(document);
+  }
+
+  if (documents.length === 0) {
+    const declaration = unknownDeclarationFromCode(raw);
+    return declaration
+      ? { kind: "broken", reason: "unknown-declaration", declaration }
+      : { kind: "broken", reason: "no-known-declaration" };
+  }
+
+  if (documents.length > 1) {
+    return { kind: "multiple", documents };
+  }
+
+  const document = documents[0];
+  if (intent?.source === "explicit" && intent.type !== document.type) {
+    return { kind: "wrong-type", requestedType: intent.type, document };
+  }
+  if (document.capability === "editable") {
+    return { kind: "editable", document };
+  }
+  return intent?.source === "explicit" && intent.type === document.type
+    ? { kind: "image-only", document }
+    : { kind: "unrequested-image", document };
 }
