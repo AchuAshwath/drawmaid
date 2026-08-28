@@ -50,7 +50,9 @@ export function PromptSettingsMenu({
   const [open, setOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
   const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("left");
+  const [submenuOffset, setSubmenuOffset] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
 
   const modelOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -108,6 +110,36 @@ export function PromptSettingsMenu({
       left + menuWidth <= window.innerWidth - 8 ? "right" : "left",
     );
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !activePanel || typeof window === "undefined") {
+      // Reset the collision offset when no submenu is active.
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setSubmenuOffset(0);
+      return;
+    }
+
+    const submenu = submenuRef.current;
+    if (!submenu) return;
+
+    const updateOffset = () => {
+      const rect = submenu.getBoundingClientRect();
+      let offset = 0;
+      if (rect.bottom > window.innerHeight - 8) {
+        offset -= rect.bottom - (window.innerHeight - 8);
+      }
+      if (rect.top + offset < 8) {
+        offset += 8 - (rect.top + offset);
+      }
+      // Keep the submenu inside the viewport when the footer is near an edge.
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setSubmenuOffset(offset);
+    };
+
+    updateOffset();
+    window.addEventListener("resize", updateOffset);
+    return () => window.removeEventListener("resize", updateOffset);
+  }, [activePanel, localModels.length, open, webLLMModels.length]);
 
   if (!hasModelOption && !visualLevelControl) return null;
 
@@ -196,17 +228,14 @@ export function PromptSettingsMenu({
 
           {activePanel === "model" && (
             <div
+              ref={submenuRef}
               className={`${PANEL_CLASS} absolute top-0 max-h-[300px] w-[220px] overflow-y-auto ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               }`}
+              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Models"
             >
-              {webLLMModels.length > 0 && (
-                <p className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-                  WebLLM
-                </p>
-              )}
               {webLLMModels.map((model) => (
                 <button
                   key={`webllm-${model.id}`}
@@ -224,9 +253,6 @@ export function PromptSettingsMenu({
               ))}
               {localServerConfigured && (
                 <>
-                  <p className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-                    Local Server
-                  </p>
                   {localModels.length > 0 ? (
                     localModels.map((model) => (
                       <button
@@ -257,9 +283,11 @@ export function PromptSettingsMenu({
 
           {activePanel === "visual" && visualLevelControl && (
             <div
+              ref={submenuRef}
               className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
                 menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
               } ${activePanel === "visual" ? "top-[34px]" : "top-0"}`}
+              style={{ transform: `translateY(${submenuOffset}px)` }}
               role="menu"
               aria-label="Visual levels"
             >
