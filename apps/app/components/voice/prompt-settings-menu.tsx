@@ -29,7 +29,7 @@ const CONTROL_CLASS =
   "dm-excalidraw-control h-8 border-0 px-3 focus-visible:ring-0";
 const PANEL_CLASS = "dm-excalidraw-surface p-1";
 const ROW_CLASS =
-  "dm-excalidraw-menu-item flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-foreground hover:text-accent-foreground";
+  "dm-excalidraw-menu-item flex h-8 min-h-8 w-full items-center gap-[10px] px-2 py-0 text-left text-sm text-foreground hover:text-accent-foreground";
 
 function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -101,7 +101,7 @@ export function PromptSettingsMenu({
     if (!root) return;
 
     const { left } = root.getBoundingClientRect();
-    const menuWidth = 260 + 4 + 280;
+    const menuWidth = 224 + 4 + 240;
     // Placement is derived from the current viewport after the menu opens.
     // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setMenuPlacement(
@@ -135,7 +135,7 @@ export function PromptSettingsMenu({
         type="button"
         variant="ghost"
         size="sm"
-        className={`${CONTROL_CLASS} w-[220px] shrink-0 justify-between gap-2 px-3 text-xs`}
+        className={`${CONTROL_CLASS} w-[180px] shrink-0 justify-between gap-2 px-3 text-sm`}
         aria-label="Model and visual settings"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -156,7 +156,7 @@ export function PromptSettingsMenu({
           role="presentation"
         >
           <div
-            className={`${PANEL_CLASS} w-[260px]`}
+            className={`${PANEL_CLASS} w-[224px]`}
             role="menu"
             aria-label="Model and visual settings"
           >
@@ -196,7 +196,7 @@ export function PromptSettingsMenu({
 
           {activePanel === "model" && (
             <div
-              className={`${PANEL_CLASS} max-h-[300px] w-[280px] overflow-y-auto`}
+              className={`${PANEL_CLASS} max-h-[300px] w-[240px] overflow-y-auto`}
               role="menu"
               aria-label="Models"
             >
@@ -255,7 +255,7 @@ export function PromptSettingsMenu({
 
           {activePanel === "visual" && visualLevelControl && (
             <div
-              className={`${PANEL_CLASS} w-[180px]`}
+              className={`${PANEL_CLASS} w-[168px]`}
               role="menu"
               aria-label="Visual levels"
             >

@@ -34,7 +34,7 @@ describe("PromptSettingsMenu", () => {
       name: "Model and visual settings",
     });
     expect(trigger.className).toContain("dm-excalidraw-control");
-    expect(trigger.className).toContain("w-[220px]");
+    expect(trigger.className).toContain("w-[180px]");
 
     fireEvent.click(trigger);
 
