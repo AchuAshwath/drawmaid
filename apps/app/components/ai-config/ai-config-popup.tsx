@@ -413,7 +413,13 @@ export function AIConfigPopup({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3 space-y-3 custom-scrollbar">
+          <div
+            className={`min-h-0 flex-1 px-5 py-3 space-y-3 ${
+              activeTab === "webllm"
+                ? "overflow-y-auto custom-scrollbar"
+                : "overflow-visible"
+            }`}
+          >
             <div
               role="tablist"
               aria-label="AI configuration mode"
@@ -826,6 +832,10 @@ export function AIConfigPopup({
                             </li>
                             <li>Avoid: reasoning-heavy models (o1, o3-mini)</li>
                           </ul>
+                          <p className="mt-2">
+                            Type the exact model name as configured in your
+                            server, or click Refresh Models with your API key.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -924,11 +934,11 @@ export function AIConfigPopup({
                       className={EXCALIDRAW_INPUT}
                     />
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    {localModels.length > 0
-                      ? `Found ${localModels.length} models from server.`
-                      : "Type the exact model name as configured in your server, or click Refresh Models with your API key"}
-                  </p>
+                  {localModels.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Found {localModels.length} models from server.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
