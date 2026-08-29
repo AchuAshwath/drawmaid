@@ -5,6 +5,8 @@ const HALF_LIFE_MS = 2000;
 const UPDATE_INTERVAL_MS = 50;
 const REFUSAL_PROGRESS = 18;
 const REFUSAL_DECAY_HALF_LIFE_MS = 12000;
+const REFUSAL_DECAY_DURATION_MS = 120000;
+const REFUSAL_MIN_PROGRESS = 1;
 
 export function useFakeGenerationProgress(
   isProgressing: boolean,
@@ -46,9 +48,21 @@ export function useFakeGenerationProgress(
 
       const tick = () => {
         const elapsed = Date.now() - startTimeRef.current!;
-        progressRef.current =
+        if (elapsed >= REFUSAL_DECAY_DURATION_MS) {
+          progressRef.current = REFUSAL_MIN_PROGRESS;
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+          subscribersRef.current.forEach((cb) => cb());
+          return;
+        }
+        const decayedProgress =
           REFUSAL_PROGRESS *
           (REFUSAL_DECAY_HALF_LIFE_MS / (elapsed + REFUSAL_DECAY_HALF_LIFE_MS));
+        progressRef.current = Math.max(REFUSAL_MIN_PROGRESS, decayedProgress);
+        if (decayedProgress <= REFUSAL_MIN_PROGRESS) {
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+        }
         subscribersRef.current.forEach((cb) => cb());
       };
 

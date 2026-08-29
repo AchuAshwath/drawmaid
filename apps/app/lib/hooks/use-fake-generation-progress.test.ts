@@ -107,5 +107,11 @@ describe("refusal feedback", () => {
       vi.advanceTimersByTime(1000);
     });
     expect(result.current).toBeGreaterThan(decayedProgress);
+
+    rerender({ progressing: false, refused: true });
+    act(() => {
+      vi.advanceTimersByTime(120_000);
+    });
+    expect(result.current).toBe(1);
   });
 });
