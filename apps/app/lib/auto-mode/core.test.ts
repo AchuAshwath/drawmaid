@@ -203,6 +203,85 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
       engine.stop();
     });
 
+    it("does not deliver an in-flight result after an explicit session reset", async () => {
+      let finishGeneration!: (value: string) => void;
+      mockGenerate.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishGeneration = resolve;
+          }),
+      );
+      const engine = new AutoModeEngine(
+        { settlingMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start();
+
+      engine.onTranscriptChange("stale diagram request");
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+
+      engine.resetSession();
+      finishGeneration("stale result");
+      await Promise.resolve();
+
+      expect(mockOnResult).not.toHaveBeenCalled();
+      expect(engine.getState().mermaidStack).toEqual([]);
+      expect(engine.getActiveCount()).toBe(0);
+      engine.stop();
+    });
+
+    it("keeps a restarted task alive when an old task reuses its numeric id", async () => {
+      let finishOldGeneration!: (value: string) => void;
+      let finishNewGeneration!: (value: string) => void;
+      mockGenerate
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishOldGeneration = resolve;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishNewGeneration = resolve;
+            }),
+        );
+      const engine = new AutoModeEngine(
+        { settlingMs: 100 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start();
+      engine.onTranscriptChange("old task request");
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+
+      engine.stop();
+      engine.start();
+      engine.onTranscriptChange("new task request");
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+
+      finishOldGeneration("old result");
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+      expect(mockOnResult).not.toHaveBeenCalled();
+
+      finishNewGeneration("new result");
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(0);
+      expect(mockOnResult).toHaveBeenCalledWith(
+        "new result",
+        expect.objectContaining({ id: 1, transcript: "new task request" }),
+      );
+      engine.stop();
+    });
+
     it("cancels pending settling timers on stop()", async () => {
       const engine = new AutoModeEngine(
         { settlingMs: 1500 },

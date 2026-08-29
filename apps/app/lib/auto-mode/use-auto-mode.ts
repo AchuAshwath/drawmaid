@@ -77,7 +77,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         visualLevel: taskVisualLevel,
       } = optionsRef.current;
 
-      const taskEpoch = generationEpochRef.current;
+      // A new provider task supersedes every task that started earlier in the
+      // same lifecycle. The task object remains the identity; the monotonic
+      // epoch makes the ordering explicit even when conversion overlaps.
+      const taskEpoch = ++generationEpochRef.current;
       taskEpochRef.current.set(task, taskEpoch);
 
       setIsGenerating(true);
@@ -93,6 +96,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         intent,
       });
 
+      let handedOffToResult = false;
       try {
         const provider: GenerationProvider =
           generateDetailed ??
@@ -123,6 +127,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           });
         }
 
+        handedOffToResult = true;
         return result;
       } catch (error) {
         if (error instanceof GenerationStaleError) return null;
@@ -169,6 +174,9 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onError?.(drawmaidError);
         return null;
       } finally {
+        if (!handedOffToResult) {
+          taskEpochRef.current.delete(task);
+        }
         if (taskEpoch === generationEpochRef.current) {
           setIsGenerating(false);
           onGeneratingChange?.(false);
@@ -185,6 +193,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     ) => {
       const taskEpoch = taskEpochRef.current.get(task);
       if (taskEpoch === undefined || taskEpoch !== generationEpochRef.current) {
+        taskEpochRef.current.delete(task);
         return;
       }
 
@@ -205,6 +214,9 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const insertionState: { result: InsertMermaidResult | null } = {
         result: null,
       };
+      const isCurrent = () =>
+        taskEpochRef.current.get(task) === taskEpoch &&
+        generationEpochRef.current === taskEpoch;
 
       try {
         const policyResult = await applyDiagramOutputPolicy(
@@ -228,16 +240,16 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
                 documents,
                 {
                   replace: true,
-                  isStillCurrent: () =>
-                    taskEpochRef.current.get(task) === taskEpoch &&
-                    generationEpochRef.current === taskEpoch,
+                  isStillCurrent: isCurrent,
                 },
               );
             },
           },
         );
 
-        if (insertionState.result === "stale") return;
+        // The policy may await recovery or conversion. Recheck before using
+        // its result so a stale continuation cannot emit diagnostics.
+        if (!isCurrent() || insertionState.result === "stale") return;
 
         if (!policyResult.inserted) {
           if (policyResult.output.kind === "no-diagram") return;
@@ -307,11 +319,6 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     [excalidrawApiRef],
   );
 
-  const resetSession = useCallback(() => {
-    engineRef.current?.resetSession();
-    lastProcessedRef.current = "";
-  }, []);
-
   const invalidateCurrentGeneration = useCallback(() => {
     generationEpochRef.current++;
     taskEpochRef.current = new WeakMap();
@@ -321,6 +328,12 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     setIsGenerating(false);
     optionsRef.current.onGeneratingChange?.(false);
   }, []);
+
+  const resetSession = useCallback(() => {
+    invalidateCurrentGeneration();
+    engineRef.current?.resetSession();
+    lastProcessedRef.current = "";
+  }, [invalidateCurrentGeneration]);
 
   const createEngine = useCallback(() => {
     const current = optionsRef.current;
@@ -371,11 +384,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     previousVisualLevelRef.current = visualLevel;
     previousLocalModeRef.current = isLocal;
 
-    if (!isLocal && !providerChanged) return;
-
     invalidateCurrentGeneration();
 
     if (!isAutoMode || !engineRef.current) return;
+    if (!isLocal && !providerChanged) return;
 
     engineRef.current.stop();
     engineRef.current = createEngine();

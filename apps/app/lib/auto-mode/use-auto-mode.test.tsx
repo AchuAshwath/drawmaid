@@ -375,4 +375,283 @@ describe("useAutoMode visual-level policy", () => {
 
     unmount();
   });
+
+  it("does not let an older conversion commit after a newer task starts", async () => {
+    const api = createCanvasApi();
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```")
+      .mockResolvedValueOnce("```mermaid\nflowchart TD\nB --> C\n```");
+    let finishFirstConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishFirstConversion = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({ elements: [{}], files: null });
+
+    const { rerender, unmount } = renderHook(
+      ({ transcript }: { transcript: string }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript,
+          visualLevel: "low",
+        }),
+      { initialProps: { transcript: "first diagram request" } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(converterMocks.parseMermaid).toHaveBeenCalledTimes(1);
+
+    rerender({ transcript: "second diagram request" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishFirstConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("invalidates delayed conversion when the public session is reset", async () => {
+    const api = createCanvasApi();
+    const generate = vi
+      .fn()
+      .mockResolvedValue("```mermaid\nflowchart TD\nA --> B\n```");
+    let finishConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid.mockReturnValue(
+      new Promise((resolve) => {
+        finishConversion = resolve;
+      }),
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useAutoMode({
+        excalidrawApiRef: { current: api },
+        generate,
+        currentModel: "local-model",
+        isLocalServerConfigured: true,
+        isAutoMode: true,
+        transcript: "create a checkout flow",
+        visualLevel: "low",
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(converterMocks.parseMermaid).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.resetSession();
+    });
+
+    await act(async () => {
+      finishConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("invalidates delayed WebLLM conversion when the visual level changes", async () => {
+    const api = createCanvasApi();
+    const onError = vi.fn();
+    const generate = vi
+      .fn()
+      .mockResolvedValue("```mermaid\nflowchart TD\nA --> B\n```");
+    let finishConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid.mockReturnValue(
+      new Promise((resolve) => {
+        finishConversion = resolve;
+      }),
+    );
+
+    const { rerender, unmount } = renderHook(
+      ({ visualLevel }: { visualLevel: VisualLevel }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "webllm-model",
+          isLocalServerConfigured: false,
+          isAutoMode: true,
+          transcript: "create a checkout flow",
+          visualLevel,
+          onError,
+        }),
+      { initialProps: { visualLevel: "low" as VisualLevel } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(converterMocks.parseMermaid).toHaveBeenCalledTimes(1);
+
+    rerender({ visualLevel: "high" });
+    await act(async () => {
+      finishConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("does not allow a task from a previous engine lifecycle to commit after id reuse", async () => {
+    const api = createCanvasApi();
+    const generate = vi
+      .fn()
+      .mockResolvedValue("```mermaid\nflowchart TD\nA --> B\n```");
+    let finishOldConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOldConversion = resolve;
+        }),
+      )
+      .mockResolvedValue({ elements: [{}], files: null });
+
+    const { rerender, unmount } = renderHook(
+      ({
+        isAutoMode,
+        transcript,
+      }: {
+        isAutoMode: boolean;
+        transcript: string;
+      }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode,
+          transcript,
+          visualLevel: "low",
+        }),
+      {
+        initialProps: {
+          isAutoMode: true,
+          transcript: "old lifecycle request",
+        },
+      },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ isAutoMode: false, transcript: "old lifecycle request" });
+    rerender({ isAutoMode: true, transcript: "new lifecycle request" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishOldConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("cleans task ownership after a generation failure so later work can commit", async () => {
+    const api = createCanvasApi();
+    const generate = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("provider failed"))
+      .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```");
+    const onError = vi.fn();
+
+    const { rerender, unmount } = renderHook(
+      ({ transcript }: { transcript: string }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript,
+          visualLevel: "low",
+          onError,
+        }),
+      { initialProps: { transcript: "first provider request" } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    rerender({ transcript: "second provider request" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    unmount();
+  });
 });

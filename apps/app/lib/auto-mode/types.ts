@@ -8,11 +8,11 @@ export interface AutoModeState {
 }
 
 export interface GenerationTask {
-  id: number;
-  transcript: string;
-  timestamp: number;
-  modelId: string;
-  useLocalServer: boolean;
+  readonly id: number;
+  readonly transcript: string;
+  readonly timestamp: number;
+  readonly modelId: string;
+  readonly useLocalServer: boolean;
 }
 
 export interface AutoModeConfig {

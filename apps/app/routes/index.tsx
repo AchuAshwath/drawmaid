@@ -270,6 +270,9 @@ function Home() {
   };
 
   const handleModeChange = (newMode: "auto" | "normal") => {
+    if (newMode !== mode) {
+      invalidateCurrentGeneration();
+    }
     setMode(newMode);
     saveAutoModePreference(newMode === "auto");
   };
