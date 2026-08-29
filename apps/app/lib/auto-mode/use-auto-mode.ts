@@ -211,18 +211,21 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           {
             raw: result,
             intent: intent.diagramIntent,
+            requestedTypes: intent.explicitDiagramTypes,
             recovery: "none",
           },
           {
-            insert: async (document) => {
-              normalizedCode = document.code;
+            insert: async (documents) => {
+              normalizedCode = documents
+                .map((document) => document.code)
+                .join("\n\n");
               logInfo(
                 "CANVAS",
-                `Inserting diagram for task #${task.id ?? "?"}`,
+                `Inserting ${documents.length} diagram${documents.length === 1 ? "" : "s"} for task #${task.id ?? "?"}`,
               );
               insertionState.result = await insertMermaidIntoCanvas(
                 api,
-                document,
+                documents,
                 {
                   replace: true,
                   isStillCurrent: () =>

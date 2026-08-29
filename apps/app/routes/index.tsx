@@ -69,6 +69,9 @@ function describeDiagramOutput(output: DiagramOutput): string {
   if (output.kind === "broken") {
     return `Could not resolve Mermaid output (${output.reason})`;
   }
+  if (output.kind === "multiple-unrequested-image") {
+    return `Multi-diagram output includes unrequested image-only type ${output.offendingType} at document ${output.offendingIndex + 1}`;
+  }
   return `Diagram output was not inserted (${output.kind})`;
 }
 
@@ -400,6 +403,7 @@ function Home() {
         {
           raw: mermaidOutput,
           intent: intent.diagramIntent,
+          requestedTypes: intent.explicitDiagramTypes,
           recovery: "once",
         },
         {
@@ -415,9 +419,11 @@ function Home() {
             );
             return response.text;
           },
-          insert: async (document) => {
-            normalizedCode = document.code;
-            await insertMermaidIntoCanvas(api, document);
+          insert: async (documents) => {
+            normalizedCode = documents
+              .map((document) => document.code)
+              .join("\n\n");
+            await insertMermaidIntoCanvas(api, documents);
           },
         },
       );

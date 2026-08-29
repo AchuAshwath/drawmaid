@@ -37,6 +37,8 @@ export interface ExcalidrawCanvasApi {
     target?: unknown,
     opts?: {
       fitToContent?: boolean;
+      fitToViewport?: boolean;
+      viewportZoomFactor?: number;
       animate?: boolean;
       duration?: number;
     },
@@ -53,6 +55,7 @@ export interface InsertMermaidOptions {
 export type InsertMermaidResult = "inserted" | "stale";
 
 const SCROLL_DURATION_MS = 300;
+const MULTI_DIAGRAM_GUTTER = 80;
 
 /**
  * Tracks element IDs from the last auto-mode diagram.
@@ -134,37 +137,214 @@ function positionElementsAtViewportCenter(
   }));
 }
 
+function getZoomValue(appState: Partial<AppState>): number {
+  return typeof appState.zoom === "object" && appState.zoom !== null
+    ? appState.zoom.value
+    : (appState.zoom ?? 1);
+}
+
+function shiftElements(
+  elements: ExcalidrawElement[],
+  offsetX: number,
+  offsetY: number,
+): ExcalidrawElement[] {
+  return elements.map((element) => ({
+    ...element,
+    x: element.x + offsetX,
+    y: element.y + offsetY,
+  }));
+}
+
 /**
- * Parses Mermaid code, converts to Excalidraw elements, appends to the current
- * scene, adds any files, and positions the diagram at the center of the
- * current viewport.
+ * Mermaid's SVG layout can wrap a short label inside a circular node before
+ * conversion (for example, `Start` becoming `St\nart`). Restore the source
+ * label and give its ellipse enough room to remain readable. The converter
+ * preserves the unwrapped value as `originalText` on the text element.
+ */
+function normalizeCircularLabels(
+  elements: ExcalidrawElement[],
+): ExcalidrawElement[] {
+  const normalized = elements.map((element) => ({ ...element }));
+
+  for (const shape of normalized) {
+    if (shape.type !== "ellipse") continue;
+
+    const label = normalized.find(
+      (element) =>
+        element.type === "text" &&
+        element.containerId === shape.id &&
+        typeof element.text === "string" &&
+        element.text.includes("\n") &&
+        typeof element.originalText === "string" &&
+        element.originalText.trim().length > 0,
+    );
+    if (!label) continue;
+
+    const wrappedText = label.text as string;
+    const originalText = label.originalText as string;
+    const longestLineLength = Math.max(
+      ...wrappedText.split(/\r?\n/).map((line) => line.length),
+      1,
+    );
+    const unwrappedWidth =
+      (label.width * originalText.length) / longestLineLength;
+    const horizontalPadding = Math.max(shape.width - label.width, 32);
+    const diameter = Math.max(
+      shape.width,
+      shape.height,
+      unwrappedWidth + horizontalPadding,
+    );
+    const centerX = shape.x + shape.width / 2;
+    const centerY = shape.y + shape.height / 2;
+    const labelHeight = Math.max(
+      (typeof label.fontSize === "number" ? label.fontSize : 20) *
+        (typeof label.lineHeight === "number" ? label.lineHeight : 1.25),
+      1,
+    );
+
+    shape.x = centerX - diameter / 2;
+    shape.width = diameter;
+    label.text = originalText;
+    label.width = unwrappedWidth;
+    label.height = labelHeight;
+    label.x = centerX - unwrappedWidth / 2;
+    label.y = centerY - labelHeight / 2;
+  }
+
+  return normalized;
+}
+
+interface PreparedDiagram {
+  readonly document: DiagramDocument;
+  readonly elements: ExcalidrawElement[];
+  readonly files: unknown;
+}
+
+function filesFromResult(files: unknown): unknown[] {
+  if (files == null) return [];
+  if (Array.isArray(files)) return files;
+  if (typeof files !== "object") return [];
+  return Object.values(files as Record<string, unknown>);
+}
+
+function mergeFiles(prepared: readonly PreparedDiagram[]): unknown[] {
+  const filesById = new Map<string, unknown>();
+  const filesWithoutIds: unknown[] = [];
+  for (const { files } of prepared) {
+    for (const file of filesFromResult(files)) {
+      if (
+        typeof file === "object" &&
+        file !== null &&
+        "id" in file &&
+        typeof file.id === "string"
+      ) {
+        filesById.set(file.id, file);
+      } else {
+        filesWithoutIds.push(file);
+      }
+    }
+  }
+  return [...filesById.values(), ...filesWithoutIds];
+}
+
+function positionDocumentSets(
+  prepared: readonly PreparedDiagram[],
+  viewportCenter: { x: number; y: number },
+  viewportWidth: number,
+): ExcalidrawElement[] {
+  if (prepared.length === 1) {
+    return positionElementsAtViewportCenter(
+      prepared[0].elements,
+      viewportCenter,
+    );
+  }
+
+  const placements: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }> = [];
+  let cursorX = 0;
+  let cursorY = 0;
+  let rowHeight = 0;
+
+  for (const { elements } of prepared) {
+    const bounds = getBounds(elements);
+    const width = bounds[2] - bounds[0];
+    const height = bounds[3] - bounds[1];
+    if (cursorX > 0 && cursorX + width > viewportWidth) {
+      cursorX = 0;
+      cursorY += rowHeight + MULTI_DIAGRAM_GUTTER;
+      rowHeight = 0;
+    }
+    placements.push({ x: cursorX, y: cursorY, width, height });
+    cursorX += width + MULTI_DIAGRAM_GUTTER;
+    rowHeight = Math.max(rowHeight, height);
+  }
+
+  const first = placements[0];
+  const anchorOffsetX = viewportCenter.x - first.width / 2 - first.x;
+  const anchorOffsetY = viewportCenter.y - first.height / 2 - first.y;
+
+  return prepared.flatMap(({ elements }, index) => {
+    const bounds = getBounds(elements);
+    const placement = placements[index];
+    return shiftElements(
+      elements,
+      placement.x + anchorOffsetX - bounds[0],
+      placement.y + anchorOffsetY - bounds[1],
+    );
+  });
+}
+
+/**
+ * Parses Mermaid documents, converts every document to Excalidraw elements,
+ * prepares the complete collection, and commits it to the current scene once.
  *
  * @param api - The Excalidraw canvas API
- * @param document - The typed Mermaid diagram document
+ * @param documents - Ordered typed Mermaid diagram documents
  * @param options.replace - If true, removes the previous auto-mode diagram before inserting
  * @param options.isStillCurrent - Final guard checked immediately before canvas mutation
  */
 export async function insertMermaidIntoCanvas(
   api: ExcalidrawCanvasApi,
-  document: DiagramDocument,
+  documents: readonly DiagramDocument[],
   options?: InsertMermaidOptions,
 ): Promise<InsertMermaidResult> {
-  const { elements: skeleton, files } = await parseMermaidToExcalidraw(
-    document.code,
-  );
-  const newElements = convertToExcalidrawElements(skeleton, {
-    regenerateIds: true,
-  }) as ExcalidrawElement[];
+  if (documents.length === 0) {
+    throw new Error("Cannot insert an empty diagram collection");
+  }
 
-  const isImageOnlyResult =
-    newElements.length === 1 && newElements[0]?.type === "image";
-  if (
-    document.capability === "editable" &&
-    (newElements.length === 0 || isImageOnlyResult)
-  ) {
-    throw new Error(
-      `Editable ${document.type} diagram did not produce usable editable canvas elements`,
-    );
+  const prepared: PreparedDiagram[] = [];
+  for (const [index, document] of documents.entries()) {
+    try {
+      const { elements: skeleton, files } = await parseMermaidToExcalidraw(
+        document.code,
+      );
+      const newElements = normalizeCircularLabels(
+        convertToExcalidrawElements(skeleton, {
+          regenerateIds: true,
+        }) as ExcalidrawElement[],
+      );
+
+      const isImageOnlyResult =
+        newElements.length === 1 && newElements[0]?.type === "image";
+      if (
+        document.capability === "editable" &&
+        (newElements.length === 0 || isImageOnlyResult)
+      ) {
+        throw new Error("did not produce usable editable canvas elements");
+      }
+
+      prepared.push({ document, elements: newElements, files });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to convert diagram ${index + 1}/${document.type}: ${message}`,
+        { cause: error },
+      );
+    }
   }
 
   const appState = api.getAppState();
@@ -174,10 +354,10 @@ export async function insertMermaidIntoCanvas(
     containerDims.width,
     containerDims.height,
   );
-
-  const positionedElements = positionElementsAtViewportCenter(
-    newElements,
+  const positionedElements = positionDocumentSets(
+    prepared,
     viewportCenter,
+    containerDims.width / getZoomValue(appState),
   );
 
   const current = api.getSceneElements() as ExcalidrawElement[];
@@ -199,27 +379,28 @@ export async function insertMermaidIntoCanvas(
     return "stale";
   }
 
-  // Update tracked element IDs only when replacing (for next replacement)
-  if (options?.replace) {
-    lastAutoModeElementIds = positionedElements.map((el) => el.id);
-  }
+  const files = mergeFiles(prepared);
+
+  if (files.length > 0) api.addFiles?.(files);
 
   api.updateScene({
     elements: elementsToInsert,
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 
-  if (files && Object.keys(files).length > 0) {
-    api.addFiles?.(Object.values(files));
+  // Update tracked element IDs only after a successful commit.
+  if (options?.replace) {
+    lastAutoModeElementIds = positionedElements.map((el) => el.id);
   }
 
   api.refresh();
 
-  api.scrollToContent(positionedElements, {
-    fitToContent: true,
-    animate: true,
-    duration: SCROLL_DURATION_MS,
-  });
+  api.scrollToContent(
+    positionedElements,
+    documents.length > 1
+      ? { fitToViewport: true, viewportZoomFactor: 0.8 }
+      : { fitToContent: true, animate: true, duration: SCROLL_DURATION_MS },
+  );
 
   return "inserted";
 }
