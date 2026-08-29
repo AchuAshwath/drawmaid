@@ -1,0 +1,47 @@
+{
+  "flowchart": [
+    "end",
+    "graph",
+    "class",
+    "click",
+    "default",
+    "state",
+    "subgraph",
+    "link",
+    "style",
+    "direction",
+    "flowchart"
+  ],
+  "sequenceDiagram": [
+    "end",
+    "loop",
+    "alt",
+    "else",
+    "par",
+    "break",
+    "critical",
+    "section",
+    "note",
+    "activate",
+    "deactivate",
+    "create",
+    "destroy"
+  ],
+  "classDiagram": [
+    "class",
+    "interface",
+    "enum",
+    "abstract",
+    "static",
+    "extends",
+    "implements"
+  ],
+  "erDiagram": ["class", "end", "entity", "relationship"],
+  "stateDiagram-v2": ["state", "direction", "classDef", "note", "end"],
+  "gantt": ["gantt", "title", "section"],
+  "pie": ["pie", "title"],
+  "mindmap": ["mindmap", "root"],
+  "gitGraph": ["gitGraph", "commit", "branch", "checkout"],
+  "journey": ["journey", "title", "section"],
+  "timeline": ["timeline", "title"]
+}

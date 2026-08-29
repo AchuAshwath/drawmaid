@@ -39,6 +39,12 @@ const THIRD_DOCUMENT: DiagramDocument = {
   code: "stateDiagram-v2\n[*] --> Ready",
 };
 
+const ER_DOCUMENT: DiagramDocument = {
+  type: "erDiagram",
+  capability: "editable",
+  code: "erDiagram\nCUSTOMER ||--o{ ORDER : places",
+};
+
 function createCanvasApi(): ExcalidrawCanvasApi {
   return {
     getSceneElements: vi.fn(() => []),
@@ -127,6 +133,62 @@ describe("insertMermaidIntoCanvas", () => {
     expect(api.updateScene).toHaveBeenCalledTimes(1);
     expect(api.refresh).toHaveBeenCalledTimes(1);
     expect(api.scrollToContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves ER cardinality semantics as crow-foot arrowheads", async () => {
+    mocks.parseMermaid.mockResolvedValue({ elements: [{}], files: null });
+    mocks.convertElements.mockReturnValue([
+      {
+        id: "relationship",
+        type: "arrow",
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 20,
+        startArrowhead: "cardinality_one",
+        endArrowhead: "cardinality_zero_or_many",
+      },
+    ]);
+    const api = createCanvasApi();
+
+    await insertMermaidIntoCanvas(api, [ER_DOCUMENT]);
+
+    expect(api.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({
+            startArrowhead: "crowfoot_one",
+            endArrowhead: "crowfoot_many",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("does not remap cardinality-looking arrowheads in non-ER documents", async () => {
+    mocks.parseMermaid.mockResolvedValue({ elements: [{}], files: null });
+    mocks.convertElements.mockReturnValue([
+      {
+        id: "flow-arrow",
+        type: "arrow",
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 20,
+        endArrowhead: "cardinality_many",
+      },
+    ]);
+    const api = createCanvasApi();
+
+    await insertMermaidIntoCanvas(api, [DOCUMENT]);
+
+    expect(api.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({ endArrowhead: "cardinality_many" }),
+        ],
+      }),
+    );
   });
 
   it("prepares multiple documents and commits them in one scene update", async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listDiagramDefinitions } from "../diagram";
+import { getDiagramDefinition, listDiagramDefinitions } from "../diagram";
 import {
   getDiagramPromptConfig,
   DIAGRAM_PROMPT_CONFIGS,
@@ -80,6 +80,14 @@ describe("DIAGRAM_PROMPT_CONFIGS", () => {
       );
       expect(config.edgeSyntax, `Config ${type} edgeSyntax`).toBeTypeOf(
         "string",
+      );
+    }
+  });
+
+  it("uses one canonical reserved-word source for prompt and diagram definitions", () => {
+    for (const type of APPROVED_DIAGRAM_TYPES) {
+      expect(getDiagramPromptConfig(type)?.reservedWords).toEqual(
+        getDiagramDefinition(type)?.reservedWords,
       );
     }
   });
