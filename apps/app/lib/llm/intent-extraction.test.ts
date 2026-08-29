@@ -258,6 +258,13 @@ describe("extractIntent - Full Integration", () => {
     expect(result.diagramType).toBe("classDiagram");
     expect(result.direction).toBe("TD");
   });
+
+  it("retains explicitly requested image-only types in a multi-view request", () => {
+    expect(
+      extractIntent("draw an ER diagram and a Gantt chart for the release")
+        .explicitDiagramTypes,
+    ).toEqual(["erDiagram", "gantt"]);
+  });
 });
 
 describe("buildUserPrompt", () => {

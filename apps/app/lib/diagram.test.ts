@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectDiagramIntent,
+  detectExplicitDiagramTypes,
   getDiagramDefinition,
   listDiagramDefinitions,
   resolveDiagramOutput,
@@ -519,6 +520,14 @@ describe("Diagram catalog", () => {
         code: 'pie title Budget\n  "Build" : 60\n  "Test" : 25\n  "Ops" : 15',
       },
     });
+  });
+
+  it("retains every explicitly requested diagram type in transcript order", () => {
+    expect(
+      detectExplicitDiagramTypes(
+        "draw an ER diagram and draw a Gantt chart for the release",
+      ),
+    ).toEqual(["erDiagram", "gantt"]);
   });
 
   it("preserves ordered multiple documents and rejects partial multi-output", () => {

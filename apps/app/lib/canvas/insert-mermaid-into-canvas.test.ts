@@ -27,6 +27,18 @@ const DOCUMENT: DiagramDocument = {
   code: "flowchart TD\nA --> B",
 };
 
+const SECOND_DOCUMENT: DiagramDocument = {
+  type: "sequenceDiagram",
+  capability: "editable",
+  code: "sequenceDiagram\nA->>B: request",
+};
+
+const THIRD_DOCUMENT: DiagramDocument = {
+  type: "stateDiagram-v2",
+  capability: "editable",
+  code: "stateDiagram-v2\n[*] --> Ready",
+};
+
 function createCanvasApi(): ExcalidrawCanvasApi {
   return {
     getSceneElements: vi.fn(() => []),
@@ -61,7 +73,7 @@ describe("insertMermaidIntoCanvas", () => {
     const api = createCanvasApi();
     let current = true;
 
-    const insertion = insertMermaidIntoCanvas(api, DOCUMENT, {
+    const insertion = insertMermaidIntoCanvas(api, [DOCUMENT], {
       replace: true,
       isStillCurrent: () => current,
     });
@@ -90,7 +102,7 @@ describe("insertMermaidIntoCanvas", () => {
       { id: "generated", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
     ]);
 
-    await insertMermaidIntoCanvas(api, DOCUMENT, { replace: true });
+    await insertMermaidIntoCanvas(api, [DOCUMENT], { replace: true });
 
     expect(api.updateScene).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -107,7 +119,7 @@ describe("insertMermaidIntoCanvas", () => {
     const api = createCanvasApi();
 
     await expect(
-      insertMermaidIntoCanvas(api, DOCUMENT, {
+      insertMermaidIntoCanvas(api, [DOCUMENT], {
         isStillCurrent: () => true,
       }),
     ).resolves.toBe("inserted");
@@ -115,5 +127,235 @@ describe("insertMermaidIntoCanvas", () => {
     expect(api.updateScene).toHaveBeenCalledTimes(1);
     expect(api.refresh).toHaveBeenCalledTimes(1);
     expect(api.scrollToContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("prepares multiple documents and commits them in one scene update", async () => {
+    mocks.parseMermaid
+      .mockResolvedValueOnce({ elements: [{ diagram: "first" }], files: null })
+      .mockResolvedValueOnce({
+        elements: [{ diagram: "second" }],
+        files: null,
+      });
+    mocks.convertElements
+      .mockReturnValueOnce([
+        { id: "first", type: "rectangle", x: 0, y: 0, width: 40, height: 20 },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: "second",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+        },
+      ]);
+    const api = createCanvasApi();
+
+    await expect(
+      insertMermaidIntoCanvas(api, [DOCUMENT, SECOND_DOCUMENT]),
+    ).resolves.toBe("inserted");
+
+    expect(mocks.parseMermaid).toHaveBeenCalledTimes(2);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    expect(api.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({ id: "first", x: 380, y: 290 }),
+          expect.objectContaining({ id: "second", x: 500, y: 290 }),
+        ],
+      }),
+    );
+    expect(api.scrollToContent).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        fitToViewport: true,
+        viewportZoomFactor: 0.8,
+      }),
+    );
+  });
+
+  it("merges duplicate image files before the single batch commit", async () => {
+    const sharedFile = { id: "shared", data: "latest" };
+    mocks.parseMermaid
+      .mockResolvedValueOnce({
+        elements: [{}],
+        files: { shared: { ...sharedFile, data: "old" } },
+      })
+      .mockResolvedValueOnce({
+        elements: [{}],
+        files: { shared: sharedFile, unique: { id: "unique" } },
+      });
+    const api = createCanvasApi();
+
+    await insertMermaidIntoCanvas(api, [DOCUMENT, SECOND_DOCUMENT]);
+
+    expect(api.addFiles).toHaveBeenCalledWith([sharedFile, { id: "unique" }]);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps a wide collection without reordering the documents", async () => {
+    mocks.parseMermaid
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockResolvedValueOnce({ elements: [{}], files: null });
+    mocks.convertElements
+      .mockReturnValueOnce([
+        { id: "one", type: "rectangle", x: 0, y: 0, width: 500, height: 20 },
+      ])
+      .mockReturnValueOnce([
+        { id: "two", type: "rectangle", x: 0, y: 0, width: 500, height: 20 },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: "three",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 500,
+          height: 20,
+        },
+      ]);
+    const api = createCanvasApi();
+
+    await insertMermaidIntoCanvas(api, [
+      DOCUMENT,
+      SECOND_DOCUMENT,
+      THIRD_DOCUMENT,
+    ]);
+
+    expect(api.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: [
+          expect.objectContaining({ id: "one", x: 150, y: 290 }),
+          expect.objectContaining({ id: "two", x: 150, y: 390 }),
+          expect.objectContaining({ id: "three", x: 150, y: 490 }),
+        ],
+      }),
+    );
+  });
+
+  it("does not partially commit when a later document fails conversion", async () => {
+    mocks.parseMermaid
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockRejectedValueOnce(new Error("unsupported syntax"));
+    const api = createCanvasApi();
+
+    await expect(
+      insertMermaidIntoCanvas(api, [DOCUMENT, SECOND_DOCUMENT]),
+    ).rejects.toThrow("Failed to convert diagram 2/sequenceDiagram");
+
+    expect(api.updateScene).not.toHaveBeenCalled();
+    expect(api.addFiles).not.toHaveBeenCalled();
+    expect(api.refresh).not.toHaveBeenCalled();
+    expect(api.scrollToContent).not.toHaveBeenCalled();
+  });
+
+  it("does not mutate or advance replacement state when a batch becomes stale", async () => {
+    let finishSecondConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    mocks.parseMermaid
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishSecondConversion = resolve;
+        }),
+      );
+    const api = createCanvasApi();
+    let current = true;
+    const insertion = insertMermaidIntoCanvas(
+      api,
+      [DOCUMENT, SECOND_DOCUMENT],
+      {
+        replace: true,
+        isStillCurrent: () => current,
+      },
+    );
+
+    current = false;
+    finishSecondConversion({ elements: [{}], files: null });
+
+    await expect(insertion).resolves.toBe("stale");
+    expect(api.updateScene).not.toHaveBeenCalled();
+    expect(api.addFiles).not.toHaveBeenCalled();
+    expect(api.refresh).not.toHaveBeenCalled();
+    expect(api.scrollToContent).not.toHaveBeenCalled();
+  });
+
+  it("replaces the complete prior auto batch while preserving manual elements", async () => {
+    mocks.parseMermaid
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockResolvedValueOnce({ elements: [{}], files: null })
+      .mockResolvedValueOnce({ elements: [{}], files: null });
+    mocks.convertElements
+      .mockReturnValueOnce([
+        {
+          id: "old-first",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: "old-second",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: "new-first",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: "new-second",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+        },
+      ]);
+    const api = createCanvasApi();
+
+    await insertMermaidIntoCanvas(api, [DOCUMENT, SECOND_DOCUMENT], {
+      replace: true,
+    });
+    vi.mocked(api.getSceneElements).mockReturnValue([
+      { id: "manual", type: "rectangle", x: 50, y: 50, width: 10, height: 10 },
+      { id: "old-first", type: "rectangle", x: 0, y: 0, width: 40, height: 20 },
+      {
+        id: "old-second",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 20,
+      },
+    ]);
+
+    await insertMermaidIntoCanvas(api, [DOCUMENT, SECOND_DOCUMENT], {
+      replace: true,
+    });
+
+    const secondUpdate = vi.mocked(api.updateScene).mock.calls[1][0];
+    expect(
+      secondUpdate.elements?.map((element) => (element as { id: string }).id),
+    ).toEqual(["manual", "new-first", "new-second"]);
   });
 });

@@ -32,7 +32,7 @@ test("inserts a typed editable flowchart through the public Canvas seam", async 
       refresh: () => {},
     };
 
-    await insertMermaidIntoCanvas(api, document);
+    await insertMermaidIntoCanvas(api, [document]);
 
     const elements = updates[0]?.elements ?? [];
     return {
@@ -103,7 +103,7 @@ test("inserts each approved editable diagram without image elements", async ({
         refresh: () => {},
       };
 
-      await insertMermaidIntoCanvas(api, document);
+      await insertMermaidIntoCanvas(api, [document]);
       const elements = updates[0]?.elements ?? [];
       results.push({
         type: document.type,
@@ -123,6 +123,61 @@ test("inserts each approved editable diagram without image elements", async ({
     expect(result.elementCount, result.type).toBeGreaterThan(0);
     expect(result.imageCount, result.type).toBe(0);
   }
+});
+
+test("inserts a multi-diagram generation as one ordered Canvas batch", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.waitForSelector(".excalidraw", { timeout: 30000 });
+
+  const result = await page.evaluate(async () => {
+    const runtimePath = "/lib/canvas/insert-mermaid-into-canvas.ts";
+    const { insertMermaidIntoCanvas } = await import(runtimePath);
+
+    const documents = [
+      {
+        type: "flowchart",
+        capability: "editable",
+        code: "flowchart TD\nA[Start] --> B[End]",
+      },
+      {
+        type: "sequenceDiagram",
+        capability: "editable",
+        code: "sequenceDiagram\nparticipant U as User\nparticipant A as API\nU->>A: request",
+      },
+      {
+        type: "stateDiagram-v2",
+        capability: "editable",
+        code: "stateDiagram-v2\n[*] --> Ready\nReady --> [*]",
+      },
+    ] as const;
+    const updates: Array<{ elements?: unknown[] }> = [];
+    const scrolls: Array<{ options?: Record<string, unknown> }> = [];
+    const api = {
+      getSceneElements: () => [],
+      getAppState: () => ({ scrollX: 0, scrollY: 0, zoom: 1 }),
+      updateScene: (scene: { elements?: unknown[] }) => updates.push(scene),
+      scrollToContent: (_target: unknown, options: Record<string, unknown>) =>
+        scrolls.push({ options }),
+      refresh: () => {},
+    };
+
+    await insertMermaidIntoCanvas(api, documents);
+    return {
+      updateCount: updates.length,
+      elementCount: updates[0]?.elements?.length ?? 0,
+      scrollCount: scrolls.length,
+      fitToViewport: scrolls[0]?.options?.fitToViewport,
+      viewportZoomFactor: scrolls[0]?.options?.viewportZoomFactor,
+    };
+  });
+
+  expect(result.updateCount).toBe(1);
+  expect(result.elementCount).toBeGreaterThan(3);
+  expect(result.scrollCount).toBe(1);
+  expect(result.fitToViewport).toBe(true);
+  expect(result.viewportZoomFactor).toBe(0.8);
 });
 
 test("inserts each approved image-only diagram as one image", async ({
@@ -183,7 +238,7 @@ test("inserts each approved image-only diagram as one image", async ({
         refresh: () => {},
       };
 
-      await insertMermaidIntoCanvas(api, document);
+      await insertMermaidIntoCanvas(api, [document]);
       const elements = updates[0]?.elements ?? [];
       results.push({
         type: document.type,
@@ -235,7 +290,7 @@ test("rejects malformed typed editable flowchart without mutating the canvas", a
 
     let rejected = false;
     try {
-      await insertMermaidIntoCanvas(api, document);
+      await insertMermaidIntoCanvas(api, [document]);
     } catch {
       rejected = true;
     }

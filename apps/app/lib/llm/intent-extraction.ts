@@ -1,6 +1,11 @@
 import { getDiagramPromptConfig } from "./diagram-prompt-config";
 import { DIRECTION_KEYWORDS, COMMON_FILTER } from "../constants";
-import { detectDiagramIntent, type DiagramIntent } from "@/lib/diagram";
+import {
+  detectDiagramIntent,
+  detectExplicitDiagramTypes,
+  type DiagramIntent,
+  type DiagramType,
+} from "@/lib/diagram";
 
 import USER_PROMPT_RULES from "../../prompts/user-prompt-rules.md?raw";
 import RECOVERY_PROMPT_RULES from "../../prompts/recovery-prompt-rules.md?raw";
@@ -8,6 +13,7 @@ import RECOVERY_PROMPT_RULES from "../../prompts/recovery-prompt-rules.md?raw";
 export interface Intent {
   diagramType: string | null;
   readonly diagramIntent: DiagramIntent | null;
+  readonly explicitDiagramTypes?: readonly DiagramType[];
   direction: string | null;
   entities: string[];
 }
@@ -123,6 +129,7 @@ export function extractIntent(transcript: string): Intent {
   }
 
   const diagramIntent = detectDiagramIntent(transcript);
+  const explicitDiagramTypes = detectExplicitDiagramTypes(transcript);
   // Keep the legacy diagnostic field as a projection of the authoritative
   // typed intent; never run a second keyword classifier.
   const diagramType = diagramIntent?.type ?? null;
@@ -134,7 +141,13 @@ export function extractIntent(transcript: string): Intent {
     entities = extractEntitiesNative(transcript);
   }
 
-  const result = { diagramType, diagramIntent, direction, entities };
+  const result = {
+    diagramType,
+    diagramIntent,
+    explicitDiagramTypes,
+    direction,
+    entities,
+  };
 
   // Add to cache with size limit
   if (intentCache.size >= MAX_CACHE_SIZE) {

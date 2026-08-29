@@ -94,6 +94,45 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
+  it("commits every document from one generated multi-diagram result", async () => {
+    const api = createCanvasApi();
+    const generate = vi
+      .fn()
+      .mockResolvedValue(
+        "```mermaid\nflowchart TD\nA --> B\n```\n```mermaid\nsequenceDiagram\nA->>B: request\n```",
+      );
+
+    const { unmount } = renderHook(() =>
+      useAutoMode({
+        excalidrawApiRef: { current: api },
+        generate,
+        currentModel: "local-model",
+        isLocalServerConfigured: true,
+        isAutoMode: true,
+        transcript: "draw both the process and the call order",
+        visualLevel: "low",
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.updateScene).mock.calls[0][0].elements).toHaveLength(
+      2,
+    );
+    expect(api.scrollToContent).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    unmount();
+  });
+
   it("uses High's longer settling interval after the level changes", async () => {
     const api = createCanvasApi();
     const generate = vi

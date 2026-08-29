@@ -199,6 +199,12 @@ export type DiagramOutput =
       readonly documents: readonly DiagramDocument[];
     }
   | {
+      readonly kind: "multiple-unrequested-image";
+      readonly documents: readonly DiagramDocument[];
+      readonly offendingType: DiagramType;
+      readonly offendingIndex: number;
+    }
+  | {
       readonly kind: "wrong-type";
       readonly requestedType: DiagramType;
       readonly document: DiagramDocument;
@@ -223,7 +229,7 @@ export function getDiagramDefinition(
 }
 
 const CREATION_REQUEST_PATTERN =
-  /\b(?:build|convert|create|display|draw|generate|give|make|map|plot|render|show|sketch|turn|use|visuali[sz]e)\b(?:\s+\w+){0,4}\s*$/i;
+  /\b(?:build|convert|create|display|draw|generate|give|make|map|plot|render|show|sketch|turn|use|visuali[sz]e)\b(?:\s+\w+){0,6}\s*$/i;
 const DIRECT_OBJECT_REQUEST_PATTERN =
   /\b(?:want|need)\s+(?:an?|the)\s+(?:\w+\s+){0,2}$/i;
 const REQUEST_AFTER_CONJUNCTION_PATTERN =
@@ -299,7 +305,9 @@ function hasNearbyRequestVerb(
   );
 }
 
-function findLastExplicitIntent(text: string): DiagramIntent | null {
+function findExplicitIntents(
+  text: string,
+): Array<{ position: number; intent: DiagramIntent }> {
   const matches: Array<{ position: number; intent: DiagramIntent }> = [];
 
   for (const definition of DIAGRAM_REGISTRY) {
@@ -323,8 +331,12 @@ function findLastExplicitIntent(text: string): DiagramIntent | null {
     }
   }
 
-  matches.sort((a, b) => b.position - a.position);
-  return matches[0]?.intent ?? null;
+  return matches.sort((a, b) => a.position - b.position);
+}
+
+function findLastExplicitIntent(text: string): DiagramIntent | null {
+  const matches = findExplicitIntents(text);
+  return matches[matches.length - 1]?.intent ?? null;
 }
 
 function findHeuristicIntent(text: string): DiagramIntent | null {
@@ -354,6 +366,14 @@ function findHeuristicIntent(text: string): DiagramIntent | null {
 export function detectDiagramIntent(text: string): DiagramIntent | null {
   const explicit = findLastExplicitIntent(text);
   return explicit ?? findHeuristicIntent(text);
+}
+
+export function detectExplicitDiagramTypes(
+  text: string,
+): readonly DiagramType[] {
+  return [
+    ...new Set(findExplicitIntents(text).map(({ intent }) => intent.type)),
+  ];
 }
 
 interface FenceScan {
