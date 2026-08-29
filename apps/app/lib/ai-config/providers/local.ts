@@ -1,5 +1,23 @@
 import type { LocalServerConfig } from "../types";
 
+export interface LocalProviderUsage {
+  readonly promptTokens?: number;
+  readonly completionTokens?: number;
+  readonly totalTokens?: number;
+  readonly cachedTokens?: number;
+  readonly reasoningTokens?: number;
+}
+
+export interface LocalProviderResult {
+  readonly text: string;
+  readonly usage: LocalProviderUsage | null;
+}
+
+interface LocalProviderChunk {
+  readonly text: string;
+  readonly usage: LocalProviderUsage | null;
+}
+
 export async function* localServerGenerate(
   config: LocalServerConfig,
   messages: { role: string; content: string }[],
@@ -9,6 +27,24 @@ export async function* localServerGenerate(
     signal?: AbortSignal;
   } = {},
 ): AsyncGenerator<string> {
+  for await (const chunk of localServerGenerateChunks(
+    config,
+    messages,
+    options,
+  )) {
+    if (chunk.text) yield chunk.text;
+  }
+}
+
+async function* localServerGenerateChunks(
+  config: LocalServerConfig,
+  messages: { role: string; content: string }[],
+  options: {
+    maxTokens?: number;
+    temperature?: number;
+    signal?: AbortSignal;
+  } = {},
+): AsyncGenerator<LocalProviderChunk> {
   const { url, apiKey, model } = config;
   const { maxTokens = 1024, temperature = 0.1, signal } = options;
 
@@ -24,6 +60,8 @@ export async function* localServerGenerate(
       max_tokens: maxTokens,
       temperature,
       stream: true,
+      // CLIProxyAPI owns cache markers; usage is observational only.
+      stream_options: { include_usage: true },
     }),
     signal,
   });
@@ -41,9 +79,7 @@ export async function* localServerGenerate(
       data?.choices?.[0]?.text ??
       data?.response ??
       "";
-    if (content) {
-      yield content;
-    }
+    yield { text: content, usage: normalizeUsage(data?.usage) };
     return;
   }
 
@@ -73,17 +109,39 @@ export async function* localServerGenerate(
             parsed.choices?.[0]?.delta?.content ??
             parsed.choices?.[0]?.text ??
             parsed?.response;
-          if (content) {
-            yield content;
-          }
+          yield {
+            text: content ?? "",
+            usage: normalizeUsage(parsed.usage),
+          };
         } catch {
-          // Skip malformed JSON
+          // Skip malformed JSON.
         }
       }
     }
   } finally {
     reader.releaseLock();
   }
+}
+
+function normalizeUsage(value: unknown): LocalProviderUsage | null {
+  if (!value || typeof value !== "object") return null;
+  const usage = value as {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
+  };
+  const normalized = {
+    promptTokens: usage.prompt_tokens,
+    completionTokens: usage.completion_tokens,
+    totalTokens: usage.total_tokens,
+    cachedTokens: usage.prompt_tokens_details?.cached_tokens,
+    reasoningTokens: usage.completion_tokens_details?.reasoning_tokens,
+  };
+  return Object.values(normalized).some((token) => token !== undefined)
+    ? normalized
+    : null;
 }
 
 function resolveChatUrl(baseUrl: string): string {
@@ -105,28 +163,48 @@ export async function generateWithLocalServer(
     signal?: AbortSignal;
   } = {},
 ): Promise<string> {
+  const result = await generateWithLocalServerDetailed(
+    config,
+    systemPrompt,
+    userPrompt,
+    options,
+  );
+  return result.text;
+}
+
+export async function generateWithLocalServerDetailed(
+  config: LocalServerConfig,
+  systemPrompt: string,
+  userPrompt: string,
+  options: {
+    maxTokens?: number;
+    temperature?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+  } = {},
+): Promise<LocalProviderResult> {
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ];
-
   const chunks: string[] = [];
+  let usage: LocalProviderUsage | null = null;
 
   const timeoutMs = options.timeoutMs ?? 30000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  const signal = options.signal ? options.signal : controller.signal;
+  const signal = options.signal ?? controller.signal;
 
   try {
-    for await (const chunk of localServerGenerate(config, messages, {
+    for await (const chunk of localServerGenerateChunks(config, messages, {
       maxTokens: options.maxTokens,
       temperature: options.temperature,
       signal,
     })) {
-      chunks.push(chunk);
+      if (chunk.text) chunks.push(chunk.text);
+      if (chunk.usage) usage = chunk.usage;
     }
-    return chunks.join("");
+    return { text: chunks.join(""), usage };
   } finally {
     clearTimeout(timeoutId);
   }

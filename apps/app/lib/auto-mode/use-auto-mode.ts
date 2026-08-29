@@ -6,8 +6,14 @@ import {
   type InsertMermaidResult,
 } from "@/lib/canvas/insert-mermaid-into-canvas";
 import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
-import { buildUserPrompt, extractIntent } from "@/lib/llm/intent-extraction";
-import { SYSTEM_PROMPT, type GenerateOptions } from "@/lib/llm/mermaid-llm";
+import { extractIntent } from "@/lib/llm/intent-extraction";
+import { type GenerateOptions } from "@/lib/llm/mermaid-llm";
+import {
+  generateDiagram,
+  GenerationError,
+  GenerationStaleError,
+  type GenerationProvider,
+} from "@/lib/llm/generation";
 import { getVisualLevelPolicy, type VisualLevel } from "@/lib/llm/visual-level";
 import {
   createDrawmaidError,
@@ -21,6 +27,7 @@ interface UseAutoModeOptions {
     prompt: string,
     options: GenerateOptions,
   ) => Promise<string | null>;
+  generateDetailed?: GenerationProvider;
   currentModel: string;
   isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
@@ -65,6 +72,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         onGeneratingChange,
         currentModel: model,
         generate: gen,
+        generateDetailed,
         isLocalServerConfigured,
         visualLevel: taskVisualLevel,
       } = optionsRef.current;
@@ -86,37 +94,38 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       });
 
       try {
-        const userPrompt = useLocal
-          ? task.transcript
-          : buildUserPrompt(task.transcript, intent);
-        const localPolicy = getVisualLevelPolicy(taskVisualLevel);
-
-        const result = await gen(
-          userPrompt,
-          useLocal
-            ? {
-                ...localPolicy.localGeneration,
-                modelId: model,
-                useLocalServer: true,
-                disableAbort: true,
-              }
-            : {
-                systemPrompt: SYSTEM_PROMPT,
-                modelId: model,
-                useLocalServer: false,
-                disableAbort: true,
-                timeoutMs: 15000,
-              },
+        const provider: GenerationProvider =
+          generateDetailed ??
+          (async (prompt, options) => ({
+            text: await gen(prompt, options),
+            usage: null,
+          }));
+        const generation = await generateDiagram(
+          {
+            transcript: task.transcript,
+            visualLevel: taskVisualLevel,
+            provider: useLocal ? "local" : "webllm",
+            modelId: model,
+            mode: "auto",
+            isStillCurrent: () =>
+              taskEpoch === generationEpochRef.current &&
+              taskEpochRef.current.get(task) === taskEpoch,
+          },
+          provider,
         );
+        const result = generation.rawOutput;
 
         if (taskEpoch === generationEpochRef.current) {
           logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} completed`, {
             outputLength: result?.length ?? 0,
+            planUsage: generation.planUsage,
+            renderUsage: generation.renderUsage,
           });
         }
 
         return result;
       } catch (error) {
+        if (error instanceof GenerationStaleError) return null;
         if (taskEpoch !== generationEpochRef.current) return null;
 
         const message =
@@ -126,9 +135,18 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           `Generation task #${task.id ?? "?"} failed: ${message}`,
         );
 
+        const generationError = error instanceof GenerationError ? error : null;
+        const errorStage =
+          generationError?.stage === "plan"
+            ? "llm_plan"
+            : generationError?.stage === "render"
+              ? "llm_render"
+              : generationError?.stage === "recovery"
+                ? "recovery"
+                : "llm_generate";
         const drawmaidError = createDrawmaidError(
-          "llm_generate",
-          "api_error",
+          errorStage,
+          message.toLowerCase().includes("timeout") ? "timeout" : "api_error",
           message,
           {
             transcript: task.transcript,
@@ -138,6 +156,13 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
               model,
               mode: "auto",
               useLocalServer: useLocal,
+              visualLevel: taskVisualLevel,
+              failureStage: generationError?.stage,
+              planBrief: generationError?.plan,
+              usage: generationError?.usage,
+              planUsage: generationError?.planUsage,
+              renderUsage: generationError?.renderUsage,
+              recoveryUsage: generationError?.recoveryUsage,
             },
           },
         );

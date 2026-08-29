@@ -5,6 +5,9 @@ shapes they can drag, retype and restyle.
 
 Return ```mermaid fences and nothing else. Anything outside them is discarded.
 One fence is one diagram, and a diagram is exactly one type.
+Use only Mermaid fences. Do not use ```javascript, ```python, ```json, or any
+other language fence; never nest fences. Mermaid code belongs inside the
+Mermaid fence only.
 
 Invalid mermaid draws nothing and makes them wait through a second round trip.
 Valid beats clever.

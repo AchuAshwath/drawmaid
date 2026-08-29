@@ -2,26 +2,42 @@ import VISUAL_LEVEL_CONFIG from "../../config/visual-levels.json";
 import L0_CORE from "../../prompts/l0-core.md?raw";
 import L1_LOW from "../../prompts/l1-low.md?raw";
 import L1_MEDIUM from "../../prompts/l1-medium.md?raw";
-import L1_HIGH from "../../prompts/l1-high.md?raw";
+import L1_HIGH_PLAN from "../../prompts/l1-high-plan.md?raw";
+import L1_HIGH_RENDER from "../../prompts/l1-high-render.md?raw";
 
 export const VISUAL_LEVELS = ["low", "medium", "high"] as const;
 export type VisualLevel = (typeof VISUAL_LEVELS)[number];
 
+export interface GenerationPassPolicy {
+  readonly systemPrompt: string;
+  readonly maxTokens: number;
+  readonly temperature: number;
+  readonly timeoutMs: number;
+}
+
+export type LocalGenerationPolicy =
+  | Readonly<{
+      readonly kind: "single";
+      readonly render: GenerationPassPolicy;
+    }>
+  | Readonly<{
+      readonly kind: "plan-render";
+      readonly plan: GenerationPassPolicy;
+      readonly render: GenerationPassPolicy;
+    }>;
+
 export interface VisualLevelPolicy {
   readonly level: VisualLevel;
-  readonly localGeneration: Readonly<{
-    systemPrompt: string;
-    maxTokens: number;
-    temperature: number;
-    timeoutMs: number;
-  }>;
+  readonly localGeneration: LocalGenerationPolicy;
   readonly autoMode: Readonly<{
     settlingMs: number;
   }>;
 }
 
 interface VisualLevelConfig {
-  maxTokens: number;
+  maxTokens?: number;
+  planMaxTokens?: number;
+  renderMaxTokens?: number;
   temperature: number;
   timeoutMs: number;
   settlingMs: number;
@@ -33,7 +49,7 @@ const DEFAULT_VISUAL_LEVEL: VisualLevel = "low";
 const LEVEL_PROMPTS: Record<VisualLevel, string> = {
   low: L1_LOW,
   medium: L1_MEDIUM,
-  high: L1_HIGH,
+  high: L1_HIGH_RENDER,
 };
 
 const LEVEL_CONFIG = VISUAL_LEVEL_CONFIG as Record<
@@ -48,14 +64,32 @@ function buildSystemPrompt(level: VisualLevel): string {
 function createPolicy(level: VisualLevel): VisualLevelPolicy {
   const config = LEVEL_CONFIG[level];
 
-  return Object.freeze({
-    level,
-    localGeneration: Object.freeze({
-      systemPrompt: buildSystemPrompt(level),
-      maxTokens: config.maxTokens,
+  const makePass = (systemPrompt: string, maxTokens: number) =>
+    Object.freeze({
+      systemPrompt,
+      maxTokens,
       temperature: config.temperature,
       timeoutMs: config.timeoutMs,
-    }),
+    });
+
+  const localGeneration: LocalGenerationPolicy =
+    level === "high"
+      ? Object.freeze({
+          kind: "plan-render",
+          plan: makePass(L1_HIGH_PLAN.trim(), config.planMaxTokens ?? 512),
+          render: makePass(
+            buildSystemPrompt(level),
+            config.renderMaxTokens ?? 2048,
+          ),
+        })
+      : Object.freeze({
+          kind: "single",
+          render: makePass(buildSystemPrompt(level), config.maxTokens ?? 1024),
+        });
+
+  return Object.freeze({
+    level,
+    localGeneration,
     autoMode: Object.freeze({
       settlingMs: config.settlingMs,
     }),

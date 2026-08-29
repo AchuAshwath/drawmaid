@@ -13,7 +13,11 @@ import {
 } from "./mermaid-llm";
 import { getCachedConfigAsync } from "../ai-config/storage";
 import type { LocalServerConfig } from "../ai-config/types";
-import { generateWithLocalServer } from "../ai-config/providers/local";
+import {
+  generateWithLocalServer,
+  generateWithLocalServerDetailed,
+} from "../ai-config/providers/local";
+import type { ProviderResponse } from "./generation";
 
 const UNSUPPORTED_ERROR = "WebGPU is not supported in this browser";
 
@@ -29,6 +33,10 @@ export interface UseMermaidLlmReturn {
   output: string;
   load: () => Promise<void>;
   generate: (prompt: string, opts?: GenerateOptions) => Promise<string>;
+  generateDetailed: (
+    prompt: string,
+    opts?: GenerateOptions,
+  ) => Promise<ProviderResponse>;
   abort: () => void;
   unload: () => Promise<void>;
 }
@@ -37,6 +45,8 @@ export interface UseMermaidLlmReturn {
 const unsupportedLoad = rejectUnsupported;
 const unsupportedGenerate: UseMermaidLlmReturn["generate"] = () =>
   rejectUnsupported();
+const unsupportedGenerateDetailed: UseMermaidLlmReturn["generateDetailed"] =
+  () => rejectUnsupported();
 
 export function useMermaidLlm(): UseMermaidLlmReturn {
   const snap = useSyncExternalStore(subscribe, getSnapshot);
@@ -67,11 +77,38 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
     return engineGenerate(prompt, opts);
   };
 
+  const generateDetailed: UseMermaidLlmReturn["generateDetailed"] = async (
+    prompt,
+    opts,
+  ) => {
+    const config = await getCachedConfigAsync();
+
+    if (opts?.useLocalServer && config.type === "local") {
+      const model = opts.modelId || config.model;
+      return generateWithLocalServerDetailed(
+        { ...config, model },
+        opts.systemPrompt ?? SYSTEM_PROMPT,
+        prompt,
+        {
+          maxTokens: opts.maxTokens,
+          temperature: opts.temperature,
+          timeoutMs: opts.timeoutMs,
+        },
+      );
+    }
+
+    if (!supported) return unsupportedGenerateDetailed(prompt, opts);
+    return { text: await engineGenerate(prompt, opts), usage: null };
+  };
+
   return {
     isSupported: supported,
     ...snap,
     load: supported ? engineLoad : unsupportedLoad,
     generate,
+    generateDetailed: supported
+      ? generateDetailed
+      : unsupportedGenerateDetailed,
     abort,
     unload,
   };
