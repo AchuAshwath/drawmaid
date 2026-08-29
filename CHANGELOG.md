@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.2.0...drawmaid-v0.2.1) (2026-08-29)
+
+
+### Improvements
+
+* **auto-mode:** apply effort changes to the next run ([#78](https://github.com/AchuAshwath/drawmaid/issues/78)) ([d722d97](https://github.com/AchuAshwath/drawmaid/commit/d722d977f6a31d28eea67f1a6710549d99f82fef))
+* **auto-mode:** do not cancel active run on effort change ([#80](https://github.com/AchuAshwath/drawmaid/issues/80)) ([31e06d2](https://github.com/AchuAshwath/drawmaid/commit/31e06d204ad12ba33abc013aa8e1ff08fa19f307))
+* **auto-mode:** preserve 0.2.0 generation feedback ([#81](https://github.com/AchuAshwath/drawmaid/issues/81)) ([108dbea](https://github.com/AchuAshwath/drawmaid/commit/108dbeae32c17be99e26ad10a2d679e76b54b47e))
+
 ## [0.2.0](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.3...drawmaid-v0.2.0) (2026-08-29)
 
 
