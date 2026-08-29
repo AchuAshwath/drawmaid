@@ -252,35 +252,19 @@ export class AutoModeEngine {
         this.pushToStack(result);
       }
 
-      // A settings replay must wait for Canvas normalization/conversion so it
-      // cannot supersede the run whose result is still being committed. Keep
-      // ordinary transcript updates single-flight at the provider boundary,
-      // preserving the existing overlap behavior for delayed conversion.
-      const waitForCommit = this.pendingTranscriptCanRepeat;
-      if (!waitForCommit) {
-        this._activeGenerations.delete(task);
-        if (this._oldestGenerationId === task.id) {
-          this._oldestGenerationId = this.findNewOldest();
-        }
-      }
-
+      // A task owns the full provider-to-Canvas pipeline. Keep it active
+      // until normalization and conversion finish so the default single-flight
+      // queue can show this snapshot before starting the next transcript.
       try {
-        const commit = this.onResult(result, task);
-        if (waitForCommit) {
-          await commit;
-        } else if (commit instanceof Promise) {
-          void commit.catch(() => undefined);
-        }
+        await this.onResult(result, task);
       } catch {
         // Result callbacks own user-facing diagnostics; the engine still
         // releases the task if a callback unexpectedly throws synchronously.
       }
 
-      if (waitForCommit) {
-        this._activeGenerations.delete(task);
-        if (this._oldestGenerationId === task.id) {
-          this._oldestGenerationId = this.findNewOldest();
-        }
+      this._activeGenerations.delete(task);
+      if (this._oldestGenerationId === task.id) {
+        this._oldestGenerationId = this.findNewOldest();
       }
     } catch {
       this._activeGenerations.delete(task);

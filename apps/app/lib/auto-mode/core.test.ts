@@ -274,6 +274,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
 
       finishNewGeneration("new result");
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(0);
       expect(mockOnResult).toHaveBeenCalledWith(
         "new result",
@@ -392,6 +394,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
       // Complete generation #1
       resolveGen1!("first result");
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
 
       // Now generation #2 automatically triggers with the queued transcript
       expect(mockGenerate).toHaveBeenCalledTimes(2);
@@ -490,6 +494,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
         mockGenerate.mockResolvedValueOnce(`code ${i}`);
         engine.onTranscriptChange(`transcript ${i}`);
         vi.advanceTimersByTime(100);
+        await Promise.resolve();
+        await Promise.resolve();
         await Promise.resolve();
       }
 

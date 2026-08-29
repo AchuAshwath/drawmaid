@@ -376,8 +376,9 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
-  it("does not let an older conversion commit after a newer task starts", async () => {
-    const api = createCanvasApi();
+  it("commits a completed snapshot before starting a queued transcript", async () => {
+    const updateScene = vi.fn();
+    const api = { ...createCanvasApi(), updateScene };
     const generate = vi
       .fn()
       .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```")
@@ -425,16 +426,23 @@ describe("useAutoMode visual-level policy", () => {
       await Promise.resolve();
     });
 
-    expect(generate).toHaveBeenCalledTimes(2);
-    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    // The next transcript is queued, but cannot supersede the snapshot while
+    // its Mermaid conversion is still committing.
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(updateScene).not.toHaveBeenCalled();
 
     await act(async () => {
       finishFirstConversion({ elements: [{}], files: null });
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
     });
 
-    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    expect(updateScene).toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(updateScene.mock.invocationCallOrder[0]).toBeLessThan(
+      generate.mock.invocationCallOrder[1],
+    );
     unmount();
   });
 
