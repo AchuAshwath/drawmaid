@@ -22,7 +22,8 @@ export class AutoModeEngine {
   private lastTriggeredTimestamp: number = 0;
   private pendingTranscript: string | null = null;
   private isStarted: boolean = false;
-  private _activeGenerations: Map<number, number> = new Map();
+  private latestTask: GenerationTask | null = null;
+  private _activeGenerations: Map<GenerationTask, number> = new Map();
   private _oldestGenerationId: number | null = null;
 
   constructor(
@@ -55,6 +56,7 @@ export class AutoModeEngine {
       this.settlingTimeoutId = null;
     }
     this._activeGenerations.clear();
+    this.latestTask = null;
     this._oldestGenerationId = null;
     this.lastTriggeredText = "";
     this.lastTriggeredTimestamp = 0;
@@ -80,6 +82,7 @@ export class AutoModeEngine {
     this.lastTriggeredTimestamp = Date.now();
     this.pendingTranscript = null;
     this.state.lastProcessedTranscript = "";
+    this.latestTask = null;
   }
 
   onTranscriptChange(transcript: string): void {
@@ -172,8 +175,9 @@ export class AutoModeEngine {
       modelId: "",
       useLocalServer: false,
     };
+    this.latestTask = task;
 
-    this._activeGenerations.set(task.id, Date.now());
+    this._activeGenerations.set(task, Date.now());
 
     if (this._oldestGenerationId === null) {
       this._oldestGenerationId = genId;
@@ -186,9 +190,10 @@ export class AutoModeEngine {
     try {
       const result = await this.onGenerate(task);
 
-      // Discard stale results
-      if (task.id < this.state.lastSuccessfulGenId) {
-        this._activeGenerations.delete(task.id);
+      // A task object, rather than its diagnostic id, owns the result. A
+      // newer task may have started while this provider call was pending.
+      if (this.latestTask !== task) {
+        this._activeGenerations.delete(task);
         if (this._oldestGenerationId === task.id) {
           this._oldestGenerationId = this.findNewOldest();
         }
@@ -202,13 +207,13 @@ export class AutoModeEngine {
         this.pushToStack(result);
       }
 
-      this._activeGenerations.delete(task.id);
+      this._activeGenerations.delete(task);
       if (this._oldestGenerationId === task.id) {
         this._oldestGenerationId = this.findNewOldest();
       }
       this.onResult(result, task);
     } catch {
-      this._activeGenerations.delete(task.id);
+      this._activeGenerations.delete(task);
       if (this._oldestGenerationId === task.id) {
         this._oldestGenerationId = this.findNewOldest();
       }
@@ -235,10 +240,10 @@ export class AutoModeEngine {
     let oldestId: number | null = null;
     let oldestTime = Infinity;
 
-    for (const [id, startTime] of this._activeGenerations.entries()) {
+    for (const [task, startTime] of this._activeGenerations.entries()) {
       if (startTime < oldestTime) {
         oldestTime = startTime;
-        oldestId = id;
+        oldestId = task.id;
       }
     }
 
