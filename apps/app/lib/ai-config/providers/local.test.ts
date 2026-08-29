@@ -157,6 +157,42 @@ describe("generateWithLocalServer", () => {
     }
   });
 
+  it("disables reasoning for Gemini 3 local requests in Fast mode", async () => {
+    const originalFetch = globalThis.fetch;
+    const encoder = new TextEncoder();
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/event-stream" }),
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      }),
+    });
+
+    try {
+      await generateWithLocalServerDetailed(
+        {
+          type: "local",
+          serverType: "cliproxyapi",
+          url: "http://localhost:8317/v1",
+          model: "gemini-3-flash",
+        },
+        "static system",
+        "Show a checkout flow.",
+      );
+
+      const request = vi.mocked(globalThis.fetch).mock.calls[0]?.[1];
+      expect(JSON.parse(String(request?.body))).toMatchObject({
+        model: "gemini-3-flash",
+        reasoning_effort: "none",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("returns text successfully when the provider omits usage", async () => {
     const originalFetch = globalThis.fetch;
     const encoder = new TextEncoder();

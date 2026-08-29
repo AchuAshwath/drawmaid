@@ -165,7 +165,11 @@ function resolveChatUrl(baseUrl: string): string {
 
 function shouldDisableReasoning(model: string): boolean {
   const normalized = model.trim().toLowerCase();
-  return normalized.startsWith("gpt-5") || /^o\d(?:-|$)/.test(normalized);
+  return (
+    normalized.startsWith("gpt-5") ||
+    /^o\d(?:-|$)/.test(normalized) ||
+    /^gemini-3(?:[.-]|$)/.test(normalized)
+  );
 }
 
 export async function generateWithLocalServer(
