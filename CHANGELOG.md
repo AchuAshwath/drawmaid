@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.3...drawmaid-v0.2.0) (2026-08-29)
+
+
+### Major features
+
+* **canvas:** insert multiple generated diagrams atomically ([#74](https://github.com/AchuAshwath/drawmaid/issues/74)) ([e51d059](https://github.com/AchuAshwath/drawmaid/commit/e51d0592169366357281911448b6560f2f864f7a))
+* **llm:** add configurable diagram effort levels ([#61](https://github.com/AchuAshwath/drawmaid/issues/61)) ([b5a26aa](https://github.com/AchuAshwath/drawmaid/commit/b5a26aa776b620f861f439b39573e2e3a54ddc3f))
+* **llm:** complete High-effort plan-render generation ([2968dab](https://github.com/AchuAshwath/drawmaid/commit/2968dab3e37e3c05ea0a452848b181e640f67bfd))
+* **mermaid:** add type-specific guidance and ER semantics ([a58c5e9](https://github.com/AchuAshwath/drawmaid/commit/a58c5e95ec7cccca861557c51d438630a68c4aa0))
+
+
+### Improvements
+
+* **auto-mode:** enforce task identity through canvas insertion ([9938b9e](https://github.com/AchuAshwath/drawmaid/commit/9938b9e6e6eb01e9999d299c98343bfe54d00eb1))
+
 ## [0.1.3](https://github.com/AchuAshwath/drawmaid/compare/drawmaid-v0.1.2...drawmaid-v0.1.3) (2026-08-28)
 
 
