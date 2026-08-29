@@ -1,6 +1,8 @@
 export type ErrorStage =
   | "llm_load"
   | "llm_generate"
+  | "llm_plan"
+  | "llm_render"
   | "llm_empty"
   | "normalize"
   | "parse"
@@ -30,6 +32,37 @@ export interface GenerationContext {
   model: string;
   mode: "auto" | "normal";
   useLocalServer: boolean;
+  visualLevel?: "low" | "medium" | "high";
+  failureStage?: "plan" | "render" | "recovery";
+  planBrief?: string | null;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    reasoningTokens?: number;
+  } | null;
+  planUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    reasoningTokens?: number;
+  } | null;
+  renderUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    reasoningTokens?: number;
+  } | null;
+  recoveryUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+    reasoningTokens?: number;
+  } | null;
 }
 
 export interface OutputContext {
@@ -164,7 +197,44 @@ export function formatErrorForCopy(error: DrawmaidError): string {
     : "🔄 RECOVERY: Not attempted";
 
   lines.push(`⏰ TIMESTAMP: ${error.timestamp}`);
-  if (genInfo) lines.push(genInfo);
+  const generation = error.generation;
+  if (genInfo && generation) {
+    lines.push(genInfo);
+    if (generation.visualLevel) {
+      lines.push(`🎨 VISUAL LEVEL: ${generation.visualLevel}`);
+    }
+    if (generation.failureStage) {
+      lines.push(`🧭 GENERATION STAGE: ${generation.failureStage}`);
+    }
+    if (generation.usage) {
+      lines.push(
+        `📊 USAGE: prompt=${generation.usage.promptTokens ?? "?"} ` +
+          `completion=${generation.usage.completionTokens ?? "?"} ` +
+          `total=${generation.usage.totalTokens ?? "?"} ` +
+          `cached=${generation.usage.cachedTokens ?? "?"} ` +
+          `reasoning=${generation.usage.reasoningTokens ?? "?"}`,
+      );
+    }
+    const usageByPass = [
+      ["plan", generation.planUsage],
+      ["render", generation.renderUsage],
+      ["recovery", generation.recoveryUsage],
+    ] as const;
+    for (const [pass, usage] of usageByPass) {
+      if (!usage) continue;
+      lines.push(
+        `📊 ${pass.toUpperCase()} USAGE: prompt=${usage.promptTokens ?? "?"} ` +
+          `completion=${usage.completionTokens ?? "?"} ` +
+          `total=${usage.totalTokens ?? "?"} ` +
+          `cached=${usage.cachedTokens ?? "?"} ` +
+          `reasoning=${usage.reasoningTokens ?? "?"}`,
+      );
+    }
+    if (generation.planBrief) {
+      lines.push("🧠 HIGH PLAN:");
+      lines.push(generation.planBrief);
+    }
+  }
   lines.push(recoveryInfo);
   lines.push("");
   lines.push("═══════════════════════════════════════════════════════════════");

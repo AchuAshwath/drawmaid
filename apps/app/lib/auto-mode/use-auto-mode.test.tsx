@@ -85,7 +85,7 @@ describe("useAutoMode visual-level policy", () => {
 
     expect(generate).toHaveBeenCalledTimes(1);
     expect(generate).toHaveBeenCalledWith("create a login flow", {
-      ...policy.localGeneration,
+      ...policy.localGeneration.render,
       modelId: "local-model",
       useLocalServer: true,
       disableAbort: true,
@@ -131,7 +131,15 @@ describe("useAutoMode visual-level policy", () => {
       vi.advanceTimersByTime(1);
       await Promise.resolve();
     });
-    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[0][1]).toMatchObject({
+      maxTokens: 512,
+      timeoutMs: 30000,
+    });
+    expect(generate.mock.calls[1][1]).toMatchObject({
+      maxTokens: 2048,
+      timeoutMs: 30000,
+    });
 
     unmount();
   });
@@ -173,6 +181,8 @@ describe("useAutoMode visual-level policy", () => {
       modelId: "webllm-model",
       useLocalServer: false,
       disableAbort: true,
+      maxTokens: 1024,
+      temperature: 0.1,
       timeoutMs: 15000,
     });
 

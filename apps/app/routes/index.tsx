@@ -9,19 +9,14 @@ import {
 } from "@/lib/canvas/insert-mermaid-into-canvas";
 import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
 import { resolveDiagramOutput, type DiagramOutput } from "@/lib/diagram";
+import { extractIntent, type Intent } from "@/lib/llm/intent-extraction";
+import { isAbortError, isTimeoutError } from "@/lib/llm/mermaid-llm";
 import {
-  buildErrorRecoveryPrompt,
-  buildUserPrompt,
-  extractIntent,
-  type Intent,
-} from "@/lib/llm/intent-extraction";
+  generateDiagram,
+  GenerationError,
+  type GenerationAttempt,
+} from "@/lib/llm/generation";
 import {
-  isAbortError,
-  isTimeoutError,
-  SYSTEM_PROMPT,
-} from "@/lib/llm/mermaid-llm";
-import {
-  getVisualLevelPolicy,
   isVisualLevel,
   loadVisualLevel,
   saveVisualLevel,
@@ -58,6 +53,14 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
+
+type GenerationUsage = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
+} | null;
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
@@ -118,7 +121,8 @@ function Home() {
   const availableWebLLMModels = webLLMModels.filter((m) =>
     downloadedModelIds.includes(m.id),
   );
-  const { isSupported, status, loadProgress, generate } = useMermaidLlm();
+  const { isSupported, status, loadProgress, generate, generateDetailed } =
+    useMermaidLlm();
   const excalidrawApiRef = useRef<ExcalidrawCanvasApi | null>(null);
 
   const {
@@ -128,6 +132,7 @@ function Home() {
   } = useAutoMode({
     excalidrawApiRef,
     generate,
+    generateDetailed,
     currentModel,
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
@@ -155,6 +160,12 @@ function Home() {
       parseError?: string | null;
       recoveryAttempted?: boolean;
       recoverySucceeded?: boolean;
+      generationStage?: "plan" | "render" | "recovery";
+      planBrief?: string | null;
+      usage?: GenerationUsage;
+      planUsage?: GenerationUsage;
+      renderUsage?: GenerationUsage;
+      recoveryUsage?: GenerationUsage;
     },
   ) => {
     const useLocalServer = localServerConfigured;
@@ -167,6 +178,13 @@ function Home() {
         model: currentModel,
         mode,
         useLocalServer,
+        visualLevel,
+        failureStage: options?.generationStage,
+        planBrief: options?.planBrief,
+        usage: options?.usage,
+        planUsage: options?.planUsage,
+        renderUsage: options?.renderUsage,
+        recoveryUsage: options?.recoveryUsage,
       },
       rawLLMOutput: options?.rawLLMOutput,
       normalizedCode: options?.normalizedCode,
@@ -279,36 +297,55 @@ function Home() {
     setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
-    const intent = extractIntent(prompt);
-
     // Determine which provider to use based on selected model/config
     const useLocalServer = localServerConfigured;
-    const localPolicy = useLocalServer
-      ? getVisualLevelPolicy(visualLevel).localGeneration
-      : null;
-    const userPrompt = useLocalServer
-      ? prompt
-      : buildUserPrompt(prompt, intent);
+    let intent: Intent = extractIntent(prompt);
+    let generationAttempt: GenerationAttempt | null = null;
 
     try {
-      mermaidOutput = await generate(
-        userPrompt,
-        useLocalServer
-          ? {
-              ...localPolicy,
-              modelId: currentModel,
-              useLocalServer: true,
-            }
-          : {
-              systemPrompt: SYSTEM_PROMPT,
-              modelId: currentModel,
-              useLocalServer: false,
-              timeoutMs: 15000,
-            },
+      generationAttempt = await generateDiagram(
+        {
+          transcript: prompt,
+          visualLevel,
+          provider: useLocalServer ? "local" : "webllm",
+          modelId: currentModel,
+          mode: "manual",
+        },
+        generateDetailed,
       );
+      mermaidOutput = generationAttempt.rawOutput;
+      intent = generationAttempt.intent;
+      logInfo("LLM", "Generation completed", {
+        visualLevel,
+        provider: useLocalServer ? "local" : "webllm",
+        planUsage: generationAttempt.planUsage,
+        renderUsage: generationAttempt.renderUsage,
+      });
     } catch (err) {
       setIsGenerating(false);
       if (isAbortError(err)) return;
+      if (err instanceof GenerationError) {
+        const generationStage = err.stage;
+        handleError(
+          generationStage === "plan"
+            ? "llm_plan"
+            : generationStage === "recovery"
+              ? "recovery"
+              : "llm_render",
+          /timeout/i.test(err.message) ? "timeout" : "api_error",
+          err.message,
+          {
+            intent,
+            generationStage: err.stage,
+            planBrief: err.plan,
+            usage: err.usage,
+            planUsage: err.planUsage,
+            renderUsage: err.renderUsage,
+            recoveryUsage: err.recoveryUsage,
+          },
+        );
+        return;
+      }
       if (isTimeoutError(err)) {
         handleError(
           "llm_generate",
@@ -372,30 +409,11 @@ function Home() {
               raw,
               intent.diagramIntent,
             );
-            const errorMessage = describeDiagramOutput(brokenOutput);
-            const errorPrompt = buildErrorRecoveryPrompt({
-              originalInput: prompt,
-              failedMermaidCode: raw ?? "",
-              errorMessage,
-              diagramType: intent.diagramType,
-              diagramIntent: intent.diagramIntent,
-            });
-            return generate(
-              errorPrompt,
-              useLocalServer
-                ? {
-                    ...localPolicy,
-                    modelId: currentModel,
-                    useLocalServer: true,
-                  }
-                : {
-                    systemPrompt: SYSTEM_PROMPT,
-                    maxTokens: 1024,
-                    modelId: currentModel,
-                    useLocalServer: false,
-                    timeoutMs: 15000,
-                  },
+            const response = await generationAttempt!.retryRender(
+              raw,
+              describeDiagramOutput(brokenOutput),
             );
+            return response.text;
           },
           insert: async (document) => {
             normalizedCode = document.code;
@@ -407,6 +425,8 @@ function Home() {
       setIsGenerating(false);
       setIsProcessing(false);
       if (!policyResult.inserted) {
+        if (policyResult.output.kind === "no-diagram") return;
+        const diagnostics = generationAttempt?.failureDiagnostics();
         handleError(
           recoveryAttempted ? "recovery" : "normalize",
           recoveryAttempted ? "recovery_failed" : "normalization_failed",
@@ -417,6 +437,12 @@ function Home() {
             normalizedCode,
             recoveryAttempted: policyResult.recoveryAttempted,
             recoverySucceeded: false,
+            generationStage: recoveryAttempted ? "recovery" : "render",
+            planBrief: diagnostics?.plan,
+            usage: diagnostics?.renderUsage,
+            planUsage: diagnostics?.planUsage,
+            renderUsage: diagnostics?.renderUsage,
+            recoveryUsage: diagnostics?.recoveryUsage,
           },
         );
         return;
@@ -426,6 +452,41 @@ function Home() {
       setIsGenerating(false);
       setIsProcessing(false);
       if (isAbortError(err)) return;
+
+      if (err instanceof GenerationError) {
+        const generationStage = err.stage;
+        handleError(
+          generationStage === "plan"
+            ? "llm_plan"
+            : generationStage === "recovery"
+              ? "recovery"
+              : "llm_render",
+          /timeout/i.test(err.message) ? "timeout" : "api_error",
+          err.message,
+          {
+            intent,
+            rawLLMOutput: mermaidOutput,
+            normalizedCode,
+            recoveryAttempted,
+            recoverySucceeded: false,
+            generationStage,
+            planBrief: err.plan ?? generationAttempt?.failureDiagnostics().plan,
+            usage:
+              err.usage ?? generationAttempt?.failureDiagnostics().renderUsage,
+            planUsage:
+              err.planUsage ??
+              generationAttempt?.failureDiagnostics().planUsage,
+            renderUsage:
+              err.renderUsage ??
+              generationAttempt?.failureDiagnostics().renderUsage,
+            recoveryUsage:
+              err.recoveryUsage ??
+              generationAttempt?.failureDiagnostics().recoveryUsage,
+          },
+        );
+        return;
+      }
+
       const errorMessage = err instanceof Error ? err.message : String(err);
       const isParseError =
         /parse|syntax|diagram|mermaid|expecting|reserved|keyword/i.test(
@@ -449,6 +510,12 @@ function Home() {
         parseError: isParseError ? errorMessage : null,
         recoveryAttempted,
         recoverySucceeded: false,
+        generationStage: recoveryAttempted ? "recovery" : "render",
+        planBrief: generationAttempt?.failureDiagnostics().plan,
+        usage: generationAttempt?.failureDiagnostics().renderUsage,
+        planUsage: generationAttempt?.failureDiagnostics().planUsage,
+        renderUsage: generationAttempt?.failureDiagnostics().renderUsage,
+        recoveryUsage: generationAttempt?.failureDiagnostics().recoveryUsage,
       });
     }
   };

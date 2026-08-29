@@ -4,6 +4,10 @@ import {
   getErrorStatus,
   isUnauthenticatedError,
 } from "./errors";
+import {
+  createDrawmaidError,
+  formatErrorForCopy,
+} from "./errors/drawmaid-error";
 
 describe("getErrorStatus", () => {
   it("returns undefined for non-objects", () => {
@@ -110,5 +114,39 @@ describe("isUnauthenticatedError", () => {
 
   it("returns false for tRPC FORBIDDEN code", () => {
     expect(isUnauthenticatedError({ data: { code: "FORBIDDEN" } })).toBe(false);
+  });
+});
+
+describe("generation diagnostics", () => {
+  it("includes visual level, High plan, and per-pass token usage", () => {
+    const error = createDrawmaidError(
+      "llm_render",
+      "api_error",
+      "render unavailable",
+      {
+        generation: {
+          provider: "local",
+          model: "frontier-model",
+          mode: "normal",
+          useLocalServer: true,
+          visualLevel: "high",
+          failureStage: "render",
+          planBrief: "1. Keep the failure branch.",
+          planUsage: { totalTokens: 20, cachedTokens: 8 },
+          renderUsage: { totalTokens: 30 },
+          recoveryUsage: { totalTokens: 12 },
+        },
+      },
+    );
+
+    const report = formatErrorForCopy(error);
+    expect(report).toContain("VISUAL LEVEL: high");
+    expect(report).toContain("GENERATION STAGE: render");
+    expect(report).toContain("HIGH PLAN:");
+    expect(report).toContain(
+      "PLAN USAGE: prompt=? completion=? total=20 cached=8",
+    );
+    expect(report).toContain("RENDER USAGE: prompt=? completion=? total=30");
+    expect(report).toContain("RECOVERY USAGE: prompt=? completion=? total=12");
   });
 });
