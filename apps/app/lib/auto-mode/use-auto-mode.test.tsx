@@ -446,6 +446,75 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
+  it("keeps the first snapshot visible while rapid transcript churn queues only the latest", async () => {
+    const updateScene = vi.fn();
+    const api = { ...createCanvasApi(), updateScene };
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```")
+      .mockResolvedValue("```mermaid\nflowchart TD\nB --> C\n```");
+    let finishFirstConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishFirstConversion = resolve;
+        }),
+      )
+      .mockResolvedValue({ elements: [{}], files: null });
+
+    const { rerender, unmount } = renderHook(
+      ({ transcript }: { transcript: string }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript,
+          visualLevel: "low",
+        }),
+      { initialProps: { transcript: "draw the checkout flow" } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ transcript: "draw the checkout flow with payment" });
+    rerender({ transcript: "draw the checkout flow with payment and retry" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(updateScene).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishFirstConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateScene).toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][0]).toBe(
+      "draw the checkout flow with payment and retry",
+    );
+    expect(updateScene.mock.invocationCallOrder[0]).toBeLessThan(
+      generate.mock.invocationCallOrder[1],
+    );
+    unmount();
+  });
+
   it("invalidates delayed conversion when the public session is reset", async () => {
     const api = createCanvasApi();
     const generate = vi
