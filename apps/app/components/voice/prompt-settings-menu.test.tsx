@@ -108,6 +108,37 @@ describe("PromptSettingsMenu", () => {
     expect(onSelectModel).toHaveBeenCalledWith("model-b");
   });
 
+  it("shows only local-server models when the local provider is active", () => {
+    render(
+      <PromptSettingsMenu
+        currentModel="local-model"
+        localServerConfigured
+        webLLMModels={[
+          {
+            id: "web-model",
+            name: "Web model",
+            vramMB: 0,
+            lowResource: true,
+            contextWindow: 4096,
+          },
+        ]}
+        localModels={[{ id: "local-model", name: "Local model" }]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Model and effort settings" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: /Model/ }));
+
+    expect(
+      screen.getByRole("menuitemradio", { name: "Local model" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("menuitemradio", { name: "web-model" }),
+    ).toBeNull();
+  });
+
   it("keeps the model option visible while the model list is loading", () => {
     render(
       <PromptSettingsMenu

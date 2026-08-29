@@ -22,7 +22,6 @@ interface UseAutoModeOptions {
     options: GenerateOptions,
   ) => Promise<string | null>;
   currentModel: string;
-  localModels: { id: string }[];
   isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
   transcript: string;

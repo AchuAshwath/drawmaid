@@ -129,6 +129,10 @@ export function AIConfigPopup({
   // Load decrypted config on modal open
   useEffect(() => {
     if (open) {
+      // Refresh this view each time the dialog opens so downloaded-model
+      // counts and availability reflect changes made elsewhere in the app.
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setDownloadedModels(getDownloadedModels());
       loadConfigAsync().then((loadedConfig) => {
         setConfig(loadedConfig);
         if (loadedConfig.type === "local") {
@@ -297,10 +301,11 @@ export function AIConfigPopup({
     setTestError(null);
     setTestResponse("");
 
+    let unsubscribe: (() => void) | undefined;
     try {
       await loadEngine(modelId);
 
-      const unsubscribe = subscribe(() => {
+      unsubscribe = subscribe(() => {
         const snapshot = getSnapshot();
         setTestResponse(snapshot.output);
       });
@@ -310,10 +315,11 @@ export function AIConfigPopup({
       });
 
       setTestStatus("success");
-      unsubscribe();
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Test failed");
       setTestStatus("error");
+    } finally {
+      unsubscribe?.();
     }
   };
 

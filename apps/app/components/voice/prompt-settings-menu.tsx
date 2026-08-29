@@ -1,6 +1,6 @@
 import { Button } from "@repo/ui";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LocalModel, WebLLMModelInfo } from "@/lib/ai-config/types";
 import {
   isVisualLevel,
@@ -61,17 +61,12 @@ export function PromptSettingsMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
 
-  const modelOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return [...webLLMModels, ...localModels].filter((model) => {
-      if (seen.has(model.id)) return false;
-      seen.add(model.id);
-      return true;
-    });
-  }, [localModels, webLLMModels]);
+  // Model IDs are provider-specific. Showing models from an inactive provider
+  // makes it possible to select an ID that the active generator cannot use.
+  const visibleModels = localServerConfigured ? localModels : webLLMModels;
 
   const hasModelOption =
-    Boolean(currentModel) || modelOptions.length > 0 || localServerConfigured;
+    Boolean(currentModel) || visibleModels.length > 0 || localServerConfigured;
   const modelLabel = currentModel
     ? displayModelName(currentModel)
     : "Select model";
@@ -106,13 +101,20 @@ export function PromptSettingsMenu({
     const root = rootRef.current;
     if (!root) return;
 
-    const { left } = root.getBoundingClientRect();
     const menuWidth = 180 + 4 + 220;
-    // Placement is derived from the current viewport after the menu opens.
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
-    setMenuPlacement(
-      left + menuWidth <= window.innerWidth - 8 ? "right" : "left",
-    );
+    const updatePlacement = () => {
+      const { left } = root.getBoundingClientRect();
+      // Placement is derived from the current viewport after the menu opens
+      // and when the viewport changes while it remains open.
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      setMenuPlacement(
+        left + menuWidth <= window.innerWidth - 8 ? "right" : "left",
+      );
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    return () => window.removeEventListener("resize", updatePlacement);
   }, [open]);
 
   useLayoutEffect(() => {
@@ -253,48 +255,31 @@ export function PromptSettingsMenu({
               role="menu"
               aria-label="Models"
             >
-              {webLLMModels.map((model) => (
-                <button
-                  key={`webllm-${model.id}`}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={currentModel === model.id}
-                  className={ROW_CLASS}
-                  onClick={() => selectModel(model.id)}
-                >
-                  <span className="truncate">{model.id}</span>
-                  {currentModel === model.id && (
-                    <Check className="ml-auto h-4 w-4 shrink-0" />
-                  )}
-                </button>
-              ))}
-              {localServerConfigured && (
-                <>
-                  {localModels.length > 0 ? (
-                    localModels.map((model) => (
-                      <button
-                        key={`local-${model.id}`}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={currentModel === model.id}
-                        className={ROW_CLASS}
-                        onClick={() => selectModel(model.id)}
-                      >
-                        <span className="truncate">
-                          {model.name || model.id}
-                        </span>
-                        {currentModel === model.id && (
-                          <Check className="ml-auto h-4 w-4 shrink-0" />
-                        )}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                      Not connected
-                    </p>
-                  )}
-                </>
-              )}
+              {visibleModels.length > 0 ? (
+                visibleModels.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={currentModel === model.id}
+                    className={ROW_CLASS}
+                    onClick={() => selectModel(model.id)}
+                  >
+                    <span className="truncate">
+                      {localServerConfigured
+                        ? model.name || model.id
+                        : model.id}
+                    </span>
+                    {currentModel === model.id && (
+                      <Check className="ml-auto h-4 w-4 shrink-0" />
+                    )}
+                  </button>
+                ))
+              ) : localServerConfigured ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  Not connected
+                </p>
+              ) : null}
             </div>
           )}
 

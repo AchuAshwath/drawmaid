@@ -129,7 +129,6 @@ function Home() {
     excalidrawApiRef,
     generate,
     currentModel,
-    localModels,
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
