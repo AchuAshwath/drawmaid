@@ -127,6 +127,41 @@ describe("Visual-level policy", () => {
     );
   });
 
+  it("uses the fixed five-prompt catalog for Medium and High rendering", () => {
+    const expectedCatalog = [
+      "# Flowchart details",
+      "# Sequence diagram details",
+      "# Class diagram details",
+      "# Entity relationship diagram details",
+      "# State diagram details",
+    ];
+    const medium = getVisualLevelPolicy("medium");
+    const high = getVisualLevelPolicy("high");
+    if (medium.localGeneration.kind !== "single") return;
+    if (high.localGeneration.kind !== "plan-render") return;
+
+    for (const prompt of [
+      medium.localGeneration.render.systemPrompt,
+      high.localGeneration.render.systemPrompt,
+    ]) {
+      let previousIndex = -1;
+      for (const heading of expectedCatalog) {
+        const index = prompt.indexOf(heading);
+        expect(index, heading).toBeGreaterThan(previousIndex);
+        previousIndex = index;
+      }
+    }
+
+    expect(getVisualLevelPolicy("low").localGeneration).toMatchObject({
+      kind: "single",
+    });
+    const low = getVisualLevelPolicy("low");
+    if (low.localGeneration.kind !== "single") return;
+    expect(low.localGeneration.render.systemPrompt).not.toContain(
+      "# Flowchart details",
+    );
+  });
+
   it("gives High a separate plan and render policy", () => {
     const policy = getVisualLevelPolicy("high");
 

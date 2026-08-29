@@ -4,6 +4,12 @@ import L1_LOW from "../../prompts/l1-low.md?raw";
 import L1_MEDIUM from "../../prompts/l1-medium.md?raw";
 import L1_HIGH_PLAN from "../../prompts/l1-high-plan.md?raw";
 import L1_HIGH_RENDER from "../../prompts/l1-high-render.md?raw";
+import L2_FLOWCHART from "../../prompts/l2-flowchart.md?raw";
+import L2_SEQUENCE from "../../prompts/l2-sequence.md?raw";
+import L2_CLASS from "../../prompts/l2-class.md?raw";
+import L2_ER from "../../prompts/l2-erdiagram.md?raw";
+import L2_STATE from "../../prompts/l2-statediagram.md?raw";
+import RESERVED_WORDS_JSON from "../../config/reserved-words.json";
 
 export const VISUAL_LEVELS = ["low", "medium", "high"] as const;
 export type VisualLevel = (typeof VISUAL_LEVELS)[number];
@@ -52,13 +58,28 @@ const LEVEL_PROMPTS: Record<VisualLevel, string> = {
   high: L1_HIGH_RENDER,
 };
 
+const EDITABLE_L2_PROMPTS = [
+  [L2_FLOWCHART, RESERVED_WORDS_JSON.flowchart],
+  [L2_SEQUENCE, RESERVED_WORDS_JSON.sequenceDiagram],
+  [L2_CLASS, RESERVED_WORDS_JSON.classDiagram],
+  [L2_ER, RESERVED_WORDS_JSON.erDiagram],
+  [L2_STATE, RESERVED_WORDS_JSON["stateDiagram-v2"]],
+] as const;
+
+const L2_CATALOG = EDITABLE_L2_PROMPTS.map(
+  ([prompt, reservedWords]) =>
+    `${prompt.trim()}\n\nReserved identifiers for this diagram type: ${reservedWords.join(", ")}. Do not use these words as entity, participant, class, state, node, or subgraph identifiers.`,
+).join("\n\n");
+
 const LEVEL_CONFIG = VISUAL_LEVEL_CONFIG as Record<
   VisualLevel,
   VisualLevelConfig
 >;
 
 function buildSystemPrompt(level: VisualLevel): string {
-  return [L0_CORE.trim(), LEVEL_PROMPTS[level].trim()].join("\n\n");
+  const prompts = [L0_CORE.trim(), LEVEL_PROMPTS[level].trim()];
+  if (level === "medium" || level === "high") prompts.push(L2_CATALOG);
+  return prompts.join("\n\n");
 }
 
 function createPolicy(level: VisualLevel): VisualLevelPolicy {

@@ -1,3 +1,5 @@
+import RESERVED_WORDS_JSON from "../config/reserved-words.json";
+
 export type DiagramCapability = "editable" | "image-only";
 export type DiagramRequestPolicy = "default" | "explicit";
 
@@ -10,6 +12,7 @@ interface DiagramDefinitionShape {
   readonly heuristicPhrases: readonly string[];
   readonly heuristicThreshold: number;
   readonly promptConfigId: string;
+  readonly reservedWords: readonly string[];
 }
 
 const DIAGRAM_REGISTRY = [
@@ -22,6 +25,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: ["then", "logs in", "validates", "redirects"],
     heuristicThreshold: 2,
     promptConfigId: "flowchart",
+    reservedWords: RESERVED_WORDS_JSON.flowchart,
   },
   {
     type: "sequenceDiagram",
@@ -47,6 +51,7 @@ const DIAGRAM_REGISTRY = [
     ],
     heuristicThreshold: 2,
     promptConfigId: "sequenceDiagram",
+    reservedWords: RESERVED_WORDS_JSON.sequenceDiagram,
   },
   {
     type: "classDiagram",
@@ -63,6 +68,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: ["extends", "has an area", "method", "attribute"],
     heuristicThreshold: 2,
     promptConfigId: "classDiagram",
+    reservedWords: RESERVED_WORDS_JSON.classDiagram,
   },
   {
     type: "erDiagram",
@@ -84,6 +90,7 @@ const DIAGRAM_REGISTRY = [
     ],
     heuristicThreshold: 2,
     promptConfigId: "erDiagram",
+    reservedWords: RESERVED_WORDS_JSON.erDiagram,
   },
   {
     type: "stateDiagram-v2",
@@ -101,6 +108,7 @@ const DIAGRAM_REGISTRY = [
     ],
     heuristicThreshold: 2,
     promptConfigId: "stateDiagram-v2",
+    reservedWords: RESERVED_WORDS_JSON["stateDiagram-v2"],
   },
   {
     type: "gantt",
@@ -111,6 +119,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "gantt",
+    reservedWords: RESERVED_WORDS_JSON.gantt,
   },
   {
     type: "pie",
@@ -121,6 +130,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "pie",
+    reservedWords: RESERVED_WORDS_JSON.pie,
   },
   {
     type: "mindmap",
@@ -131,6 +141,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "mindmap",
+    reservedWords: RESERVED_WORDS_JSON.mindmap,
   },
   {
     type: "gitGraph",
@@ -141,6 +152,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "gitGraph",
+    reservedWords: RESERVED_WORDS_JSON.gitGraph,
   },
   {
     type: "journey",
@@ -156,6 +168,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "journey",
+    reservedWords: RESERVED_WORDS_JSON.journey,
   },
   {
     type: "timeline",
@@ -166,6 +179,7 @@ const DIAGRAM_REGISTRY = [
     heuristicPhrases: [],
     heuristicThreshold: 1,
     promptConfigId: "timeline",
+    reservedWords: RESERVED_WORDS_JSON.timeline,
   },
 ] as const satisfies readonly DiagramDefinitionShape[];
 

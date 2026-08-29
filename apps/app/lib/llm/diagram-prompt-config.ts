@@ -1,4 +1,5 @@
 import DIAGRAM_CONFIGS_JSON from "../../config/diagram-configs.json";
+import RESERVED_WORDS_JSON from "../../config/reserved-words.json";
 
 /** Prompt grammar and examples; semantic type policy lives in lib/diagram. */
 export interface DiagramPromptConfig {
@@ -12,7 +13,17 @@ export interface DiagramPromptConfig {
 }
 
 export const DIAGRAM_PROMPT_CONFIGS: Record<string, DiagramPromptConfig> =
-  DIAGRAM_CONFIGS_JSON;
+  Object.fromEntries(
+    Object.entries(DIAGRAM_CONFIGS_JSON).map(([id, config]) => [
+      id,
+      {
+        ...config,
+        reservedWords: [
+          ...(RESERVED_WORDS_JSON as Record<string, string[]>)[id],
+        ],
+      },
+    ]),
+  );
 
 export function getDiagramPromptConfig(
   diagramType: string | null,

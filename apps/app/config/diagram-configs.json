@@ -4,19 +4,6 @@
     "name": "Flowchart",
     "nodeSyntax": "A[Label] or B(Label) or C{Decision}",
     "edgeSyntax": "A --> B or A -->|label| B",
-    "reservedWords": [
-      "end",
-      "graph",
-      "class",
-      "click",
-      "default",
-      "state",
-      "subgraph",
-      "link",
-      "style",
-      "direction",
-      "flowchart"
-    ],
     "examples": [
       "flowchart TD\nNode1[Label Text] --> Node2{Decision}\nNode2 -->|Option A| Node3[Result A]\nNode2 -->|Option B| Node4[Result B]"
     ],
@@ -32,21 +19,6 @@
     "name": "Sequence Diagram",
     "nodeSyntax": "participant Name as 'Label'",
     "edgeSyntax": "A ->> B: message or A -->> B: dotted message",
-    "reservedWords": [
-      "end",
-      "loop",
-      "alt",
-      "else",
-      "par",
-      "break",
-      "critical",
-      "section",
-      "note",
-      "activate",
-      "deactivate",
-      "create",
-      "destroy"
-    ],
     "examples": [
       "sequenceDiagram\nparticipant Entity1\nparticipant Entity2\nEntity1 ->> Entity2: Message description\nEntity2 -->> Entity1: Response description"
     ],
@@ -62,15 +34,6 @@
     "name": "Class Diagram",
     "nodeSyntax": "class Name { +attribute -method() }",
     "edgeSyntax": "ClassA <|-- ClassB (inheritance) or ClassA --> ClassB (association)",
-    "reservedWords": [
-      "class",
-      "interface",
-      "enum",
-      "abstract",
-      "static",
-      "extends",
-      "implements"
-    ],
     "examples": [
       "classDiagram\nclass ClassName {\n+String attribute\n+method()\n}\nclass AnotherClass\nClassName <|-- AnotherClass"
     ],
@@ -86,7 +49,6 @@
     "name": "Entity Relationship Diagram",
     "nodeSyntax": "ENTITY { string id }",
     "edgeSyntax": "CUSTOMER ||--o{ ORDER : places",
-    "reservedWords": ["erDiagram", "title", "direction"],
     "examples": [
       "erDiagram\nCUSTOMER ||--o{ ORDER : places\nCUSTOMER {\n  string id\n}"
     ],
@@ -101,7 +63,6 @@
     "name": "State Diagram",
     "nodeSyntax": "state \"Label\" as ID",
     "edgeSyntax": "ID --> ID : transition",
-    "reservedWords": ["stateDiagram-v2", "stateDiagram", "state", "[*]"],
     "examples": [
       "stateDiagram-v2\n[*] --> Pending\nPending --> Paid : capture\nPaid --> [*]"
     ],
@@ -116,7 +77,6 @@
     "name": "Gantt Chart",
     "nodeSyntax": "section Name",
     "edgeSyntax": "Task :done, taskId, 2026-09-01, 7d",
-    "reservedWords": ["gantt", "title", "section"],
     "examples": [
       "gantt\ntitle Release\ndateFormat YYYY-MM-DD\nsection Work\nBuild :2026-09-01, 7d"
     ],
@@ -130,7 +90,6 @@
     "name": "Pie Chart",
     "nodeSyntax": "\"Label\" : value",
     "edgeSyntax": "Each slice is a labeled value",
-    "reservedWords": ["pie", "title"],
     "examples": ["pie title Budget\n  \"Build\" : 60\n  \"Test\" : 25"],
     "tips": ["Use one quoted label and numeric value per slice"]
   },
@@ -139,7 +98,6 @@
     "name": "Mind Map",
     "nodeSyntax": "root((Central idea))",
     "edgeSyntax": "Indent child ideas beneath their parent",
-    "reservedWords": ["mindmap", "root"],
     "examples": ["mindmap\n  root((Product))\n    Users\n    Platform"],
     "tips": ["Start with one root", "Use indentation to express hierarchy"]
   },
@@ -148,7 +106,6 @@
     "name": "Git Graph",
     "nodeSyntax": "commit id: \"Initial\"",
     "edgeSyntax": "branch feature and checkout feature",
-    "reservedWords": ["gitGraph", "commit", "branch", "checkout"],
     "examples": [
       "gitGraph\n  commit id: \"Initial\"\n  branch feature\n  checkout feature\n  commit id: \"Work\""
     ],
@@ -162,7 +119,6 @@
     "name": "User Journey",
     "nodeSyntax": "Task: score: Actor",
     "edgeSyntax": "Group tasks in sections",
-    "reservedWords": ["journey", "title", "section"],
     "examples": [
       "journey\n  title User onboarding\n  section Signup\n    Create account: 5: User"
     ],
@@ -173,7 +129,6 @@
     "name": "Timeline",
     "nodeSyntax": "Year : Event",
     "edgeSyntax": "Events are ordered by their timeline entries",
-    "reservedWords": ["timeline", "title"],
     "examples": [
       "timeline\n  title Product history\n  2024 : Prototype\n  2025 : Public launch"
     ],

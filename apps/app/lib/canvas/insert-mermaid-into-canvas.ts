@@ -4,6 +4,7 @@ import {
 } from "@excalidraw/excalidraw";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import type { DiagramDocument } from "@/lib/diagram";
+import { remapMermaidArrowheads } from "./mermaid-arrowheads";
 
 interface ExcalidrawElement {
   id: string;
@@ -327,6 +328,9 @@ export async function insertMermaidIntoCanvas(
           regenerateIds: true,
         }) as ExcalidrawElement[],
       );
+      if (document.type === "erDiagram") {
+        remapMermaidArrowheads(newElements);
+      }
 
       const isImageOnlyResult =
         newElements.length === 1 && newElements[0]?.type === "image";
