@@ -36,6 +36,7 @@ interface UseAutoModeOptions {
   visualLevel: VisualLevel;
   reasoningMode?: ReasoningMode;
   onError?: (error: DrawmaidError) => void;
+  onRefusal?: () => void;
   onGeneratingChange?: (generating: boolean) => void;
 }
 
@@ -257,7 +258,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         if (!isCurrent() || insertionState.result === "stale") return;
 
         if (!policyResult.inserted) {
-          if (policyResult.output.kind === "no-diagram") return;
+          if (policyResult.output.kind === "no-diagram") {
+            optionsRef.current.onRefusal?.();
+            return;
+          }
           logWarn(
             "AUTO_MODE",
             `Could not resolve Mermaid from task #${task.id ?? "?"}`,

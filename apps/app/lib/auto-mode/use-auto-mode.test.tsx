@@ -900,4 +900,34 @@ describe("useAutoMode visual-level policy", () => {
     expect(api.updateScene).toHaveBeenCalledTimes(1);
     unmount();
   });
+
+  it("reports a refusal as a partial outcome instead of an error", async () => {
+    const api = createCanvasApi();
+    const generate = vi.fn().mockResolvedValue("NO_DIAGRAM");
+    const onRefusal = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      useAutoMode({
+        excalidrawApiRef: { current: api },
+        generate,
+        currentModel: "local-model",
+        isLocalServerConfigured: true,
+        isAutoMode: true,
+        transcript: "create a diagram",
+        visualLevel: "low",
+        onRefusal,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRefusal).toHaveBeenCalledOnce();
+    expect(api.updateScene).not.toHaveBeenCalled();
+    unmount();
+  });
 });

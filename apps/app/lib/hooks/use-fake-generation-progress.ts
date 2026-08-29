@@ -3,8 +3,12 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 const MAX_PROGRESS = 91;
 const HALF_LIFE_MS = 2000;
 const UPDATE_INTERVAL_MS = 50;
+const REFUSAL_PROGRESS = 18;
 
-export function useFakeGenerationProgress(isProgressing: boolean): number {
+export function useFakeGenerationProgress(
+  isProgressing: boolean,
+  isRefusal = false,
+): number {
   const progressRef = useRef(0);
   const startTimeRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -34,7 +38,7 @@ export function useFakeGenerationProgress(isProgressing: boolean): number {
       tick();
       intervalRef.current = setInterval(tick, UPDATE_INTERVAL_MS);
     } else {
-      progressRef.current = 0;
+      progressRef.current = isRefusal ? REFUSAL_PROGRESS : 0;
       subscribersRef.current.forEach((cb) => cb());
     }
 
@@ -44,7 +48,7 @@ export function useFakeGenerationProgress(isProgressing: boolean): number {
         intervalRef.current = null;
       }
     };
-  }, [isProgressing]);
+  }, [isProgressing, isRefusal]);
 
   return useSyncExternalStore(
     store.subscribe,

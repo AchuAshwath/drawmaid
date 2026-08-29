@@ -108,6 +108,27 @@ function Home() {
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refusalFeedback, setRefusalFeedback] = useState(false);
+  const refusalFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const clearRefusalFeedback = useCallback(() => {
+    if (refusalFeedbackTimerRef.current !== null) {
+      clearTimeout(refusalFeedbackTimerRef.current);
+      refusalFeedbackTimerRef.current = null;
+    }
+    setRefusalFeedback(false);
+  }, []);
+  const showRefusalFeedback = useCallback(() => {
+    if (refusalFeedbackTimerRef.current !== null) {
+      clearTimeout(refusalFeedbackTimerRef.current);
+    }
+    setRefusalFeedback(true);
+    refusalFeedbackTimerRef.current = setTimeout(() => {
+      refusalFeedbackTimerRef.current = null;
+      setRefusalFeedback(false);
+    }, 1000);
+  }, []);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
@@ -151,6 +172,10 @@ function Home() {
     transcript: prompt,
     visualLevel,
     reasoningMode,
+    onGeneratingChange: (generating) => {
+      if (generating) clearRefusalFeedback();
+    },
+    onRefusal: showRefusalFeedback,
     onError: (drawmaidError) => {
       setError(drawmaidError.message);
       setErrorContext(drawmaidError);
@@ -159,7 +184,16 @@ function Home() {
 
   const generationProgress = useFakeGenerationProgress(
     isGenerating || isProcessing || autoModeGenerating,
+    refusalFeedback,
   );
+
+  useEffect(() => {
+    return () => {
+      if (refusalFeedbackTimerRef.current !== null) {
+        clearTimeout(refusalFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   // Helper to set error with full context
   const handleError = (
@@ -315,6 +349,7 @@ function Home() {
 
   const handleGenerate = async () => {
     setError(null);
+    clearRefusalFeedback();
     setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
@@ -450,7 +485,10 @@ function Home() {
       setIsGenerating(false);
       setIsProcessing(false);
       if (!policyResult.inserted) {
-        if (policyResult.output.kind === "no-diagram") return;
+        if (policyResult.output.kind === "no-diagram") {
+          showRefusalFeedback();
+          return;
+        }
         const diagnostics = generationAttempt?.failureDiagnostics();
         handleError(
           recoveryAttempted ? "recovery" : "normalize",
@@ -684,7 +722,8 @@ function Home() {
               status === "generating" ||
               isGenerating ||
               isProcessing ||
-              autoModeGenerating
+              autoModeGenerating ||
+              refusalFeedback
             }
             onTranscript={(text) => {
               setPrompt(text);
