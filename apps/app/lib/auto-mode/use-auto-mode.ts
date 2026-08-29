@@ -322,7 +322,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const invalidateCurrentGeneration = useCallback(() => {
     generationEpochRef.current++;
     taskEpochRef.current = new WeakMap();
-    // This callback is also called from the level/provider transition effect;
+    // This callback is also called from the provider transition effect;
     // the synchronous state reset is intentional for its cancellation seam.
     // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setIsGenerating(false);
@@ -384,14 +384,26 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     previousVisualLevelRef.current = visualLevel;
     previousLocalModeRef.current = isLocal;
 
-    invalidateCurrentGeneration();
+    if (providerChanged) {
+      invalidateCurrentGeneration();
 
-    if (!isAutoMode || !engineRef.current) return;
-    if (!isLocal && !providerChanged) return;
+      if (!isAutoMode || !engineRef.current) return;
 
-    engineRef.current.stop();
-    engineRef.current = createEngine();
-    engineRef.current.onTranscriptChange(transcriptRef.current);
+      engineRef.current.stop();
+      engineRef.current = createEngine();
+      engineRef.current.onTranscriptChange(transcriptRef.current);
+      return;
+    }
+
+    // An effort-level change must not invalidate a provider task that is
+    // already running. That task captured its level when it started; only
+    // the next task should observe the new level. Update the debounce policy
+    // in place so a pending transcript uses the new level as well.
+    if (visualLevelChanged && isAutoMode && engineRef.current && isLocal) {
+      engineRef.current.updateSettlingMs(
+        getVisualLevelPolicy(visualLevel).autoMode.settlingMs,
+      );
+    }
   }, [
     visualLevel,
     isLocalServerConfigured,

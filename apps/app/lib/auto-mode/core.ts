@@ -21,6 +21,7 @@ export class AutoModeEngine {
   private lastTriggeredText: string = "";
   private lastTriggeredTimestamp: number = 0;
   private pendingTranscript: string | null = null;
+  private settlingTranscript: string | null = null;
   private isStarted: boolean = false;
   private latestTask: GenerationTask | null = null;
   private _activeGenerations: Map<GenerationTask, number> = new Map();
@@ -55,6 +56,7 @@ export class AutoModeEngine {
       clearTimeout(this.settlingTimeoutId);
       this.settlingTimeoutId = null;
     }
+    this.settlingTranscript = null;
     this._activeGenerations.clear();
     this.latestTask = null;
     this._oldestGenerationId = null;
@@ -78,11 +80,19 @@ export class AutoModeEngine {
       clearTimeout(this.settlingTimeoutId);
       this.settlingTimeoutId = null;
     }
+    this.settlingTranscript = null;
     this.lastTriggeredText = "";
     this.lastTriggeredTimestamp = Date.now();
     this.pendingTranscript = null;
     this.state.lastProcessedTranscript = "";
     this.latestTask = null;
+  }
+
+  updateSettlingMs(settlingMs: number): void {
+    this.config.settlingMs = settlingMs;
+    if (this.settlingTimeoutId !== null && this.settlingTranscript !== null) {
+      this.scheduleSettling(this.settlingTranscript);
+    }
   }
 
   onTranscriptChange(transcript: string): void {
@@ -95,6 +105,7 @@ export class AutoModeEngine {
         clearTimeout(this.settlingTimeoutId);
         this.settlingTimeoutId = null;
       }
+      this.settlingTranscript = null;
       return;
     }
 
@@ -129,18 +140,12 @@ export class AutoModeEngine {
     }
 
     // Condition B: Standard Speech-Cadence Settling Debounce (fires when user pauses for 1.5s)
-    if (this.settlingTimeoutId !== null) {
-      clearTimeout(this.settlingTimeoutId);
-      this.settlingTimeoutId = null;
-    }
-
-    this.settlingTimeoutId = setTimeout(() => {
-      this.onSettled(transcript);
-    }, this.config.settlingMs);
+    this.scheduleSettling(transcript);
   }
 
   private onSettled(transcript: string): void {
     this.settlingTimeoutId = null;
+    this.settlingTranscript = null;
 
     if (!this.isStarted) return;
 
@@ -160,6 +165,17 @@ export class AutoModeEngine {
     }
 
     this.triggerGeneration(transcript);
+  }
+
+  private scheduleSettling(transcript: string): void {
+    if (this.settlingTimeoutId !== null) {
+      clearTimeout(this.settlingTimeoutId);
+    }
+
+    this.settlingTranscript = transcript;
+    this.settlingTimeoutId = setTimeout(() => {
+      this.onSettled(transcript);
+    }, this.config.settlingMs);
   }
 
   private triggerGeneration(transcript: string): void {

@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawCanvasApi } from "@/lib/canvas/insert-mermaid-into-canvas";
-import { SYSTEM_PROMPT } from "@/lib/llm/mermaid-llm";
+import { SYSTEM_PROMPT, type GenerateOptions } from "@/lib/llm/mermaid-llm";
 import { getVisualLevelPolicy, type VisualLevel } from "@/lib/llm/visual-level";
 
 const converterMocks = vi.hoisted(() => ({
@@ -486,7 +486,71 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
-  it("invalidates delayed WebLLM conversion when the visual level changes", async () => {
+  it("finishes the active task when the visual level changes and applies the new level next", async () => {
+    const api = createCanvasApi();
+    const output = "```mermaid\nflowchart TD\nA --> B\n```";
+    let finishFirstGeneration!: (value: string) => void;
+    let invocation = 0;
+    const generate = vi.fn((_: string, options: GenerateOptions) => {
+      invocation += 1;
+      if (invocation === 1) {
+        return new Promise<string>((resolve) => {
+          finishFirstGeneration = resolve;
+        });
+      }
+
+      return Promise.resolve(
+        options.maxTokens === 512 ? "planning brief" : output,
+      );
+    });
+
+    const { rerender, unmount } = renderHook(
+      ({ transcript, visualLevel }: HookProps) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript,
+          visualLevel,
+        }),
+      { initialProps: { transcript: "first request", visualLevel: "low" } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][1]).toMatchObject({ maxTokens: 1024 });
+
+    rerender({ transcript: "first request", visualLevel: "high" });
+    await act(async () => {
+      finishFirstGeneration(output);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+
+    rerender({ transcript: "second request", visualLevel: "high" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("high").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate.mock.calls[1][1]).toMatchObject({ maxTokens: 512 });
+    expect(generate.mock.calls[2][1]).toMatchObject({ maxTokens: 2048 });
+    unmount();
+  });
+
+  it("finishes delayed WebLLM conversion when the visual level changes", async () => {
     const api = createCanvasApi();
     const onError = vi.fn();
     const generate = vi
@@ -532,7 +596,7 @@ describe("useAutoMode visual-level policy", () => {
       await Promise.resolve();
     });
 
-    expect(api.updateScene).not.toHaveBeenCalled();
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
     unmount();
   });
