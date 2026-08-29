@@ -180,6 +180,55 @@ test("inserts a multi-diagram generation as one ordered Canvas batch", async ({
   expect(result.viewportZoomFactor).toBe(0.8);
 });
 
+test("keeps circular labels readable when Mermaid wraps their text", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.waitForSelector(".excalidraw", { timeout: 30000 });
+  const metrics = await page.evaluate(async () => {
+    const runtimePath = "/lib/canvas/insert-mermaid-into-canvas.ts";
+    const { insertMermaidIntoCanvas } = await import(runtimePath);
+    let elements: Array<Record<string, unknown>> = [];
+    await insertMermaidIntoCanvas(
+      {
+        getSceneElements: () => [],
+        getAppState: () => ({ scrollX: 0, scrollY: 0, zoom: 1 }),
+        updateScene: (scene: { elements?: unknown[] }) => {
+          elements = (scene.elements ?? []) as Array<Record<string, unknown>>;
+        },
+        scrollToContent: () => {},
+        refresh: () => {},
+      },
+      [
+        {
+          type: "flowchart",
+          capability: "editable",
+          code: "flowchart TD\nstart((Start)) --> review[Review cart]",
+        },
+      ],
+    );
+    return elements
+      .filter(
+        (element) => element.type === "ellipse" || element.type === "text",
+      )
+      .map((element) => ({
+        type: element.type,
+        text: element.text,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        containerId: element.containerId,
+      }));
+  });
+  const startLabel = metrics.find((element) => element.type === "text");
+  const startShape = metrics.find((element) => element.type === "ellipse");
+  expect(startLabel?.text).toBe("Start");
+  expect(Number(startShape?.width ?? 0)).toBeGreaterThanOrEqual(
+    Number(startShape?.height ?? 0),
+  );
+});
+
 test("inserts each approved image-only diagram as one image", async ({
   page,
 }) => {

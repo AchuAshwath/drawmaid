@@ -155,6 +155,65 @@ function shiftElements(
   }));
 }
 
+/**
+ * Mermaid's SVG layout can wrap a short label inside a circular node before
+ * conversion (for example, `Start` becoming `St\nart`). Restore the source
+ * label and give its ellipse enough room to remain readable. The converter
+ * preserves the unwrapped value as `originalText` on the text element.
+ */
+function normalizeCircularLabels(
+  elements: ExcalidrawElement[],
+): ExcalidrawElement[] {
+  const normalized = elements.map((element) => ({ ...element }));
+
+  for (const shape of normalized) {
+    if (shape.type !== "ellipse") continue;
+
+    const label = normalized.find(
+      (element) =>
+        element.type === "text" &&
+        element.containerId === shape.id &&
+        typeof element.text === "string" &&
+        element.text.includes("\n") &&
+        typeof element.originalText === "string" &&
+        element.originalText.trim().length > 0,
+    );
+    if (!label) continue;
+
+    const wrappedText = label.text as string;
+    const originalText = label.originalText as string;
+    const longestLineLength = Math.max(
+      ...wrappedText.split(/\r?\n/).map((line) => line.length),
+      1,
+    );
+    const unwrappedWidth =
+      (label.width * originalText.length) / longestLineLength;
+    const horizontalPadding = Math.max(shape.width - label.width, 32);
+    const diameter = Math.max(
+      shape.width,
+      shape.height,
+      unwrappedWidth + horizontalPadding,
+    );
+    const centerX = shape.x + shape.width / 2;
+    const centerY = shape.y + shape.height / 2;
+    const labelHeight = Math.max(
+      (typeof label.fontSize === "number" ? label.fontSize : 20) *
+        (typeof label.lineHeight === "number" ? label.lineHeight : 1.25),
+      1,
+    );
+
+    shape.x = centerX - diameter / 2;
+    shape.width = diameter;
+    label.text = originalText;
+    label.width = unwrappedWidth;
+    label.height = labelHeight;
+    label.x = centerX - unwrappedWidth / 2;
+    label.y = centerY - labelHeight / 2;
+  }
+
+  return normalized;
+}
+
 interface PreparedDiagram {
   readonly document: DiagramDocument;
   readonly elements: ExcalidrawElement[];
@@ -263,9 +322,11 @@ export async function insertMermaidIntoCanvas(
       const { elements: skeleton, files } = await parseMermaidToExcalidraw(
         document.code,
       );
-      const newElements = convertToExcalidrawElements(skeleton, {
-        regenerateIds: true,
-      }) as ExcalidrawElement[];
+      const newElements = normalizeCircularLabels(
+        convertToExcalidrawElements(skeleton, {
+          regenerateIds: true,
+        }) as ExcalidrawElement[],
+      );
 
       const isImageOnlyResult =
         newElements.length === 1 && newElements[0]?.type === "image";
