@@ -279,7 +279,6 @@ function Home() {
 
   const handleVisualLevelChange = (level: VisualLevel) => {
     if (!isVisualLevel(level)) return;
-    invalidateCurrentGeneration();
     setVisualLevel(level);
     saveVisualLevel(level);
   };
