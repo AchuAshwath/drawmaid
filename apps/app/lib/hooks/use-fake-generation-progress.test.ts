@@ -1,5 +1,7 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { vi } from "vitest";
+import { useFakeGenerationProgress } from "./use-fake-generation-progress";
 
 const MAX_PROGRESS = 91;
 const HALF_LIFE_MS = 2000;
@@ -69,5 +71,47 @@ describe("isProgressing parameter name", () => {
   it("hook accepts isProgressing parameter for clarity", () => {
     const paramName = "isProgressing";
     expect(paramName).toBe("isProgressing");
+  });
+});
+
+describe("refusal feedback", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps refusal feedback visible while slowly decaying and resumes from it", () => {
+    const { result, rerender } = renderHook(
+      ({ progressing, refused }: { progressing: boolean; refused: boolean }) =>
+        useFakeGenerationProgress(progressing, refused),
+      { initialProps: { progressing: false, refused: false } },
+    );
+
+    rerender({ progressing: false, refused: true });
+    expect(result.current).toBe(18);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const decayedProgress = result.current;
+    expect(decayedProgress).toBeGreaterThan(0);
+    expect(decayedProgress).toBeLessThan(18);
+
+    rerender({ progressing: true, refused: false });
+    expect(result.current).toBe(decayedProgress);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBeGreaterThan(decayedProgress);
+
+    rerender({ progressing: false, refused: true });
+    act(() => {
+      vi.advanceTimersByTime(120_000);
+    });
+    expect(result.current).toBe(1);
   });
 });

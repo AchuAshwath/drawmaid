@@ -10,7 +10,7 @@ export type GenerateFn = (task: GenerationTask) => Promise<string | null>;
 export type ResultCallback = (
   result: string | null,
   task: GenerationTask,
-) => void;
+) => void | Promise<void>;
 
 export class AutoModeEngine {
   private state: AutoModeState;
@@ -21,6 +21,7 @@ export class AutoModeEngine {
   private lastTriggeredText: string = "";
   private lastTriggeredTimestamp: number = 0;
   private pendingTranscript: string | null = null;
+  private pendingTranscriptCanRepeat = false;
   private settlingTranscript: string | null = null;
   private isStarted: boolean = false;
   private latestTask: GenerationTask | null = null;
@@ -63,6 +64,7 @@ export class AutoModeEngine {
     this.lastTriggeredText = "";
     this.lastTriggeredTimestamp = 0;
     this.pendingTranscript = null;
+    this.pendingTranscriptCanRepeat = false;
     this.state.generationCounter = 0;
     this.state.lastSuccessfulGenId = -1;
     this.state.lastProcessedTranscript = "";
@@ -84,6 +86,7 @@ export class AutoModeEngine {
     this.lastTriggeredText = "";
     this.lastTriggeredTimestamp = Date.now();
     this.pendingTranscript = null;
+    this.pendingTranscriptCanRepeat = false;
     this.state.lastProcessedTranscript = "";
     this.latestTask = null;
   }
@@ -93,6 +96,28 @@ export class AutoModeEngine {
     if (this.settlingTimeoutId !== null && this.settlingTranscript !== null) {
       this.scheduleSettling(this.settlingTranscript);
     }
+  }
+
+  /**
+   * Queue the latest transcript for a follow-up generation when a setting
+   * changes during an active provider task. The current task remains the
+   * owner of its result; the queued snapshot is allowed to equal the last
+   * triggered transcript because it must be regenerated under the new policy.
+   */
+  queueCurrentTranscript(transcript: string): void {
+    if (
+      !this.isStarted ||
+      this._activeGenerations.size === 0 ||
+      transcript.trim().length < this.config.minTranscriptLength ||
+      // If speech has advanced beyond the task snapshot, the normal settling
+      // path will queue that newer transcript without replaying partial text.
+      transcript !== this.lastTriggeredText
+    ) {
+      return;
+    }
+
+    this.pendingTranscript = transcript;
+    this.pendingTranscriptCanRepeat = true;
   }
 
   onTranscriptChange(transcript: string): void {
@@ -111,6 +136,7 @@ export class AutoModeEngine {
 
     if (transcript === this.lastTriggeredText) {
       this.pendingTranscript = null;
+      this.pendingTranscriptCanRepeat = false;
       return;
     }
 
@@ -135,6 +161,7 @@ export class AutoModeEngine {
         return;
       } else {
         this.pendingTranscript = transcript;
+        this.pendingTranscriptCanRepeat = false;
         return;
       }
     }
@@ -161,6 +188,7 @@ export class AutoModeEngine {
     // If already generating, queue this transcript to run once current finishes
     if (this._activeGenerations.size >= this.config.maxConcurrentGenerations) {
       this.pendingTranscript = transcript;
+      this.pendingTranscriptCanRepeat = false;
       return;
     }
 
@@ -182,6 +210,7 @@ export class AutoModeEngine {
     this.lastTriggeredText = transcript;
     this.lastTriggeredTimestamp = Date.now();
     this.pendingTranscript = null;
+    this.pendingTranscriptCanRepeat = false;
     const genId = ++this.state.generationCounter;
 
     const task: GenerationTask = {
@@ -223,11 +252,20 @@ export class AutoModeEngine {
         this.pushToStack(result);
       }
 
+      // A task owns the full provider-to-Canvas pipeline. Keep it active
+      // until normalization and conversion finish so the default single-flight
+      // queue can show this snapshot before starting the next transcript.
+      try {
+        await this.onResult(result, task);
+      } catch {
+        // Result callbacks own user-facing diagnostics; the engine still
+        // releases the task if a callback unexpectedly throws synchronously.
+      }
+
       this._activeGenerations.delete(task);
       if (this._oldestGenerationId === task.id) {
         this._oldestGenerationId = this.findNewOldest();
       }
-      this.onResult(result, task);
     } catch {
       this._activeGenerations.delete(task);
       if (this._oldestGenerationId === task.id) {
@@ -243,7 +281,8 @@ export class AutoModeEngine {
       this.isStarted &&
       this._activeGenerations.size < this.config.maxConcurrentGenerations &&
       this.pendingTranscript !== null &&
-      this.pendingTranscript !== this.lastTriggeredText &&
+      (this.pendingTranscript !== this.lastTriggeredText ||
+        this.pendingTranscriptCanRepeat) &&
       this.pendingTranscript.trim().length >= this.config.minTranscriptLength
     ) {
       const nextTranscript = this.pendingTranscript;

@@ -67,6 +67,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
         {
           maxTokens: opts?.maxTokens,
           temperature: opts?.temperature,
+          reasoningMode: opts?.reasoningMode,
           timeoutMs: opts?.timeoutMs,
         },
       );
@@ -92,6 +93,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
         {
           maxTokens: opts.maxTokens,
           temperature: opts.temperature,
+          reasoningMode: opts.reasoningMode,
           timeoutMs: opts.timeoutMs,
         },
       );

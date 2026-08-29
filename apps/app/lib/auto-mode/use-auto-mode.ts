@@ -8,6 +8,7 @@ import {
 import { applyDiagramOutputPolicy } from "@/lib/diagram-output-policy";
 import { extractIntent } from "@/lib/llm/intent-extraction";
 import { type GenerateOptions } from "@/lib/llm/mermaid-llm";
+import type { ReasoningMode } from "@/lib/llm/reasoning-mode";
 import {
   generateDiagram,
   GenerationError,
@@ -33,7 +34,9 @@ interface UseAutoModeOptions {
   isAutoMode: boolean;
   transcript: string;
   visualLevel: VisualLevel;
+  reasoningMode?: ReasoningMode;
   onError?: (error: DrawmaidError) => void;
+  onRefusal?: () => void;
   onGeneratingChange?: (generating: boolean) => void;
 }
 
@@ -57,6 +60,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const generationEpochRef = useRef(0);
   const taskEpochRef = useRef(new WeakMap<object, number>());
   const previousVisualLevelRef = useRef(visualLevel);
+  const previousReasoningModeRef = useRef(options.reasoningMode);
   const previousLocalModeRef = useRef(Boolean(options.isLocalServerConfigured));
   const lastProcessedRef = useRef("");
   const optionsRef = useRef(options);
@@ -75,6 +79,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         generateDetailed,
         isLocalServerConfigured,
         visualLevel: taskVisualLevel,
+        reasoningMode: taskReasoningMode,
       } = optionsRef.current;
 
       // A new provider task supersedes every task that started earlier in the
@@ -111,6 +116,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
             provider: useLocal ? "local" : "webllm",
             modelId: model,
             mode: "auto",
+            reasoningMode: taskReasoningMode,
             isStillCurrent: () =>
               taskEpoch === generationEpochRef.current &&
               taskEpochRef.current.get(task) === taskEpoch,
@@ -252,7 +258,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         if (!isCurrent() || insertionState.result === "stale") return;
 
         if (!policyResult.inserted) {
-          if (policyResult.output.kind === "no-diagram") return;
+          if (policyResult.output.kind === "no-diagram") {
+            optionsRef.current.onRefusal?.();
+            return;
+          }
           logWarn(
             "AUTO_MODE",
             `Could not resolve Mermaid from task #${task.id ?? "?"}`,
@@ -378,10 +387,15 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   useEffect(() => {
     const isLocal = Boolean(optionsRef.current.isLocalServerConfigured);
     const visualLevelChanged = previousVisualLevelRef.current !== visualLevel;
+    const reasoningModeChanged =
+      previousReasoningModeRef.current !== options.reasoningMode;
     const providerChanged = previousLocalModeRef.current !== isLocal;
-    if (!visualLevelChanged && !providerChanged) return;
+    if (!visualLevelChanged && !reasoningModeChanged && !providerChanged) {
+      return;
+    }
 
     previousVisualLevelRef.current = visualLevel;
+    previousReasoningModeRef.current = options.reasoningMode;
     previousLocalModeRef.current = isLocal;
 
     if (providerChanged) {
@@ -399,13 +413,22 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
     // already running. That task captured its level when it started; only
     // the next task should observe the new level. Update the debounce policy
     // in place so a pending transcript uses the new level as well.
-    if (visualLevelChanged && isAutoMode && engineRef.current && isLocal) {
-      engineRef.current.updateSettlingMs(
-        getVisualLevelPolicy(visualLevel).autoMode.settlingMs,
-      );
+    if (
+      (visualLevelChanged || reasoningModeChanged) &&
+      isAutoMode &&
+      engineRef.current &&
+      isLocal
+    ) {
+      if (visualLevelChanged) {
+        engineRef.current.updateSettlingMs(
+          getVisualLevelPolicy(visualLevel).autoMode.settlingMs,
+        );
+      }
+      engineRef.current.queueCurrentTranscript(transcriptRef.current);
     }
   }, [
     visualLevel,
+    options.reasoningMode,
     isLocalServerConfigured,
     isAutoMode,
     createEngine,

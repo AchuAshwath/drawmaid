@@ -68,6 +68,27 @@ describe("PromptSettingsMenu", () => {
     expect(onChange).toHaveBeenCalledWith("medium");
   });
 
+  it("selects Fast or Auto reasoning for a local provider", () => {
+    const onChange = vi.fn();
+    render(
+      <PromptSettingsMenu
+        currentModel="gpt-5.6-luna"
+        localServerConfigured
+        reasoningModeControl={{ value: "auto", onChange }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Model and effort settings" }),
+    );
+    expect(screen.getByRole("menuitem", { name: /Reasoning/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Reasoning/ }));
+    expect(screen.getByRole("menu", { name: "Reasoning modes" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Fast" }));
+
+    expect(onChange).toHaveBeenCalledWith("fast");
+  });
+
   it("selects a model from the nested options", () => {
     const onSelectModel = vi.fn();
     render(

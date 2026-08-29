@@ -376,8 +376,9 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
-  it("does not let an older conversion commit after a newer task starts", async () => {
-    const api = createCanvasApi();
+  it("commits a completed snapshot before starting a queued transcript", async () => {
+    const updateScene = vi.fn();
+    const api = { ...createCanvasApi(), updateScene };
     const generate = vi
       .fn()
       .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```")
@@ -425,16 +426,92 @@ describe("useAutoMode visual-level policy", () => {
       await Promise.resolve();
     });
 
-    expect(generate).toHaveBeenCalledTimes(2);
-    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    // The next transcript is queued, but cannot supersede the snapshot while
+    // its Mermaid conversion is still committing.
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(updateScene).not.toHaveBeenCalled();
 
     await act(async () => {
       finishFirstConversion({ elements: [{}], files: null });
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
     });
 
-    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    expect(updateScene).toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(updateScene.mock.invocationCallOrder[0]).toBeLessThan(
+      generate.mock.invocationCallOrder[1],
+    );
+    unmount();
+  });
+
+  it("keeps the first snapshot visible while rapid transcript churn queues only the latest", async () => {
+    const updateScene = vi.fn();
+    const api = { ...createCanvasApi(), updateScene };
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce("```mermaid\nflowchart TD\nA --> B\n```")
+      .mockResolvedValue("```mermaid\nflowchart TD\nB --> C\n```");
+    let finishFirstConversion!: (value: {
+      elements: unknown[];
+      files: null;
+    }) => void;
+    converterMocks.parseMermaid
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishFirstConversion = resolve;
+        }),
+      )
+      .mockResolvedValue({ elements: [{}], files: null });
+
+    const { rerender, unmount } = renderHook(
+      ({ transcript }: { transcript: string }) =>
+        useAutoMode({
+          excalidrawApiRef: { current: api },
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript,
+          visualLevel: "low",
+        }),
+      { initialProps: { transcript: "draw the checkout flow" } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ transcript: "draw the checkout flow with payment" });
+    rerender({ transcript: "draw the checkout flow with payment and retry" });
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(updateScene).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishFirstConversion({ elements: [{}], files: null });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateScene).toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][0]).toBe(
+      "draw the checkout flow with payment and retry",
+    );
+    expect(updateScene.mock.invocationCallOrder[0]).toBeLessThan(
+      generate.mock.invocationCallOrder[1],
+    );
     unmount();
   });
 
@@ -547,6 +624,111 @@ describe("useAutoMode visual-level policy", () => {
     expect(generate).toHaveBeenCalledTimes(3);
     expect(generate.mock.calls[1][1]).toMatchObject({ maxTokens: 512 });
     expect(generate.mock.calls[2][1]).toMatchObject({ maxTokens: 2048 });
+    unmount();
+  });
+
+  it("replays the latest snapshot after a level change without a newer transcript", async () => {
+    const api = createCanvasApi();
+    const excalidrawApiRef = { current: api };
+    const output = "```mermaid\nflowchart TD\nA --> B\n```";
+    let finishFirstGeneration!: (value: string) => void;
+    let invocation = 0;
+    const generate = vi.fn((_: string, options: GenerateOptions) => {
+      invocation += 1;
+      if (invocation === 1) {
+        return new Promise<string>((resolve) => {
+          finishFirstGeneration = resolve;
+        });
+      }
+
+      return Promise.resolve(
+        options.maxTokens === 512 ? "planning brief" : output,
+      );
+    });
+
+    const { rerender, unmount } = renderHook(
+      ({ visualLevel }: { visualLevel: VisualLevel }) =>
+        useAutoMode({
+          excalidrawApiRef,
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript: "show the checkout flow",
+          visualLevel,
+        }),
+      { initialProps: { visualLevel: "low" as VisualLevel } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ visualLevel: "high" });
+    await act(async () => {
+      finishFirstGeneration(output);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate.mock.calls[1][0]).toBe("show the checkout flow");
+    expect(generate.mock.calls[1][1]).toMatchObject({ maxTokens: 512 });
+    expect(generate.mock.calls[2][1]).toMatchObject({ maxTokens: 2048 });
+    unmount();
+  });
+
+  it("replays the latest snapshot after a reasoning-mode change", async () => {
+    const api = createCanvasApi();
+    const excalidrawApiRef = { current: api };
+    const output = "```mermaid\nflowchart TD\nA --> B\n```";
+    let finishFirstGeneration!: (value: string) => void;
+    const generate = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            finishFirstGeneration = resolve;
+          }),
+      )
+      .mockResolvedValue(output);
+
+    const { rerender, unmount } = renderHook(
+      ({ reasoningMode }: { reasoningMode: "fast" | "auto" }) =>
+        useAutoMode({
+          excalidrawApiRef,
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript: "show the checkout flow",
+          visualLevel: "low",
+          reasoningMode,
+        }),
+      {
+        initialProps: { reasoningMode: "fast" as "fast" | "auto" },
+      },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ reasoningMode: "auto" });
+    await act(async () => {
+      finishFirstGeneration(output);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][1]).toMatchObject({ reasoningMode: "auto" });
     unmount();
   });
 
@@ -716,6 +898,36 @@ describe("useAutoMode visual-level policy", () => {
 
     expect(generate).toHaveBeenCalledTimes(2);
     expect(api.updateScene).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("reports a refusal as a partial outcome instead of an error", async () => {
+    const api = createCanvasApi();
+    const generate = vi.fn().mockResolvedValue("NO_DIAGRAM");
+    const onRefusal = vi.fn();
+
+    const { unmount } = renderHook(() =>
+      useAutoMode({
+        excalidrawApiRef: { current: api },
+        generate,
+        currentModel: "local-model",
+        isLocalServerConfigured: true,
+        isAutoMode: true,
+        transcript: "create a diagram",
+        visualLevel: "low",
+        onRefusal,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onRefusal).toHaveBeenCalledOnce();
+    expect(api.updateScene).not.toHaveBeenCalled();
     unmount();
   });
 });

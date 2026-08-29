@@ -7,10 +7,20 @@ import {
   VISUAL_LEVELS,
   type VisualLevel,
 } from "@/lib/llm/visual-level";
+import {
+  isReasoningMode,
+  REASONING_MODES,
+  type ReasoningMode,
+} from "@/lib/llm/reasoning-mode";
 
 export interface VisualLevelControl {
   value: VisualLevel;
   onChange: (level: VisualLevel) => void;
+}
+
+export interface ReasoningModeControl {
+  value: ReasoningMode;
+  onChange: (mode: ReasoningMode) => void;
 }
 
 export interface PromptSettingsMenuProps {
@@ -20,9 +30,10 @@ export interface PromptSettingsMenuProps {
   localModels?: LocalModel[];
   localServerConfigured?: boolean;
   visualLevelControl?: VisualLevelControl;
+  reasoningModeControl?: ReasoningModeControl;
 }
 
-type SettingsPanel = "model" | "visual" | null;
+type SettingsPanel = "model" | "visual" | "reasoning" | null;
 type MenuPlacement = "left" | "right";
 const VIEWPORT_MARGIN = 12;
 
@@ -38,8 +49,17 @@ const VISUAL_LEVEL_LABELS: Record<VisualLevel, string> = {
   high: "High",
 };
 
+const REASONING_MODE_LABELS: Record<ReasoningMode, string> = {
+  fast: "Fast",
+  auto: "Auto",
+};
+
 function visualLevelLabel(level: VisualLevel): string {
   return VISUAL_LEVEL_LABELS[level];
+}
+
+function reasoningModeLabel(mode: ReasoningMode): string {
+  return REASONING_MODE_LABELS[mode];
 }
 
 function displayModelName(model: string): string {
@@ -53,6 +73,7 @@ export function PromptSettingsMenu({
   localModels = [],
   localServerConfigured = false,
   visualLevelControl,
+  reasoningModeControl,
 }: PromptSettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
@@ -154,7 +175,9 @@ export function PromptSettingsMenu({
     return () => window.removeEventListener("resize", updateOffset);
   }, [activePanel, localModels.length, open, webLLMModels.length]);
 
-  if (!hasModelOption && !visualLevelControl) return null;
+  if (!hasModelOption && !visualLevelControl && !reasoningModeControl) {
+    return null;
+  }
 
   const togglePanel = (panel: Exclude<SettingsPanel, null>) => {
     setOpen(true);
@@ -171,6 +194,13 @@ export function PromptSettingsMenu({
   const selectVisualLevel = (level: string) => {
     if (!visualLevelControl || !isVisualLevel(level)) return;
     visualLevelControl.onChange(level);
+    setOpen(false);
+    setActivePanel(null);
+  };
+
+  const selectReasoningMode = (mode: string) => {
+    if (!reasoningModeControl || !isReasoningMode(mode)) return;
+    reasoningModeControl.onChange(mode);
     setOpen(false);
     setActivePanel(null);
   };
@@ -243,6 +273,22 @@ export function PromptSettingsMenu({
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             )}
+            {localServerConfigured && reasoningModeControl && (
+              <button
+                type="button"
+                role="menuitem"
+                className={ROW_CLASS}
+                aria-haspopup="menu"
+                aria-expanded={activePanel === "reasoning"}
+                onClick={() => togglePanel("reasoning")}
+              >
+                <span>Reasoning</span>
+                <span className="ml-auto text-muted-foreground">
+                  {reasoningModeLabel(reasoningModeControl.value)}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            )}
           </div>
 
           {activePanel === "model" && (
@@ -304,6 +350,34 @@ export function PromptSettingsMenu({
                 >
                   <span>{visualLevelLabel(level)}</span>
                   {visualLevelControl.value === level && (
+                    <Check className="ml-auto h-4 w-4 shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {activePanel === "reasoning" && reasoningModeControl && (
+            <div
+              ref={submenuRef}
+              className={`${PANEL_CLASS} absolute max-h-[136px] w-[160px] ${
+                menuPlacement === "right" ? "left-[184px]" : "right-[184px]"
+              } top-[34px]`}
+              style={{ transform: `translateY(${submenuOffset}px)` }}
+              role="menu"
+              aria-label="Reasoning modes"
+            >
+              {REASONING_MODES.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={reasoningModeControl.value === mode}
+                  className={ROW_CLASS}
+                  onClick={() => selectReasoningMode(mode)}
+                >
+                  <span>{reasoningModeLabel(mode)}</span>
+                  {reasoningModeControl.value === mode && (
                     <Check className="ml-auto h-4 w-4 shrink-0" />
                   )}
                 </button>

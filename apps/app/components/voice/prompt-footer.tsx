@@ -4,6 +4,7 @@ import { VoiceInputButton } from "@/components/voice/voice-input-button";
 import {
   PromptSettingsMenu,
   type VisualLevelControl,
+  type ReasoningModeControl,
 } from "@/components/voice/prompt-settings-menu";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, Check, ChevronDown, ChevronUp } from "lucide-react";
@@ -11,6 +12,7 @@ import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
 import { useState } from "react";
 
 export type { VisualLevelControl } from "@/components/voice/prompt-settings-menu";
+export type { ReasoningModeControl } from "@/components/voice/prompt-settings-menu";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -36,6 +38,7 @@ export interface PromptFooterProps {
   localServerConfigured?: boolean;
   onKeep?: () => void;
   visualLevelControl?: VisualLevelControl;
+  reasoningModeControl?: ReasoningModeControl;
 }
 
 export function PromptFooter({
@@ -60,6 +63,7 @@ export function PromptFooter({
   localServerConfigured = false,
   onKeep,
   visualLevelControl,
+  reasoningModeControl,
 }: PromptFooterProps) {
   const [voiceResetKey, setVoiceResetKey] = useState(0);
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
@@ -193,6 +197,7 @@ export function PromptFooter({
                 onSelectModel={onSelectModel}
                 localServerConfigured={localServerConfigured}
                 visualLevelControl={visualLevelControl}
+                reasoningModeControl={reasoningModeControl}
               />
               <Button
                 type="button"

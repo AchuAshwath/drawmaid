@@ -23,6 +23,12 @@ import {
   type VisualLevel,
 } from "@/lib/llm/visual-level";
 import {
+  isReasoningMode,
+  loadReasoningMode,
+  saveReasoningMode,
+  type ReasoningMode,
+} from "@/lib/llm/reasoning-mode";
+import {
   createDrawmaidError,
   formatErrorForCopy,
   type DrawmaidError,
@@ -102,12 +108,22 @@ function Home() {
   const [aiConfigOpen, setAiConfigOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refusalFeedback, setRefusalFeedback] = useState(false);
+  const clearRefusalFeedback = useCallback(() => {
+    setRefusalFeedback(false);
+  }, []);
+  const showRefusalFeedback = useCallback(() => {
+    setRefusalFeedback(true);
+  }, []);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
   const [localServerConfigured, setLocalServerConfigured] = useState(false);
   const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
     loadVisualLevel(),
+  );
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>(() =>
+    loadReasoningMode(),
   );
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
@@ -141,6 +157,11 @@ function Home() {
     isAutoMode: mode === "auto",
     transcript: prompt,
     visualLevel,
+    reasoningMode,
+    onGeneratingChange: (generating) => {
+      if (generating) clearRefusalFeedback();
+    },
+    onRefusal: showRefusalFeedback,
     onError: (drawmaidError) => {
       setError(drawmaidError.message);
       setErrorContext(drawmaidError);
@@ -149,6 +170,7 @@ function Home() {
 
   const generationProgress = useFakeGenerationProgress(
     isGenerating || isProcessing || autoModeGenerating,
+    refusalFeedback,
   );
 
   // Helper to set error with full context
@@ -283,6 +305,12 @@ function Home() {
     saveVisualLevel(level);
   };
 
+  const handleReasoningModeChange = (mode: ReasoningMode) => {
+    if (!isReasoningMode(mode)) return;
+    setReasoningMode(mode);
+    saveReasoningMode(mode);
+  };
+
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -299,6 +327,7 @@ function Home() {
 
   const handleGenerate = async () => {
     setError(null);
+    clearRefusalFeedback();
     setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
@@ -312,6 +341,7 @@ function Home() {
         {
           transcript: prompt,
           visualLevel,
+          reasoningMode,
           provider: useLocalServer ? "local" : "webllm",
           modelId: currentModel,
           mode: "manual",
@@ -433,7 +463,10 @@ function Home() {
       setIsGenerating(false);
       setIsProcessing(false);
       if (!policyResult.inserted) {
-        if (policyResult.output.kind === "no-diagram") return;
+        if (policyResult.output.kind === "no-diagram") {
+          showRefusalFeedback();
+          return;
+        }
         const diagnostics = generationAttempt?.failureDiagnostics();
         handleError(
           recoveryAttempted ? "recovery" : "normalize",
@@ -667,7 +700,8 @@ function Home() {
               status === "generating" ||
               isGenerating ||
               isProcessing ||
-              autoModeGenerating
+              autoModeGenerating ||
+              refusalFeedback
             }
             onTranscript={(text) => {
               setPrompt(text);
@@ -696,6 +730,14 @@ function Home() {
             visualLevelControl={
               localServerConfigured
                 ? { value: visualLevel, onChange: handleVisualLevelChange }
+                : undefined
+            }
+            reasoningModeControl={
+              localServerConfigured
+                ? {
+                    value: reasoningMode,
+                    onChange: handleReasoningModeChange,
+                  }
                 : undefined
             }
           />

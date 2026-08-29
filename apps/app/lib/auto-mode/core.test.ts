@@ -274,6 +274,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
 
       finishNewGeneration("new result");
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       expect(engine.getActiveCount()).toBe(0);
       expect(mockOnResult).toHaveBeenCalledWith(
         "new result",
@@ -304,6 +306,57 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
   });
 
   describe("single-flight queue & concurrency", () => {
+    it("waits for Canvas insertion before draining a queued transcript", async () => {
+      let resolveGeneration!: (value: string) => void;
+      let resolveInsertion!: () => void;
+      mockGenerate.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveGeneration = resolve;
+          }),
+      );
+      mockOnResult.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveInsertion = resolve;
+          }),
+      );
+
+      const engine = new AutoModeEngine(
+        { settlingMs: 100, maxConcurrentGenerations: 1 },
+        mockGenerate,
+        mockOnResult,
+      );
+      engine.start();
+
+      engine.onTranscriptChange("first diagram request");
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+      expect(engine.getActiveCount()).toBe(1);
+
+      engine.queueCurrentTranscript("first diagram request");
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      resolveGeneration("first result");
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The first task is still committing, so its queued follow-up waits.
+      expect(engine.getActiveCount()).toBe(1);
+      expect(mockGenerate).toHaveBeenCalledTimes(1);
+
+      resolveInsertion();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockGenerate).toHaveBeenCalledTimes(2);
+      expect(mockGenerate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ transcript: "first diagram request" }),
+      );
+      engine.stop();
+    });
+
     it("queues new settled speech if generation is in-flight and fires immediately on completion", async () => {
       let resolveGen1: (value: string | null) => void;
 
@@ -340,6 +393,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
 
       // Complete generation #1
       resolveGen1!("first result");
+      await Promise.resolve();
+      await Promise.resolve();
       await Promise.resolve();
 
       // Now generation #2 automatically triggers with the queued transcript
@@ -439,6 +494,8 @@ describe("AutoModeEngine (Smart Settling Engine)", () => {
         mockGenerate.mockResolvedValueOnce(`code ${i}`);
         engine.onTranscriptChange(`transcript ${i}`);
         vi.advanceTimersByTime(100);
+        await Promise.resolve();
+        await Promise.resolve();
         await Promise.resolve();
       }
 
