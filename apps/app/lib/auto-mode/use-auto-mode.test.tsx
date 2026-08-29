@@ -550,6 +550,111 @@ describe("useAutoMode visual-level policy", () => {
     unmount();
   });
 
+  it("replays the latest snapshot after a level change without a newer transcript", async () => {
+    const api = createCanvasApi();
+    const excalidrawApiRef = { current: api };
+    const output = "```mermaid\nflowchart TD\nA --> B\n```";
+    let finishFirstGeneration!: (value: string) => void;
+    let invocation = 0;
+    const generate = vi.fn((_: string, options: GenerateOptions) => {
+      invocation += 1;
+      if (invocation === 1) {
+        return new Promise<string>((resolve) => {
+          finishFirstGeneration = resolve;
+        });
+      }
+
+      return Promise.resolve(
+        options.maxTokens === 512 ? "planning brief" : output,
+      );
+    });
+
+    const { rerender, unmount } = renderHook(
+      ({ visualLevel }: { visualLevel: VisualLevel }) =>
+        useAutoMode({
+          excalidrawApiRef,
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript: "show the checkout flow",
+          visualLevel,
+        }),
+      { initialProps: { visualLevel: "low" as VisualLevel } },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ visualLevel: "high" });
+    await act(async () => {
+      finishFirstGeneration(output);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate.mock.calls[1][0]).toBe("show the checkout flow");
+    expect(generate.mock.calls[1][1]).toMatchObject({ maxTokens: 512 });
+    expect(generate.mock.calls[2][1]).toMatchObject({ maxTokens: 2048 });
+    unmount();
+  });
+
+  it("replays the latest snapshot after a reasoning-mode change", async () => {
+    const api = createCanvasApi();
+    const excalidrawApiRef = { current: api };
+    const output = "```mermaid\nflowchart TD\nA --> B\n```";
+    let finishFirstGeneration!: (value: string) => void;
+    const generate = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            finishFirstGeneration = resolve;
+          }),
+      )
+      .mockResolvedValue(output);
+
+    const { rerender, unmount } = renderHook(
+      ({ reasoningMode }: { reasoningMode: "fast" | "auto" }) =>
+        useAutoMode({
+          excalidrawApiRef,
+          generate,
+          currentModel: "local-model",
+          isLocalServerConfigured: true,
+          isAutoMode: true,
+          transcript: "show the checkout flow",
+          visualLevel: "low",
+          reasoningMode,
+        }),
+      {
+        initialProps: { reasoningMode: "fast" as "fast" | "auto" },
+      },
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(getVisualLevelPolicy("low").autoMode.settlingMs);
+      await Promise.resolve();
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    rerender({ reasoningMode: "auto" });
+    await act(async () => {
+      finishFirstGeneration(output);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1][1]).toMatchObject({ reasoningMode: "auto" });
+    unmount();
+  });
+
   it("finishes delayed WebLLM conversion when the visual level changes", async () => {
     const api = createCanvasApi();
     const onError = vi.fn();

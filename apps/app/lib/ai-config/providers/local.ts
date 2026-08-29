@@ -1,4 +1,5 @@
 import type { LocalServerConfig } from "../types";
+import type { ReasoningMode } from "../../llm/reasoning-mode";
 
 export interface LocalProviderUsage {
   readonly promptTokens?: number;
@@ -24,6 +25,7 @@ export async function* localServerGenerate(
   options: {
     maxTokens?: number;
     temperature?: number;
+    reasoningMode?: ReasoningMode;
     signal?: AbortSignal;
   } = {},
 ): AsyncGenerator<string> {
@@ -42,11 +44,17 @@ async function* localServerGenerateChunks(
   options: {
     maxTokens?: number;
     temperature?: number;
+    reasoningMode?: ReasoningMode;
     signal?: AbortSignal;
   } = {},
 ): AsyncGenerator<LocalProviderChunk> {
   const { url, apiKey, model } = config;
-  const { maxTokens = 1024, temperature = 0.1, signal } = options;
+  const {
+    maxTokens = 1024,
+    temperature = 0.1,
+    reasoningMode = "fast",
+    signal,
+  } = options;
 
   const response = await fetch(resolveChatUrl(url), {
     method: "POST",
@@ -60,6 +68,9 @@ async function* localServerGenerateChunks(
       max_tokens: maxTokens,
       temperature,
       stream: true,
+      ...(shouldDisableReasoning(model) && reasoningMode === "fast"
+        ? { reasoning_effort: "none" }
+        : {}),
       // CLIProxyAPI owns cache markers; usage is observational only.
       stream_options: { include_usage: true },
     }),
@@ -152,6 +163,11 @@ function resolveChatUrl(baseUrl: string): string {
   return `${baseUrl}/v1/chat/completions`;
 }
 
+function shouldDisableReasoning(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return normalized.startsWith("gpt-5") || /^o\d(?:-|$)/.test(normalized);
+}
+
 export async function generateWithLocalServer(
   config: LocalServerConfig,
   systemPrompt: string,
@@ -159,6 +175,7 @@ export async function generateWithLocalServer(
   options: {
     maxTokens?: number;
     temperature?: number;
+    reasoningMode?: ReasoningMode;
     timeoutMs?: number;
     signal?: AbortSignal;
   } = {},
@@ -179,6 +196,7 @@ export async function generateWithLocalServerDetailed(
   options: {
     maxTokens?: number;
     temperature?: number;
+    reasoningMode?: ReasoningMode;
     timeoutMs?: number;
     signal?: AbortSignal;
   } = {},
@@ -199,6 +217,7 @@ export async function generateWithLocalServerDetailed(
     for await (const chunk of localServerGenerateChunks(config, messages, {
       maxTokens: options.maxTokens,
       temperature: options.temperature,
+      reasoningMode: options.reasoningMode,
       signal,
     })) {
       if (chunk.text) chunks.push(chunk.text);

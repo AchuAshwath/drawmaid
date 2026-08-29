@@ -23,6 +23,12 @@ import {
   type VisualLevel,
 } from "@/lib/llm/visual-level";
 import {
+  isReasoningMode,
+  loadReasoningMode,
+  saveReasoningMode,
+  type ReasoningMode,
+} from "@/lib/llm/reasoning-mode";
+import {
   createDrawmaidError,
   formatErrorForCopy,
   type DrawmaidError,
@@ -109,6 +115,9 @@ function Home() {
   const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
     loadVisualLevel(),
   );
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>(() =>
+    loadReasoningMode(),
+  );
   const [downloadedModelIds, setDownloadedModelIds] = useState<string[]>(() =>
     getDownloadedModels(),
   );
@@ -141,6 +150,7 @@ function Home() {
     isAutoMode: mode === "auto",
     transcript: prompt,
     visualLevel,
+    reasoningMode,
     onError: (drawmaidError) => {
       setError(drawmaidError.message);
       setErrorContext(drawmaidError);
@@ -283,6 +293,12 @@ function Home() {
     saveVisualLevel(level);
   };
 
+  const handleReasoningModeChange = (mode: ReasoningMode) => {
+    if (!isReasoningMode(mode)) return;
+    setReasoningMode(mode);
+    saveReasoningMode(mode);
+  };
+
   // Keep the app's Tailwind/shadcn theme in sync with our `theme` state.
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -312,6 +328,7 @@ function Home() {
         {
           transcript: prompt,
           visualLevel,
+          reasoningMode,
           provider: useLocalServer ? "local" : "webllm",
           modelId: currentModel,
           mode: "manual",
@@ -696,6 +713,14 @@ function Home() {
             visualLevelControl={
               localServerConfigured
                 ? { value: visualLevel, onChange: handleVisualLevelChange }
+                : undefined
+            }
+            reasoningModeControl={
+              localServerConfigured
+                ? {
+                    value: reasoningMode,
+                    onChange: handleReasoningModeChange,
+                  }
                 : undefined
             }
           />

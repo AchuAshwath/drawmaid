@@ -5,6 +5,7 @@ import {
   type Intent,
 } from "./intent-extraction";
 import { SYSTEM_PROMPT, type GenerateOptions } from "./mermaid-llm";
+import type { ReasoningMode } from "./reasoning-mode";
 import {
   getVisualLevelPolicy,
   type GenerationPassPolicy,
@@ -38,6 +39,7 @@ export interface GenerationRequest {
   readonly provider: "local" | "webllm";
   readonly modelId: string;
   readonly mode: "manual" | "auto";
+  readonly reasoningMode?: ReasoningMode;
   readonly isStillCurrent?: () => boolean;
 }
 
@@ -117,6 +119,7 @@ function optionsFor(
     modelId: request.modelId,
     useLocalServer: request.provider === "local",
     disableAbort: request.mode === "auto",
+    ...(request.reasoningMode ? { reasoningMode: request.reasoningMode } : {}),
   };
 }
 

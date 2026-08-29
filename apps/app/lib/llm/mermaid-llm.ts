@@ -3,6 +3,7 @@
 import type { WebWorkerMLCEngine } from "@mlc-ai/web-llm";
 
 import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
+import type { ReasoningMode } from "./reasoning-mode";
 
 export { SYSTEM_PROMPT };
 
@@ -18,6 +19,7 @@ export interface GenerateOptions {
   modelId?: string;
   useLocalServer?: boolean;
   disableAbort?: boolean;
+  reasoningMode?: ReasoningMode;
 }
 
 // 10s: timeout after which output is likely degraded/incomplete since
