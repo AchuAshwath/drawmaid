@@ -4,6 +4,7 @@ const MAX_PROGRESS = 91;
 const HALF_LIFE_MS = 2000;
 const UPDATE_INTERVAL_MS = 50;
 const REFUSAL_PROGRESS = 18;
+const REFUSAL_DECAY_HALF_LIFE_MS = 12000;
 
 export function useFakeGenerationProgress(
   isProgressing: boolean,
@@ -26,19 +27,36 @@ export function useFakeGenerationProgress(
   useEffect(() => {
     if (isProgressing) {
       startTimeRef.current = Date.now();
-      progressRef.current = 0;
+      const startingProgress = progressRef.current;
 
       const tick = () => {
         const elapsed = Date.now() - startTimeRef.current!;
         progressRef.current =
-          MAX_PROGRESS * (elapsed / (elapsed + HALF_LIFE_MS));
+          startingProgress +
+          (MAX_PROGRESS - startingProgress) *
+            (elapsed / (elapsed + HALF_LIFE_MS));
+        subscribersRef.current.forEach((cb) => cb());
+      };
+
+      tick();
+      intervalRef.current = setInterval(tick, UPDATE_INTERVAL_MS);
+    } else if (isRefusal) {
+      startTimeRef.current = Date.now();
+      progressRef.current = REFUSAL_PROGRESS;
+
+      const tick = () => {
+        const elapsed = Date.now() - startTimeRef.current!;
+        progressRef.current =
+          REFUSAL_PROGRESS *
+          (REFUSAL_DECAY_HALF_LIFE_MS / (elapsed + REFUSAL_DECAY_HALF_LIFE_MS));
         subscribersRef.current.forEach((cb) => cb());
       };
 
       tick();
       intervalRef.current = setInterval(tick, UPDATE_INTERVAL_MS);
     } else {
-      progressRef.current = isRefusal ? REFUSAL_PROGRESS : 0;
+      startTimeRef.current = null;
+      progressRef.current = 0;
       subscribersRef.current.forEach((cb) => cb());
     }
 

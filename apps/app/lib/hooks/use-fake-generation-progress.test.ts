@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { vi } from "vitest";
 import { useFakeGenerationProgress } from "./use-fake-generation-progress";
@@ -83,7 +83,7 @@ describe("refusal feedback", () => {
     vi.useRealTimers();
   });
 
-  it("drops to a visible partial value instead of resetting to zero", () => {
+  it("keeps refusal feedback visible while slowly decaying and resumes from it", () => {
     const { result, rerender } = renderHook(
       ({ progressing, refused }: { progressing: boolean; refused: boolean }) =>
         useFakeGenerationProgress(progressing, refused),
@@ -91,10 +91,21 @@ describe("refusal feedback", () => {
     );
 
     rerender({ progressing: false, refused: true });
-    expect(result.current).toBeGreaterThan(0);
-    expect(result.current).toBeLessThan(30);
+    expect(result.current).toBe(18);
 
-    rerender({ progressing: false, refused: false });
-    expect(result.current).toBe(0);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const decayedProgress = result.current;
+    expect(decayedProgress).toBeGreaterThan(0);
+    expect(decayedProgress).toBeLessThan(18);
+
+    rerender({ progressing: true, refused: false });
+    expect(result.current).toBe(decayedProgress);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBeGreaterThan(decayedProgress);
   });
 });

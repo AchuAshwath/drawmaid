@@ -109,25 +109,11 @@ function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [refusalFeedback, setRefusalFeedback] = useState(false);
-  const refusalFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const clearRefusalFeedback = useCallback(() => {
-    if (refusalFeedbackTimerRef.current !== null) {
-      clearTimeout(refusalFeedbackTimerRef.current);
-      refusalFeedbackTimerRef.current = null;
-    }
     setRefusalFeedback(false);
   }, []);
   const showRefusalFeedback = useCallback(() => {
-    if (refusalFeedbackTimerRef.current !== null) {
-      clearTimeout(refusalFeedbackTimerRef.current);
-    }
     setRefusalFeedback(true);
-    refusalFeedbackTimerRef.current = setTimeout(() => {
-      refusalFeedbackTimerRef.current = null;
-      setRefusalFeedback(false);
-    }, 1000);
   }, []);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [currentModel, setCurrentModel] =
@@ -186,14 +172,6 @@ function Home() {
     isGenerating || isProcessing || autoModeGenerating,
     refusalFeedback,
   );
-
-  useEffect(() => {
-    return () => {
-      if (refusalFeedbackTimerRef.current !== null) {
-        clearTimeout(refusalFeedbackTimerRef.current);
-      }
-    };
-  }, []);
 
   // Helper to set error with full context
   const handleError = (
