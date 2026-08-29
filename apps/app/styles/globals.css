@@ -86,6 +86,33 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Fallbacks used before the theme bridge observes Excalidraw. */
+:root {
+  --dm-island-bg: #ffffff;
+  --dm-input-bg: #ffffff;
+  --dm-input-border: #ced4da;
+  --dm-button-size: 2rem;
+  --dm-icon-size: 1rem;
+  --dm-radius-md: 0.375rem;
+  --dm-radius-lg: 0.5rem;
+  --dm-surface-high: #f1f0ff;
+  --dm-surface-low: #ececf4;
+  --dm-primary-container: #e0dfff;
+  --dm-on-surface: #1b1b1f;
+  --dm-brand-hover: #5753d0;
+}
+
+.dark {
+  --dm-island-bg: #232329;
+  --dm-input-bg: #121212;
+  --dm-input-border: #2e2e2e;
+  --dm-surface-high: hsl(245 10% 21%);
+  --dm-surface-low: hsl(240 8% 15%);
+  --dm-primary-container: #403e6a;
+  --dm-on-surface: #e3e3e8;
+  --dm-brand-hover: #bbb8ff;
+}
+
 /* Excalidraw uses .theme--dark on its container; sync our theme vars so all editor chrome matches */
 .theme--dark {
   /* Default fallback - will be overridden by useExcalidrawThemeBridge */
@@ -108,6 +135,138 @@
   --border: oklch(1 0 0 / 0.2);
   --input: oklch(1 0 0 / 0.25);
   --ring: oklch(0.65 0.15 280);
+}
+
+/* Shared chrome for controls that float over the Excalidraw canvas. Keep the
+ * rhythm deliberately small and predictable: 32px controls, 8px gaps, and
+ * the same surface/button colors that Excalidraw exposes at runtime. */
+@layer components {
+  .dm-excalidraw-surface {
+    border: 0 !important;
+    border-radius: var(--dm-radius-lg, 0.5rem);
+    background-color: var(
+      --dm-island-bg,
+      var(--toolbar-bg, var(--card, var(--background)))
+    ) !important;
+    color: var(
+      --dm-on-surface,
+      var(--toolbar-button-color, var(--foreground))
+    ) !important;
+    box-shadow: var(
+      --dm-shadow-island,
+      0 0 1px rgb(0 0 0 / 0.17),
+      0 0 3px rgb(0 0 0 / 0.08),
+      0 7px 14px rgb(0 0 0 / 0.05)
+    ) !important;
+  }
+
+  .dm-excalidraw-card {
+    border: 1px solid var(--dm-surface-high, var(--border, oklch(0.9 0 0)));
+    border-radius: var(--dm-radius-md, 0.375rem);
+    background-color: var(
+      --dm-surface-low,
+      var(
+        --toolbar-button-bg,
+        var(--toolbar-bg, var(--card, var(--background)))
+      )
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+  }
+
+  .dm-excalidraw-control {
+    min-height: var(--dm-button-size, 2rem);
+    border-radius: var(--dm-radius-lg, 0.5rem);
+    background-color: var(
+      --toolbar-button-bg,
+      var(--toolbar-bg, var(--secondary))
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+    box-shadow: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-control:hover {
+    filter: brightness(1.1);
+  }
+
+  .dm-excalidraw-control:focus-visible,
+  .dm-excalidraw-menu-item:focus-visible,
+  .dm-excalidraw-tab:focus-visible {
+    outline: transparent;
+    box-shadow: 0 0 0 1px var(--dm-brand-hover, var(--primary, var(--ring)));
+  }
+
+  .dm-excalidraw-menu-item {
+    min-height: var(--dm-button-size, 2rem);
+    margin: 1px;
+    border: 1px solid transparent;
+    border-radius: var(--dm-radius-md, 0.375rem);
+    outline: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-menu-item:hover,
+  .dm-excalidraw-menu-item[aria-checked="true"] {
+    background-color: var(
+      --dm-surface-high,
+      var(--toolbar-button-bg, var(--accent))
+    );
+  }
+
+  .dm-excalidraw-tab {
+    min-height: var(--dm-button-size, 2rem);
+    border-radius: var(--dm-radius-md, 0.375rem);
+    outline: none;
+    transition:
+      filter 120ms ease,
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dm-excalidraw-input {
+    min-height: var(--dm-button-size, 2rem);
+    border: 1px solid var(--dm-input-border, var(--border, var(--input)));
+    border-radius: var(--dm-radius-md, 0.375rem);
+    background-color: var(
+      --dm-input-bg,
+      var(--toolbar-button-bg, var(--background))
+    );
+    color: var(--dm-on-surface, var(--toolbar-button-color, var(--foreground)));
+    box-shadow: none;
+  }
+
+  .dm-excalidraw-input:focus-visible {
+    outline: transparent;
+    box-shadow: 0 0 0 1px var(--dm-brand-hover, var(--primary, var(--ring)));
+  }
+
+  /* Model lists stay compact while keeping the scroll affordance visible. */
+  .dm-excalidraw-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--dm-surface-high, var(--border)) transparent;
+    scrollbar-gutter: stable;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar-track {
+    background: var(--dm-surface-high, var(--border));
+    border-radius: 3px;
+  }
+
+  .dm-excalidraw-scroll::-webkit-scrollbar-thumb {
+    background: var(--dm-on-surface, var(--muted-foreground));
+    border: 1px solid var(--dm-surface-high, var(--border));
+    border-radius: 3px;
+  }
 }
 
 /* Bridge Excalidraw theme → Drawmaid theme.

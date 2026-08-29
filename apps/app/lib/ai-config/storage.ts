@@ -59,9 +59,9 @@ function attachStorageHandler() {
       listeners.forEach((listener) => listener(newConfig));
       invalidateConfigCache();
     } else if (event.key === DOWNLOADED_MODELS_KEY) {
+      invalidateDownloadedModelsCache();
       const models = getDownloadedModels();
       downloadedModelsListeners.forEach((listener) => listener(models));
-      invalidateDownloadedModelsCache();
     }
   };
 
@@ -211,7 +211,9 @@ export function getConfigDescription(config: AIConfig): string {
 export function getDownloadedModels(): string[] {
   if (downloadedModelsCache) return downloadedModelsCache;
 
-  const stored = localStorage.getItem(DOWNLOADED_MODELS_KEY);
+  if (typeof window === "undefined") return [];
+
+  const stored = window.localStorage.getItem(DOWNLOADED_MODELS_KEY);
   if (!stored) return [];
   try {
     downloadedModelsCache = JSON.parse(stored) as string[];

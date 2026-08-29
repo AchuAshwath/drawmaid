@@ -33,7 +33,7 @@ export function WebGPUBanner({ onConfigureClick }: WebGPUBannerProps) {
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg border p-3 text-sm cursor-pointer hover:opacity-80 transition-opacity ${
+      className={`flex items-center gap-3 rounded-lg border p-3 text-sm cursor-pointer transition-opacity hover:opacity-80 ${
         status.supported
           ? "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400"
           : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"

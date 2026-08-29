@@ -45,6 +45,13 @@ export interface ExcalidrawCanvasApi {
   refresh: () => void;
 }
 
+export interface InsertMermaidOptions {
+  readonly replace?: boolean;
+  readonly isStillCurrent?: () => boolean;
+}
+
+export type InsertMermaidResult = "inserted" | "stale";
+
 const SCROLL_DURATION_MS = 300;
 
 /**
@@ -135,12 +142,13 @@ function positionElementsAtViewportCenter(
  * @param api - The Excalidraw canvas API
  * @param document - The typed Mermaid diagram document
  * @param options.replace - If true, removes the previous auto-mode diagram before inserting
+ * @param options.isStillCurrent - Final guard checked immediately before canvas mutation
  */
 export async function insertMermaidIntoCanvas(
   api: ExcalidrawCanvasApi,
   document: DiagramDocument,
-  options?: { replace?: boolean },
-): Promise<void> {
+  options?: InsertMermaidOptions,
+): Promise<InsertMermaidResult> {
   const { elements: skeleton, files } = await parseMermaidToExcalidraw(
     document.code,
   );
@@ -187,6 +195,10 @@ export async function insertMermaidIntoCanvas(
     elementsToInsert = [...current, ...positionedElements];
   }
 
+  if (options?.isStillCurrent && !options.isStillCurrent()) {
+    return "stale";
+  }
+
   // Update tracked element IDs only when replacing (for next replacement)
   if (options?.replace) {
     lastAutoModeElementIds = positionedElements.map((el) => el.id);
@@ -208,6 +220,8 @@ export async function insertMermaidIntoCanvas(
     animate: true,
     duration: SCROLL_DURATION_MS,
   });
+
+  return "inserted";
 }
 
 /**

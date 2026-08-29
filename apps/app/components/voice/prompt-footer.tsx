@@ -1,11 +1,16 @@
 import { CenteredStrip } from "@/components/centered-strip";
 import { usePromptFooterState } from "@/lib/voice/use-prompt-footer-state";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
-import { ModelSelector } from "@/components/ai-config/model-selector";
+import {
+  PromptSettingsMenu,
+  type VisualLevelControl,
+} from "@/components/voice/prompt-settings-menu";
 import { Button, Switch, Textarea } from "@repo/ui";
 import { ArrowUp, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { WebLLMModelInfo, LocalModel } from "@/lib/ai-config/types";
 import { useState } from "react";
+
+export type { VisualLevelControl } from "@/components/voice/prompt-settings-menu";
 
 export type PromptFooterMode = "auto" | "normal";
 
@@ -30,6 +35,7 @@ export interface PromptFooterProps {
   onSelectModel?: (modelId: string) => void;
   localServerConfigured?: boolean;
   onKeep?: () => void;
+  visualLevelControl?: VisualLevelControl;
 }
 
 export function PromptFooter({
@@ -53,6 +59,7 @@ export function PromptFooter({
   onSelectModel,
   localServerConfigured = false,
   onKeep,
+  visualLevelControl,
 }: PromptFooterProps) {
   const [voiceResetKey, setVoiceResetKey] = useState(0);
   const { isCollapsed, toggleCollapsed, handleKeyDown, textareaRef } =
@@ -97,7 +104,7 @@ export function PromptFooter({
           />
         </div>
       )}
-      <div className="rounded-lg bg-[var(--toolbar-bg,var(--card))] p-2 shadow-[0_2px_4px_rgba(0,0,0,0.04),0_-2px_4px_rgba(0,0,0,0.04),2px_0_4px_rgba(0,0,0,0.04),-2px_0_4px_rgba(0,0,0,0.04)] w-full max-w-[550px]">
+      <div className="dm-excalidraw-surface w-full max-w-[550px] border-0 p-2">
         <div className="flex w-full flex-col gap-2">
           {!isCollapsed && (
             <div className="relative">
@@ -178,18 +185,15 @@ export function PromptFooter({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {webLLMModels?.length ||
-              localModels?.length ||
-              localServerConfigured ? (
-                <ModelSelector
-                  webLLMModels={webLLMModels || []}
-                  localModels={localModels || []}
-                  currentModel={currentModel || "Select model"}
-                  onSelectModel={onSelectModel || (() => {})}
-                  localServerConfigured={localServerConfigured}
-                />
-              ) : null}
+            <div className="flex min-w-0 items-center gap-2">
+              <PromptSettingsMenu
+                webLLMModels={webLLMModels}
+                localModels={localModels}
+                currentModel={currentModel}
+                onSelectModel={onSelectModel}
+                localServerConfigured={localServerConfigured}
+                visualLevelControl={visualLevelControl}
+              />
               <Button
                 type="button"
                 onClick={mode === "auto" ? handleKeep : onGenerate}
@@ -200,6 +204,7 @@ export function PromptFooter({
                 }
                 variant="default"
                 size="icon"
+                className="h-8 w-8 shrink-0 rounded-md shadow-none hover:brightness-110"
                 aria-label={
                   mode === "auto"
                     ? "Keep this diagram and start a new one"
@@ -214,9 +219,9 @@ export function PromptFooter({
                 }
               >
                 {mode === "auto" ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5" />
                 ) : (
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5" />
                 )}
               </Button>
             </div>
