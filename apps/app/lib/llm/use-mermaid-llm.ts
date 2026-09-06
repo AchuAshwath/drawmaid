@@ -12,11 +12,15 @@ import {
   type GenerateOptions,
 } from "./mermaid-llm";
 import { getCachedConfigAsync } from "../ai-config/storage";
-import type { LocalServerConfig } from "../ai-config/types";
+import type { LocalServerConfig, BYOKConfig } from "../ai-config/types";
 import {
   generateWithLocalServer,
   generateWithLocalServerDetailed,
 } from "../ai-config/providers/local";
+import {
+  generateWithBYOK,
+  generateWithBYOKDetailed,
+} from "../ai-config/providers/byok";
 import type { ProviderResponse } from "./generation";
 
 const UNSUPPORTED_ERROR = "WebGPU is not supported in this browser";
@@ -55,6 +59,21 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
   const generate: UseMermaidLlmReturn["generate"] = async (prompt, opts) => {
     const config = await getCachedConfigAsync();
 
+    if (config.type === "byok") {
+      const byokConfig = config as BYOKConfig;
+      const model = opts?.modelId || byokConfig.model;
+      return generateWithBYOK(
+        { ...byokConfig, model },
+        opts?.systemPrompt ?? SYSTEM_PROMPT,
+        prompt,
+        {
+          maxTokens: opts?.maxTokens,
+          temperature: opts?.temperature,
+          timeoutMs: opts?.timeoutMs,
+        },
+      );
+    }
+
     // Use local server if explicitly requested via useLocalServer option
     if (opts?.useLocalServer && config.type === "local") {
       const localConfig = config as LocalServerConfig;
@@ -83,6 +102,21 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
     opts,
   ) => {
     const config = await getCachedConfigAsync();
+
+    if (config.type === "byok") {
+      const byokConfig = config as BYOKConfig;
+      const model = opts?.modelId || byokConfig.model;
+      return generateWithBYOKDetailed(
+        { ...byokConfig, model },
+        opts?.systemPrompt ?? SYSTEM_PROMPT,
+        prompt,
+        {
+          maxTokens: opts?.maxTokens,
+          temperature: opts?.temperature,
+          timeoutMs: opts?.timeoutMs,
+        },
+      );
+    }
 
     if (opts?.useLocalServer && config.type === "local") {
       const model = opts.modelId || config.model;

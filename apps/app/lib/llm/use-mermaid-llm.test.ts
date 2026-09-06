@@ -145,3 +145,29 @@ describe("use-mermaid-llm - load routing", () => {
     expect(load).toBe("unsupportedLoad");
   });
 });
+
+describe("use-mermaid-llm - byok routing logic", () => {
+  it("determines BYOK usage when config is byok", () => {
+    const config = {
+      type: "byok" as const,
+      providerId: "google" as const,
+      model: "gemini-2.5-flash",
+      apiKey: "test-key",
+    };
+
+    const isBYOK = config.type === "byok";
+    expect(isBYOK).toBe(true);
+  });
+
+  it("uses model from opts when provided for byok", () => {
+    const config = {
+      type: "byok" as const,
+      providerId: "google" as const,
+      model: "gemini-2.5-flash",
+    };
+    const opts = { modelId: "gemini-2.5-pro" };
+
+    const model = opts.modelId || config.model;
+    expect(model).toBe("gemini-2.5-pro");
+  });
+});

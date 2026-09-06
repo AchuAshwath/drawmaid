@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { AIConfig, LocalServerConfig } from "./types";
+import type { AIConfig, LocalServerConfig, BYOKConfig } from "./types";
 import {
   saveConfig,
   loadConfig,
@@ -120,5 +120,42 @@ describe("saveConfig and loadConfigAsync with apiKey", () => {
     expect(loaded.type).toBe("local");
     expect((loaded as LocalServerConfig).apiKey).toBe("secret-api-key-12345");
     expect((loaded as LocalServerConfig).model).toBe("gemini-3.7-flash-high");
+  });
+
+  it("handles BYOK config description", () => {
+    const config: AIConfig = {
+      type: "byok",
+      providerId: "google",
+      protocol: "gemini",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      model: "gemini-2.5-flash",
+    };
+    const desc = getConfigDescription(config);
+    expect(desc).toContain("Cloud");
+    expect(desc).toContain("Google Gemini");
+    expect(desc).toContain("gemini-2.5-flash");
+  });
+
+  it("encrypts and decrypts BYOK apiKey correctly", async () => {
+    const config: AIConfig = {
+      type: "byok",
+      providerId: "anthropic",
+      protocol: "anthropic",
+      baseUrl: "https://api.anthropic.com/v1",
+      model: "claude-3-5-sonnet-20241022",
+      apiKey: "sk-ant-test-secret-key",
+    };
+
+    await saveConfig(config);
+    const loaded = await loadConfigAsync();
+
+    expect(loaded.type).toBe("byok");
+    expect((loaded as BYOKConfig).apiKey).toBe("sk-ant-test-secret-key");
+    expect((loaded as BYOKConfig).model).toBe("claude-3-5-sonnet-20241022");
+
+    // Ensure raw localStorage does NOT contain the plaintext key
+    const rawStored = localStorage.getItem("drawmaid-ai-config");
+    expect(rawStored).toBeTruthy();
+    expect(rawStored).not.toContain("sk-ant-test-secret-key");
   });
 });

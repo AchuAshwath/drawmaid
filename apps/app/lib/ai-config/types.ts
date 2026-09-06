@@ -1,4 +1,4 @@
-export type ProviderType = "webllm" | "local";
+export type ProviderType = "webllm" | "local" | "byok";
 
 export interface WebLLMConfig {
   type: "webllm";
@@ -69,7 +69,159 @@ export interface LocalServerConfig {
   model: string;
 }
 
-export type AIConfig = WebLLMConfig | LocalServerConfig;
+export type BYOKProviderId =
+  | "google"
+  | "anthropic"
+  | "openai"
+  | "groq"
+  | "deepseek"
+  | "mistral"
+  | "openrouter"
+  | "custom";
+
+export type BYOKProtocol = "gemini" | "anthropic" | "openai_compatible";
+
+export interface BYOKPreset {
+  id: BYOKProviderId;
+  name: string;
+  protocol: BYOKProtocol;
+  defaultBaseUrl: string;
+  models: { id: string; name: string; recommended?: boolean }[];
+  keyPlaceholder: string;
+  keyHelpUrl: string;
+}
+
+export const BYOK_PRESETS: BYOKPreset[] = [
+  {
+    id: "google",
+    name: "Google Gemini",
+    protocol: "gemini",
+    defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    models: [
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", recommended: true },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
+    ],
+    keyPlaceholder: "AIzaSy...",
+    keyHelpUrl: "https://aistudio.google.com/app/apikey",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    protocol: "anthropic",
+    defaultBaseUrl: "https://api.anthropic.com/v1",
+    models: [
+      {
+        id: "claude-3-5-sonnet-20241022",
+        name: "Claude 3.5 Sonnet",
+        recommended: true,
+      },
+      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
+      { id: "claude-3-opus-20240229", name: "Claude 3 Opus" },
+    ],
+    keyPlaceholder: "sk-ant-api03-...",
+    keyHelpUrl: "https://console.anthropic.com/settings/keys",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", recommended: true },
+      { id: "gpt-4o-mini", name: "GPT-4o mini" },
+      { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
+      { id: "o1", name: "o1" },
+      { id: "o3-mini", name: "o3-mini" },
+    ],
+    keyPlaceholder: "sk-proj-...",
+    keyHelpUrl: "https://platform.openai.com/api-keys",
+  },
+  {
+    id: "groq",
+    name: "Groq (Ultra-fast)",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
+    models: [
+      {
+        id: "llama-3.3-70b-versatile",
+        name: "Llama 3.3 70B Versatile",
+        recommended: true,
+      },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant" },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
+    ],
+    keyPlaceholder: "gsk_...",
+    keyHelpUrl: "https://console.groq.com/keys",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    models: [
+      { id: "deepseek-chat", name: "DeepSeek V3", recommended: true },
+      { id: "deepseek-reasoner", name: "DeepSeek R1" },
+    ],
+    keyPlaceholder: "sk-...",
+    keyHelpUrl: "https://platform.deepseek.com/api_keys",
+  },
+  {
+    id: "mistral",
+    name: "Mistral AI",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.mistral.ai/v1",
+    models: [
+      { id: "mistral-large-latest", name: "Mistral Large", recommended: true },
+      { id: "mistral-small-latest", name: "Mistral Small" },
+      { id: "codestral-latest", name: "Codestral" },
+    ],
+    keyPlaceholder: "...",
+    keyHelpUrl: "https://console.mistral.ai/api-keys/",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter (All-in-one)",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    models: [
+      {
+        id: "anthropic/claude-3.5-sonnet",
+        name: "Claude 3.5 Sonnet",
+        recommended: true,
+      },
+      { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+      { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+      { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
+    ],
+    keyPlaceholder: "sk-or-v1-...",
+    keyHelpUrl: "https://openrouter.ai/keys",
+  },
+  {
+    id: "custom",
+    name: "Custom OpenAI-Compatible",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.example.com/v1",
+    models: [],
+    keyPlaceholder: "api-key",
+    keyHelpUrl: "",
+  },
+];
+
+export interface BYOKConfig {
+  type: "byok";
+  providerId: BYOKProviderId;
+  protocol?: BYOKProtocol;
+  baseUrl?: string;
+  apiKey?: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export type AIConfig = WebLLMConfig | LocalServerConfig | BYOKConfig;
 
 export interface StoredConfig {
   config: AIConfig;
@@ -89,6 +241,15 @@ export const DEFAULT_LOCAL_SERVER: LocalServerConfig = {
   serverType: "cliproxyapi",
   url: "http://127.0.0.1:8317/v1",
   model: "",
+};
+
+export const DEFAULT_BYOK_CONFIG: BYOKConfig = {
+  type: "byok",
+  providerId: "google",
+  protocol: "gemini",
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+  apiKey: "",
+  model: "gemini-2.5-flash",
 };
 
 export interface WebLLMModelInfo {
