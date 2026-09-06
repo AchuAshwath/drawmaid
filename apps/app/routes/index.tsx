@@ -41,9 +41,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import { fetchBYOKModels } from "@/lib/ai-config/providers/byok";
 import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
   loadConfigAsync,
+  saveConfig,
   getDownloadedModels,
   subscribeToConfigChanges,
   subscribeToDownloadedModelsChanges,
@@ -59,6 +61,7 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
+import { BYOK_PRESETS } from "@/lib/ai-config/types";
 
 type GenerationUsage = {
   promptTokens?: number;
@@ -222,12 +225,20 @@ function Home() {
     setErrorContext(drawmaidError);
   };
 
-  // Fetch local server models
+  // Fetch models for local server or BYOK provider
   const fetchModels = useCallback((config: AIConfig) => {
     if (config.type === "local" && "url" in config && config.url) {
       fetchLocalServerModels(config.url, config.apiKey).then((result) => {
         if (result.success && result.models) {
           setLocalModels(result.models);
+        }
+      });
+    } else if (config.type === "byok" && config.apiKey) {
+      fetchBYOKModels(config).then((result) => {
+        if (result.success && result.models && result.models.length > 0) {
+          setLocalModels(
+            result.models.map((m) => ({ id: m.id, name: m.name })),
+          );
         }
       });
     }
@@ -236,12 +247,25 @@ function Home() {
   // Initial load and subscribe to config changes
   useEffect(() => {
     loadConfigAsync().then((config) => {
-      const isLocal = config.type === "local";
-      setLocalServerConfigured(isLocal);
+      const isExternal = config.type === "local" || config.type === "byok";
+      setLocalServerConfigured(isExternal);
 
-      if (isLocal) {
+      if (config.type === "local") {
         if (config.model) {
           setCurrentModel(config.model);
+        }
+        fetchModels(config);
+      } else if (config.type === "byok") {
+        if (config.model) {
+          setCurrentModel(config.model);
+        }
+        const preset = BYOK_PRESETS.find((p) => p.id === config.providerId);
+        if (preset?.models && preset.models.length > 0) {
+          setLocalModels(
+            preset.models.map((m) => ({ id: m.id, name: m.name })),
+          );
+        } else if (config.model) {
+          setLocalModels([{ id: config.model, name: config.model }]);
         }
         fetchModels(config);
       } else {
@@ -253,12 +277,26 @@ function Home() {
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
-      const newIsLocal = newConfig.type === "local";
-      setLocalServerConfigured(newIsLocal);
+      const isExternal =
+        newConfig.type === "local" || newConfig.type === "byok";
+      setLocalServerConfigured(isExternal);
 
-      if (newIsLocal) {
+      if (newConfig.type === "local") {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
+        }
+        fetchModels(newConfig);
+      } else if (newConfig.type === "byok") {
+        if (newConfig.model) {
+          setCurrentModel(newConfig.model);
+        }
+        const preset = BYOK_PRESETS.find((p) => p.id === newConfig.providerId);
+        if (preset?.models && preset.models.length > 0) {
+          setLocalModels(
+            preset.models.map((m) => ({ id: m.id, name: m.name })),
+          );
+        } else if (newConfig.model) {
+          setLocalModels([{ id: newConfig.model, name: newConfig.model }]);
         }
         fetchModels(newConfig);
       } else if (newConfig.type === "webllm") {
@@ -285,6 +323,15 @@ function Home() {
 
   const handleSelectModel = (modelId: string) => {
     setCurrentModel(modelId);
+    loadConfigAsync().then((config) => {
+      if (config.type === "local" && config.model !== modelId) {
+        saveConfig({ ...config, model: modelId });
+      } else if (config.type === "byok" && config.model !== modelId) {
+        saveConfig({ ...config, model: modelId });
+      } else if (config.type === "webllm" && config.modelId !== modelId) {
+        saveConfig({ ...config, modelId });
+      }
+    });
   };
 
   const handleToggleTheme = () => {
