@@ -61,7 +61,6 @@ import type {
   LocalModel,
   AIConfig,
 } from "@/lib/ai-config/types";
-import { BYOK_PRESETS } from "@/lib/ai-config/types";
 
 type GenerationUsage = {
   promptTokens?: number;
@@ -258,14 +257,9 @@ function Home() {
       } else if (config.type === "byok") {
         if (config.model) {
           setCurrentModel(config.model);
-        }
-        const preset = BYOK_PRESETS.find((p) => p.id === config.providerId);
-        if (preset?.models && preset.models.length > 0) {
-          setLocalModels(
-            preset.models.map((m) => ({ id: m.id, name: m.name })),
-          );
-        } else if (config.model) {
           setLocalModels([{ id: config.model, name: config.model }]);
+        } else {
+          setLocalModels([]);
         }
         fetchModels(config);
       } else {
@@ -289,14 +283,9 @@ function Home() {
       } else if (newConfig.type === "byok") {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
-        }
-        const preset = BYOK_PRESETS.find((p) => p.id === newConfig.providerId);
-        if (preset?.models && preset.models.length > 0) {
-          setLocalModels(
-            preset.models.map((m) => ({ id: m.id, name: m.name })),
-          );
-        } else if (newConfig.model) {
           setLocalModels([{ id: newConfig.model, name: newConfig.model }]);
+        } else {
+          setLocalModels([]);
         }
         fetchModels(newConfig);
       } else if (newConfig.type === "webllm") {

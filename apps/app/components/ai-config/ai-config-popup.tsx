@@ -205,12 +205,11 @@ export function AIConfigPopup({
         setByokModels(result.models);
         setByokFetchStatus("success");
 
-        // Auto-select valid model if current model does not exist in fetched models
+        // Auto-select valid model if current model is empty or does not exist in fetched models
         const currentModel = byokConfig.model;
         const modelExists = result.models.some((m) => m.id === currentModel);
-        if (!modelExists) {
-          const recommended = result.models.find((m) => m.recommended);
-          const nextModel = recommended ? recommended.id : result.models[0]!.id;
+        if (!modelExists && result.models.length > 0) {
+          const nextModel = result.models[0]!.id;
           setConfig((prev) => {
             if (prev.type === "byok") {
               return {
@@ -1158,9 +1157,10 @@ export function AIConfigPopup({
                         providerId,
                         protocol: preset?.protocol ?? "openai_compatible",
                         baseUrl: preset?.defaultBaseUrl ?? "",
-                        model: preset?.models[0]?.id ?? "",
+                        model: "",
                       };
                       setConfig(nextConfig);
+                      setByokModels([]);
                       setByokCustomModelMode(false);
                       setTestStatus("idle");
                       setTestError(null);
@@ -1168,14 +1168,6 @@ export function AIConfigPopup({
 
                       if (nextConfig.apiKey?.trim()) {
                         handleFetchBYOKModels(nextConfig);
-                      } else {
-                        setByokModels(
-                          preset?.models.map((m) => ({
-                            id: m.id,
-                            name: m.name,
-                            recommended: m.recommended,
-                          })) || [],
-                        );
                       }
                     }}
                   >
@@ -1296,80 +1288,61 @@ export function AIConfigPopup({
                     </div>
                   </div>
 
-                  {(() => {
-                    const preset = BYOK_PRESETS.find(
-                      (p) => p.id === (config as BYOKConfig).providerId,
-                    );
-                    const availableModels =
-                      byokModels.length > 0
-                        ? byokModels
-                        : preset?.models.map((m) => ({
-                            id: m.id,
-                            name: m.name,
-                            recommended: m.recommended,
-                          })) || [];
-
-                    if (byokCustomModelMode || availableModels.length === 0) {
-                      return (
-                        <Input
-                          placeholder="e.g. gemini-2.5-flash or custom model name"
-                          value={(config as BYOKConfig).model || ""}
-                          onChange={(e) => {
-                            const newModel = e.target.value;
-                            setConfig((prev) => ({
-                              ...(prev as BYOKConfig),
-                              model: newModel,
-                            }));
-                          }}
-                          className={EXCALIDRAW_INPUT}
-                        />
-                      );
-                    }
-
-                    return (
-                      <Select
-                        value={(config as BYOKConfig).model || ""}
-                        onValueChange={(value) => {
-                          setConfig((prev) => ({
-                            ...(prev as BYOKConfig),
-                            model: value,
-                          }));
-                        }}
-                      >
-                        <SelectTrigger className={EXCALIDRAW_INPUT}>
-                          <SelectValue placeholder="Select a model..." />
-                        </SelectTrigger>
-                        <SelectContent className="dm-excalidraw-surface max-h-[260px] border-0">
-                          {(config as BYOKConfig).model &&
-                            !availableModels.some(
-                              (m) => m.id === (config as BYOKConfig).model,
-                            ) && (
-                              <SelectItem
-                                key={(config as BYOKConfig).model}
-                                value={(config as BYOKConfig).model}
-                                className="dm-excalidraw-menu-item"
-                              >
-                                {(config as BYOKConfig).model} (Current)
-                              </SelectItem>
-                            )}
-                          {availableModels.map((m) => (
+                  {!byokCustomModelMode && byokModels.length > 0 ? (
+                    <Select
+                      value={(config as BYOKConfig).model || ""}
+                      onValueChange={(value) => {
+                        setConfig((prev) => ({
+                          ...(prev as BYOKConfig),
+                          model: value,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className={EXCALIDRAW_INPUT}>
+                        <SelectValue placeholder="Select a model..." />
+                      </SelectTrigger>
+                      <SelectContent className="dm-excalidraw-surface max-h-[260px] border-0">
+                        {(config as BYOKConfig).model &&
+                          !byokModels.some(
+                            (m) => m.id === (config as BYOKConfig).model,
+                          ) && (
                             <SelectItem
-                              key={m.id}
-                              value={m.id}
+                              key={(config as BYOKConfig).model}
+                              value={(config as BYOKConfig).model}
                               className="dm-excalidraw-menu-item"
                             >
-                              <span className="truncate">{m.name}</span>
-                              {m.recommended && (
-                                <span className="ml-1 text-xs text-primary font-normal">
-                                  (Recommended)
-                                </span>
-                              )}
+                              {(config as BYOKConfig).model} (Current)
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
+                          )}
+                        {byokModels.map((m) => (
+                          <SelectItem
+                            key={m.id}
+                            value={m.id}
+                            className="dm-excalidraw-menu-item"
+                          >
+                            <span className="truncate">{m.name}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder={
+                        !(config as BYOKConfig).apiKey?.trim()
+                          ? "Enter API key above to load models, or type model ID"
+                          : "Enter model name (or click Refresh Models)"
+                      }
+                      value={(config as BYOKConfig).model || ""}
+                      onChange={(e) => {
+                        const newModel = e.target.value;
+                        setConfig((prev) => ({
+                          ...(prev as BYOKConfig),
+                          model: newModel,
+                        }));
+                      }}
+                      className={EXCALIDRAW_INPUT}
+                    />
+                  )}
 
                   {byokFetchStatus === "success" && byokModels.length > 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -1378,11 +1351,15 @@ export function AIConfigPopup({
                     </p>
                   )}
                   {byokFetchStatus === "error" && byokFetchError && (
-                    <p className="text-xs text-amber-500">
-                      Could not fetch live models ({byokFetchError}). Showing
-                      default presets.
-                    </p>
+                    <p className="text-xs text-destructive">{byokFetchError}</p>
                   )}
+                  {byokModels.length === 0 &&
+                    !(config as BYOKConfig).apiKey?.trim() && (
+                      <p className="text-xs text-muted-foreground">
+                        Enter your API key above to load available models from
+                        your account.
+                      </p>
+                    )}
                 </div>
 
                 {/* Base URL (if custom or modified) */}

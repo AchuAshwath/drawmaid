@@ -291,12 +291,10 @@ async function fetchGeminiModels(
     .map((m) => {
       const id = m.name?.replace(/^models\//, "") || m.name;
       const name = m.displayName || id;
-      const isRecommended = id.includes("flash");
       return {
         id,
         name,
         description: m.description,
-        recommended: isRecommended,
       };
     });
 }
@@ -335,7 +333,6 @@ async function fetchAnthropicModels(
   return rawModels.map((m) => ({
     id: m.id,
     name: m.display_name || m.id,
-    recommended: m.id.includes("sonnet"),
   }));
 }
 
@@ -383,7 +380,6 @@ function isOpenAIChatModel(id: string): boolean {
 function filterAndSortOpenAICompatibleModels(
   rawList: unknown[],
   providerId: string,
-  presetModels?: Array<{ id: string }>,
 ): BYOKModel[] {
   let models: BYOKModel[] = rawList
     .map(parseOpenAIModelEntry)
@@ -398,17 +394,7 @@ function filterAndSortOpenAICompatibleModels(
     });
   }
 
-  if (presetModels) {
-    const presetIds = new Set(presetModels.map((p) => p.id));
-    models.sort((a, b) => {
-      const aPreset = presetIds.has(a.id);
-      const bPreset = presetIds.has(b.id);
-      if (aPreset && !bPreset) return -1;
-      if (!aPreset && bPreset) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }
-
+  models.sort((a, b) => a.name.localeCompare(b.name));
   return models;
 }
 
@@ -418,13 +404,12 @@ interface OpenAIFetchContext {
   signal: AbortSignal;
   presetName: string;
   providerId: string;
-  presetModels?: Array<{ id: string }>;
 }
 
 async function fetchOpenAICompatibleModels(
   ctx: OpenAIFetchContext,
 ): Promise<BYOKModel[]> {
-  const { baseUrl, apiKey, signal, presetName, providerId, presetModels } = ctx;
+  const { baseUrl, apiKey, signal, presetName, providerId } = ctx;
   const modelsUrl = baseUrl.endsWith("/models")
     ? baseUrl
     : baseUrl.endsWith("/chat/completions")
@@ -463,7 +448,7 @@ async function fetchOpenAICompatibleModels(
           ? data
           : [];
 
-  return filterAndSortOpenAICompatibleModels(rawList, providerId, presetModels);
+  return filterAndSortOpenAICompatibleModels(rawList, providerId);
 }
 
 export async function fetchBYOKModels(
@@ -482,12 +467,7 @@ export async function fetchBYOKModels(
   if (!apiKey || !apiKey.trim()) {
     return {
       success: false,
-      models:
-        preset?.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          recommended: m.recommended,
-        })) || [],
+      models: [],
       error: "API key is required to fetch models",
     };
   }
@@ -518,7 +498,6 @@ export async function fetchBYOKModels(
         signal: controller.signal,
         presetName,
         providerId,
-        presetModels: preset?.models,
       });
     }
     return { success: true, models };
@@ -527,12 +506,7 @@ export async function fetchBYOKModels(
       error instanceof Error ? error.message : "Failed to fetch models";
     return {
       success: false,
-      models:
-        preset?.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          recommended: m.recommended,
-        })) || [],
+      models: [],
       error: message,
     };
   } finally {

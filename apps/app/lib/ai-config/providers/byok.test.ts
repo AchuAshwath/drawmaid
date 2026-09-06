@@ -276,7 +276,7 @@ describe("fetchBYOKModels", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("returns fallback preset models if apiKey is missing", async () => {
+  it("returns empty models if apiKey is missing", async () => {
     const config: BYOKConfig = {
       type: "byok",
       providerId: "openai",
@@ -286,8 +286,7 @@ describe("fetchBYOKModels", () => {
     const result = await fetchBYOKModels(config);
     expect(result.success).toBe(false);
     expect(result.error).toBe("API key is required to fetch models");
-    expect(result.models.length).toBeGreaterThan(0);
-    expect(result.models.some((m) => m.id === "gpt-4o")).toBe(true);
+    expect(result.models).toEqual([]);
   });
 
   it("fetches and filters models for Google Gemini", async () => {
@@ -329,7 +328,6 @@ describe("fetchBYOKModels", () => {
     expect(result.models).toHaveLength(2);
     expect(result.models[0]?.id).toBe("gemini-2.5-flash");
     expect(result.models[0]?.name).toBe("Gemini 2.5 Flash");
-    expect(result.models[0]?.recommended).toBe(true);
     expect(result.models[1]?.id).toBe("gemini-2.5-pro");
 
     const [url] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
@@ -406,7 +404,6 @@ describe("fetchBYOKModels", () => {
     expect(result.success).toBe(true);
     expect(result.models).toHaveLength(2);
     expect(result.models[0]?.id).toBe("claude-3-7-sonnet-latest");
-    expect(result.models[0]?.recommended).toBe(true);
 
     const [url, options] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
     expect(url).toBe("https://api.anthropic.com/v1/models");
@@ -415,7 +412,7 @@ describe("fetchBYOKModels", () => {
     expect(headers["anthropic-dangerous-direct-browser-access"]).toBe("true");
   });
 
-  it("returns fallback preset models when API returns HTTP error", async () => {
+  it("returns empty models when API returns HTTP error", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -433,8 +430,6 @@ describe("fetchBYOKModels", () => {
     const result = await fetchBYOKModels(config);
     expect(result.success).toBe(false);
     expect(result.error).toContain("OpenAI error (401)");
-    // Should still provide fallback preset models
-    expect(result.models.length).toBeGreaterThan(0);
-    expect(result.models.some((m) => m.id === "gpt-4o")).toBe(true);
+    expect(result.models).toEqual([]);
   });
 });
