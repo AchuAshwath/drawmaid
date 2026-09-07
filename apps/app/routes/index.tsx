@@ -235,19 +235,27 @@ function Home() {
   // Fetch models for local server or BYOK provider
   const fetchModels = useCallback((config: AIConfig) => {
     if (config.type === "local" && "url" in config && config.url) {
-      fetchLocalServerModels(config.url, config.apiKey).then((result) => {
-        if (result.success && result.models) {
-          setLocalModels(result.models);
-        }
-      });
+      fetchLocalServerModels(config.url, config.apiKey)
+        .then((result) => {
+          if (result.success && result.models) {
+            setLocalModels(result.models);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch local server models:", err);
+        });
     } else if (config.type === "byok" && config.apiKey) {
-      fetchBYOKModels(config).then((result) => {
-        if (result.success && result.models && result.models.length > 0) {
-          setLocalModels(
-            result.models.map((m) => ({ id: m.id, name: m.name })),
-          );
-        }
-      });
+      fetchBYOKModels(config)
+        .then((result) => {
+          if (result.success && result.models && result.models.length > 0) {
+            setLocalModels(
+              result.models.map((m) => ({ id: m.id, name: m.name })),
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch BYOK models:", err);
+        });
     }
   }, []);
 
@@ -737,7 +745,9 @@ function Home() {
               !prompt ||
               status === "loading" ||
               status === "generating" ||
-              !isSupported ||
+              isGenerating ||
+              isProcessing ||
+              (activeProvider === "webllm" && !isSupported) ||
               !apiReady
             }
             generating={
@@ -830,18 +840,22 @@ function ErrorAlertActions({
   const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
 
   const handleCopy = async () => {
-    if (!errorContext) {
-      await navigator.clipboard.writeText("No error details available");
+    try {
+      if (!errorContext) {
+        await navigator.clipboard.writeText("No error details available");
+        setCopyStatus("copied");
+        setTimeout(() => setCopyStatus("copy"), 2000);
+        return;
+      }
+
+      const details = formatErrorForCopy(errorContext);
+
+      await navigator.clipboard.writeText(details);
       setCopyStatus("copied");
       setTimeout(() => setCopyStatus("copy"), 2000);
-      return;
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
     }
-
-    const details = formatErrorForCopy(errorContext);
-
-    await navigator.clipboard.writeText(details);
-    setCopyStatus("copied");
-    setTimeout(() => setCopyStatus("copy"), 2000);
   };
 
   return (

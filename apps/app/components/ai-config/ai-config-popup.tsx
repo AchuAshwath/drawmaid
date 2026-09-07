@@ -491,6 +491,8 @@ export function AIConfigPopup({
         }
 
         setTestStatus("success");
+      } else {
+        setTestStatus("idle");
       }
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Test failed");
@@ -520,6 +522,8 @@ export function AIConfigPopup({
           setTestError(result.error || "Connection failed");
           setTestStatus("error");
         }
+      } else {
+        setTestStatus("idle");
       }
     } catch (err) {
       setTestError(err instanceof Error ? err.message : "Connection failed");

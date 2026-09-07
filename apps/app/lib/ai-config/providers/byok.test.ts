@@ -8,7 +8,12 @@ import {
   type Mock,
 } from "vitest";
 import type { BYOKConfig } from "../types";
-import { generateWithBYOK, testBYOKConnection, fetchBYOKModels } from "./byok";
+import {
+  generateWithBYOK,
+  generateWithBYOKDetailed,
+  testBYOKConnection,
+  fetchBYOKModels,
+} from "./byok";
 
 describe("generateWithBYOK", () => {
   const originalFetch = globalThis.fetch;
@@ -461,5 +466,69 @@ describe("fetchBYOKModels", () => {
     expect(result.success).toBe(false);
     expect(result.models).toEqual([]);
     expect(result.error).toBe("Request was cancelled");
+  });
+
+  it("returns error if baseUrl is empty when fetching models", async () => {
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "custom",
+      baseUrl: "",
+      apiKey: "sk-test",
+      model: "test-model",
+    };
+
+    const result = await fetchBYOKModels(config);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("Base URL is required to fetch models");
+    expect(result.models).toEqual([]);
+  });
+});
+
+describe("generateWithBYOK - baseUrl and encoding edge cases", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("throws error if baseUrl is empty", async () => {
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "custom",
+      baseUrl: "   ",
+      apiKey: "sk-test",
+      model: "test-model",
+    };
+
+    await expect(generateWithBYOK(config, "System", "Prompt")).rejects.toThrow(
+      "Base URL is required",
+    );
+  });
+
+  it("encodes special characters in Gemini API key and model", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "graph TD; A-->B" }] } }],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "google",
+      apiKey: "key+with/special=chars&more",
+      model: "gemini/special:model",
+    };
+
+    await generateWithBYOKDetailed(config, "System", "Prompt");
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    const [url] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
+    expect(url).toContain("key=key%2Bwith%2Fspecial%3Dchars%26more");
+    expect(url).toContain("/models/gemini%2Fspecial%3Amodel:generateContent");
   });
 });

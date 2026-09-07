@@ -142,9 +142,7 @@ export function useMermaidLlm(): UseMermaidLlmReturn {
     ...snap,
     load: supported ? engineLoad : unsupportedLoad,
     generate,
-    generateDetailed: supported
-      ? generateDetailed
-      : unsupportedGenerateDetailed,
+    generateDetailed,
     abort,
     unload,
   };

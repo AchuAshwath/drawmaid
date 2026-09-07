@@ -21,12 +21,16 @@ export async function generateWithBYOKDetailed(
 
   const preset = BYOK_PRESETS.find((p) => p.id === providerId);
   const protocol = config.protocol ?? preset?.protocol ?? "openai_compatible";
-  const baseUrl = (
-    configBaseUrl?.trim() ||
-    preset?.defaultBaseUrl ||
-    ""
-  ).replace(/\/$/, "");
+  const rawBaseUrl =
+    configBaseUrl !== undefined
+      ? configBaseUrl.trim()
+      : (preset?.defaultBaseUrl ?? "");
+  const baseUrl = rawBaseUrl.replace(/\/$/, "");
   const presetName = preset?.name.split(" ")[0] || "Provider";
+
+  if (!baseUrl) {
+    throw new Error("Base URL is required");
+  }
 
   const timeoutMs = options.timeoutMs ?? 30000;
   const controller = new AbortController();
@@ -47,7 +51,9 @@ export async function generateWithBYOKDetailed(
   try {
     // 1. Google Gemini Protocol
     if (protocol === "gemini") {
-      const url = `${baseUrl}/models/${model}:generateContent?key=${apiKey.trim()}`;
+      const encodedKey = encodeURIComponent(apiKey.trim());
+      const encodedModel = encodeURIComponent(model);
+      const url = `${baseUrl}/models/${encodedModel}:generateContent?key=${encodedKey}`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,7 +262,8 @@ async function fetchGeminiModels(
   signal: AbortSignal,
   presetName: string,
 ): Promise<BYOKModel[]> {
-  const url = `${baseUrl}/models?key=${apiKey.trim()}`;
+  const encodedKey = encodeURIComponent(apiKey.trim());
+  const url = `${baseUrl}/models?key=${encodedKey}`;
   const response = await fetch(url, { signal });
 
   if (!response.ok) {
@@ -458,12 +465,20 @@ export async function fetchBYOKModels(
   const { providerId, apiKey, baseUrl: configBaseUrl } = config;
   const preset = BYOK_PRESETS.find((p) => p.id === providerId);
   const protocol = config.protocol ?? preset?.protocol ?? "openai_compatible";
-  const baseUrl = (
-    configBaseUrl?.trim() ||
-    preset?.defaultBaseUrl ||
-    ""
-  ).replace(/\/$/, "");
+  const rawBaseUrl =
+    configBaseUrl !== undefined
+      ? configBaseUrl.trim()
+      : (preset?.defaultBaseUrl ?? "");
+  const baseUrl = rawBaseUrl.replace(/\/$/, "");
   const presetName = preset?.name.split(" ")[0] || "Provider";
+
+  if (!baseUrl) {
+    return {
+      success: false,
+      models: [],
+      error: "Base URL is required to fetch models",
+    };
+  }
 
   if (!apiKey || !apiKey.trim()) {
     return {
