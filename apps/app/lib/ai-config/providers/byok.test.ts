@@ -432,4 +432,34 @@ describe("fetchBYOKModels", () => {
     expect(result.error).toContain("OpenAI error (401)");
     expect(result.models).toEqual([]);
   });
+
+  it("cancels fetch cleanly when external AbortSignal triggers", async () => {
+    const controller = new AbortController();
+    globalThis.fetch = vi.fn().mockImplementation((_url, opts) => {
+      return new Promise((_, reject) => {
+        if (opts?.signal?.aborted) {
+          reject(new DOMException("The operation was aborted", "AbortError"));
+        } else {
+          opts?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted", "AbortError"));
+          });
+        }
+      });
+    });
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "openai",
+      apiKey: "sk-test",
+      model: "gpt-4o",
+    };
+
+    const fetchPromise = fetchBYOKModels(config, controller.signal);
+    controller.abort();
+    const result = await fetchPromise;
+
+    expect(result.success).toBe(false);
+    expect(result.models).toEqual([]);
+    expect(result.error).toBe("Request was cancelled");
+  });
 });

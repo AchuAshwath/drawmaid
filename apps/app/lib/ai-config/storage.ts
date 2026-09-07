@@ -231,13 +231,17 @@ export function getConfigDescription(config: AIConfig): string {
     case "webllm":
       return `WebLLM: ${config.modelId}`;
     case "local": {
-      const url = new URL(config.url);
-      return `Local: ${url.hostname}:${url.port || "8317"}`;
+      try {
+        const url = new URL(config.url);
+        return `Local: ${url.hostname}:${url.port || "8317"}`;
+      } catch {
+        return `Local: ${config.url || "unconfigured"}`;
+      }
     }
     case "byok": {
       const preset = BYOK_PRESETS.find((p) => p.id === config.providerId);
       const providerName = preset ? preset.name : config.providerId;
-      return `Cloud (${providerName}): ${config.model}`;
+      return `Cloud (${providerName}): ${config.model || "unselected"}`;
     }
   }
 }

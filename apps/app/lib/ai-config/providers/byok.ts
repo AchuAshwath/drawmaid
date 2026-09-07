@@ -453,6 +453,7 @@ async function fetchOpenAICompatibleModels(
 
 export async function fetchBYOKModels(
   config: BYOKConfig,
+  externalSignal?: AbortSignal,
 ): Promise<{ success: boolean; models: BYOKModel[]; error?: string }> {
   const { providerId, apiKey, baseUrl: configBaseUrl } = config;
   const preset = BYOK_PRESETS.find((p) => p.id === providerId);
@@ -474,6 +475,16 @@ export async function fetchBYOKModels(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
 
   try {
     let models: BYOKModel[];
@@ -502,6 +513,13 @@ export async function fetchBYOKModels(
     }
     return { success: true, models };
   } catch (error) {
+    if (externalSignal?.aborted) {
+      return {
+        success: false,
+        models: [],
+        error: "Request was cancelled",
+      };
+    }
     const message =
       error instanceof Error ? error.message : "Failed to fetch models";
     return {

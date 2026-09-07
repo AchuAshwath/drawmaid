@@ -71,7 +71,7 @@ import {
   EyeOff,
   ExternalLink,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SYSTEM_PROMPT from "../../prompts/system-prompt.md?raw";
 
 interface AIConfigPopupProps {
@@ -146,6 +146,17 @@ export function AIConfigPopup({
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [byokFetchError, setByokFetchError] = useState<string | null>(null);
+  const byokFetchAbortRef = useRef<AbortController | null>(null);
+
+  // Clean up any pending fetch on unmount
+  useEffect(() => {
+    return () => {
+      if (byokFetchAbortRef.current) {
+        byokFetchAbortRef.current.abort();
+        byokFetchAbortRef.current = null;
+      }
+    };
+  }, []);
 
   // Load WebLLM models on mount
   useEffect(() => {
@@ -195,11 +206,20 @@ export function AIConfigPopup({
 
   const handleFetchBYOKModels = useCallback(async (byokConfig: BYOKConfig) => {
     if (!byokConfig.apiKey?.trim()) return;
+
+    // Abort any in-flight request to prevent race conditions when provider/key changes
+    if (byokFetchAbortRef.current) {
+      byokFetchAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    byokFetchAbortRef.current = controller;
+
     setByokFetchStatus("loading");
     setByokFetchError(null);
 
     try {
-      const result = await fetchBYOKModels(byokConfig);
+      const result = await fetchBYOKModels(byokConfig, controller.signal);
+      if (controller.signal.aborted) return;
 
       if (result.success && result.models.length > 0) {
         setByokModels(result.models);
@@ -226,6 +246,7 @@ export function AIConfigPopup({
         setByokFetchError(result.error || "Failed to fetch models");
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       setByokFetchStatus("error");
       setByokFetchError(
         err instanceof Error ? err.message : "Failed to fetch models",
@@ -321,6 +342,10 @@ export function AIConfigPopup({
   }, []);
 
   const handleTabChange = (tab: TabType) => {
+    if (byokFetchAbortRef.current) {
+      byokFetchAbortRef.current.abort();
+      byokFetchAbortRef.current = null;
+    }
     setActiveTab(tab);
     setTestError(null);
     setTestStatus("idle");
@@ -540,13 +565,26 @@ export function AIConfigPopup({
 
   const isWebLLMDisabled = false;
 
-  const filteredAvailableModels = webLLMModels
-    .filter((m) => !downloadedModels.includes(m.id))
-    .filter((m) => m.name.toLowerCase().includes(modelSearch.toLowerCase()));
+  const downloadedSet = useMemo(
+    () => new Set(downloadedModels),
+    [downloadedModels],
+  );
 
-  const filteredDownloadedList = webLLMModels
-    .filter((m) => downloadedModels.includes(m.id))
-    .filter((m) => m.name.toLowerCase().includes(modelSearch.toLowerCase()));
+  const filteredAvailableModels = useMemo(() => {
+    const searchLower = modelSearch.toLowerCase();
+    return webLLMModels.filter(
+      (m) =>
+        !downloadedSet.has(m.id) && m.name.toLowerCase().includes(searchLower),
+    );
+  }, [webLLMModels, downloadedSet, modelSearch]);
+
+  const filteredDownloadedList = useMemo(() => {
+    const searchLower = modelSearch.toLowerCase();
+    return webLLMModels.filter(
+      (m) =>
+        downloadedSet.has(m.id) && m.name.toLowerCase().includes(searchLower),
+    );
+  }, [webLLMModels, downloadedSet, modelSearch]);
 
   const isDownloadingThis = downloadingModel !== null;
 

@@ -102,6 +102,27 @@ describe("getConfigDescription", () => {
     const desc = getConfigDescription(config);
     expect(desc).toContain("8317");
   });
+
+  it("safely handles invalid local server url without throwing", () => {
+    const config: LocalServerConfig = {
+      type: "local",
+      serverType: "custom",
+      url: "not-a-valid-url",
+      model: "llama3",
+    };
+    const desc = getConfigDescription(config);
+    expect(desc).toBe("Local: not-a-valid-url");
+  });
+
+  it("handles BYOK with empty model gracefully", () => {
+    const config: AIConfig = {
+      type: "byok",
+      providerId: "openai",
+      model: "",
+    };
+    const desc = getConfigDescription(config);
+    expect(desc).toBe("Cloud (OpenAI): unselected");
+  });
 });
 
 describe("saveConfig and loadConfigAsync with apiKey", () => {

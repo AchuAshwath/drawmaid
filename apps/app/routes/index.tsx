@@ -60,6 +60,7 @@ import type {
   WebLLMModelInfo,
   LocalModel,
   AIConfig,
+  ProviderType,
 } from "@/lib/ai-config/types";
 
 type GenerationUsage = {
@@ -69,7 +70,7 @@ type GenerationUsage = {
   cachedTokens?: number;
   reasoningTokens?: number;
 } | null;
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 
@@ -121,6 +122,7 @@ function Home() {
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
   const [localServerConfigured, setLocalServerConfigured] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<ProviderType>("webllm");
   const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
     loadVisualLevel(),
   );
@@ -139,8 +141,13 @@ function Home() {
       .catch((err) => console.error("Failed to load WebLLM models:", err));
   }, []);
 
-  const availableWebLLMModels = webLLMModels.filter((m) =>
-    downloadedModelIds.includes(m.id),
+  const downloadedModelIdsSet = useMemo(
+    () => new Set(downloadedModelIds),
+    [downloadedModelIds],
+  );
+  const availableWebLLMModels = useMemo(
+    () => webLLMModels.filter((m) => downloadedModelIdsSet.has(m.id)),
+    [webLLMModels, downloadedModelIdsSet],
   );
   const { isSupported, status, loadProgress, generate, generateDetailed } =
     useMermaidLlm();
@@ -155,6 +162,7 @@ function Home() {
     generate,
     generateDetailed,
     currentModel,
+    provider: activeProvider,
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
@@ -195,13 +203,13 @@ function Home() {
       recoveryUsage?: GenerationUsage;
     },
   ) => {
-    const useLocalServer = localServerConfigured;
+    const useLocalServer = activeProvider === "local";
 
     const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
       intent: options?.intent ?? null,
       generation: {
-        provider: useLocalServer ? "local" : "webllm",
+        provider: activeProvider,
         model: currentModel,
         mode,
         useLocalServer,
@@ -248,6 +256,7 @@ function Home() {
     loadConfigAsync().then((config) => {
       const isExternal = config.type === "local" || config.type === "byok";
       setLocalServerConfigured(isExternal);
+      setActiveProvider(config.type);
 
       if (config.type === "local") {
         if (config.model) {
@@ -274,6 +283,7 @@ function Home() {
       const isExternal =
         newConfig.type === "local" || newConfig.type === "byok";
       setLocalServerConfigured(isExternal);
+      setActiveProvider(newConfig.type);
 
       if (newConfig.type === "local") {
         if (newConfig.model) {
@@ -367,8 +377,6 @@ function Home() {
     setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
-    // Determine which provider to use based on selected model/config
-    const useLocalServer = localServerConfigured;
     let intent: Intent = extractIntent(prompt);
     let generationAttempt: GenerationAttempt | null = null;
 
@@ -378,7 +386,7 @@ function Home() {
           transcript: prompt,
           visualLevel,
           reasoningMode,
-          provider: useLocalServer ? "local" : "webllm",
+          provider: activeProvider,
           modelId: currentModel,
           mode: "manual",
         },
@@ -388,7 +396,7 @@ function Home() {
       intent = generationAttempt.intent;
       logInfo("LLM", "Generation completed", {
         visualLevel,
-        provider: useLocalServer ? "local" : "webllm",
+        provider: activeProvider,
         planUsage: generationAttempt.planUsage,
         renderUsage: generationAttempt.renderUsage,
       });
