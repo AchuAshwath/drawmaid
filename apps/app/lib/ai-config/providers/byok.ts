@@ -1,10 +1,12 @@
 import { BYOK_PRESETS, type BYOKConfig } from "../types";
 import type { ProviderResponse, ProviderUsage } from "../../llm/generation";
+import type { ReasoningMode } from "../../llm/reasoning-mode";
 
 export interface BYOKGenerateOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  reasoningMode?: ReasoningMode;
   signal?: AbortSignal;
 }
 
@@ -51,8 +53,9 @@ export async function generateWithBYOKDetailed(
   try {
     // 1. Google Gemini Protocol
     if (protocol === "gemini") {
+      const cleanModel = model.trim().replace(/^models\//, "");
       const encodedKey = encodeURIComponent(apiKey.trim());
-      const encodedModel = encodeURIComponent(model);
+      const encodedModel = encodeURIComponent(cleanModel);
       const url = `${baseUrl}/models/${encodedModel}:generateContent?key=${encodedKey}`;
       const response = await fetch(url, {
         method: "POST",
@@ -76,10 +79,19 @@ export async function generateWithBYOKDetailed(
       }
 
       const data = await response.json();
+      const parts = data.candidates?.[0]?.content?.parts;
+      const textParts = Array.isArray(parts)
+        ? parts.filter(
+            (p: { thought?: boolean; text?: string }) =>
+              !p.thought && typeof p.text === "string",
+          )
+        : [];
       const text =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ??
-        data.candidates?.[0]?.text ??
-        "";
+        textParts.length > 0
+          ? textParts.map((p: { text: string }) => p.text).join("")
+          : (data.candidates?.[0]?.content?.parts?.[0]?.text ??
+            data.candidates?.[0]?.text ??
+            "");
 
       let usage: ProviderUsage | null = null;
       if (data.usageMetadata) {
@@ -126,9 +138,10 @@ export async function generateWithBYOKDetailed(
 
       const data = await response.json();
       const text =
-        data.content?.find(
-          (c: { type: string; text?: string }) => c.type === "text",
-        )?.text ??
+        data.content
+          ?.filter((c: { type: string; text?: string }) => c.type === "text")
+          ?.map((c: { text?: string }) => c.text ?? "")
+          ?.join("") ??
         data.content?.[0]?.text ??
         "";
 
@@ -161,18 +174,41 @@ export async function generateWithBYOKDetailed(
       headers["X-Title"] = "Drawmaid";
     }
 
+    const normalizedModel = model.trim().toLowerCase();
+    const isOpenAIReasoning = /^o\d(?:-|$)/.test(normalizedModel);
+    const isDeepSeekReasoning = normalizedModel.includes("deepseek-reasoner");
+    const isReasoningModel = isOpenAIReasoning || isDeepSeekReasoning;
+
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages: [
+        {
+          role: isOpenAIReasoning ? "developer" : "system",
+          content: systemPrompt,
+        },
+        { role: "user", content: userPrompt },
+      ],
+    };
+
+    if (!isReasoningModel) {
+      requestBody.temperature = options.temperature ?? 0.1;
+    }
+
+    if (isOpenAIReasoning) {
+      if (options.maxTokens) {
+        requestBody.max_completion_tokens = options.maxTokens;
+      }
+      if (options.reasoningMode === "fast") {
+        requestBody.reasoning_effort = "low";
+      }
+    } else if (options.maxTokens) {
+      requestBody.max_tokens = options.maxTokens;
+    }
+
     const response = await fetch(chatUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: options.temperature ?? 0.1,
-        ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
-      }),
+      body: JSON.stringify(requestBody),
       signal,
     });
 

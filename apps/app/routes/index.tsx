@@ -274,7 +274,9 @@ function Home() {
       } else if (config.type === "byok") {
         if (config.model) {
           setCurrentModel(config.model);
-          setLocalModels([{ id: config.model, name: config.model }]);
+          setLocalModels((prev) =>
+            prev.length > 0 ? prev : [{ id: config.model, name: config.model }],
+          );
         } else {
           setLocalModels([]);
         }
@@ -301,7 +303,13 @@ function Home() {
       } else if (newConfig.type === "byok") {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
-          setLocalModels([{ id: newConfig.model, name: newConfig.model }]);
+          setLocalModels((prev) =>
+            prev.some((m) => m.id === newConfig.model)
+              ? prev
+              : prev.length > 0
+                ? [...prev, { id: newConfig.model, name: newConfig.model }]
+                : [{ id: newConfig.model, name: newConfig.model }],
+          );
         } else {
           setLocalModels([]);
         }

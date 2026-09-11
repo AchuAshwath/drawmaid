@@ -60,9 +60,11 @@ function attachStorageHandler() {
 
   storageHandler = async (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) {
-      const newConfig = await loadConfigAsync();
-      listeners.forEach((listener) => listener(newConfig));
       invalidateConfigCache();
+      const newConfig = await loadConfigAsync();
+      configCache = newConfig;
+      configCacheValid = true;
+      listeners.forEach((listener) => listener(newConfig));
     } else if (event.key === DOWNLOADED_MODELS_KEY) {
       invalidateDownloadedModelsCache();
       const models = getDownloadedModels();

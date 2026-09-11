@@ -531,4 +531,145 @@ describe("generateWithBYOK - baseUrl and encoding edge cases", () => {
     expect(url).toContain("key=key%2Bwith%2Fspecial%3Dchars%26more");
     expect(url).toContain("/models/gemini%2Fspecial%3Amodel:generateContent");
   });
+
+  it("strips models/ prefix from Gemini model name to prevent 404", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "graph TD; A-->B" }] } }],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "google",
+      apiKey: "test-key",
+      model: "models/gemini-2.5-flash",
+    };
+
+    await generateWithBYOKDetailed(config, "System", "Prompt");
+
+    const [url] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
+    expect(url).toContain("/models/gemini-2.5-flash:generateContent");
+    expect(url).not.toContain("models%2F");
+  });
+
+  it("filters out thought: true parts from Gemini 2.0/2.5 thinking models", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  thought: true,
+                  text: "Thinking process: Let's create a flowchart...",
+                },
+                { text: "graph TD\n  Start --> Finish" },
+              ],
+            },
+          },
+        ],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "google",
+      apiKey: "test-key",
+      model: "gemini-2.5-flash",
+    };
+
+    const response = await generateWithBYOK(config, "System", "Prompt");
+    expect(response).toBe("graph TD\n  Start --> Finish");
+    expect(response).not.toContain("Thinking process");
+  });
+
+  it("joins multiple text parts in Anthropic responses", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [
+          { type: "text", text: "sequenceDiagram\n" },
+          { type: "text", text: "  Alice->>Bob: Hello" },
+        ],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "anthropic",
+      apiKey: "test-key",
+      model: "claude-3-7-sonnet-latest",
+    };
+
+    const response = await generateWithBYOK(config, "System", "Prompt");
+    expect(response).toBe("sequenceDiagram\n  Alice->>Bob: Hello");
+  });
+
+  it("handles OpenAI reasoning models (o1, o3) with developer role, max_completion_tokens, and no temperature", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "graph LR; X-->Y" } }],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "openai",
+      apiKey: "sk-test",
+      model: "o3-mini",
+    };
+
+    await generateWithBYOKDetailed(
+      config,
+      "System instructions",
+      "Draw diagram",
+      {
+        maxTokens: 2048,
+        temperature: 0.1,
+        reasoningMode: "fast",
+      },
+    );
+
+    const [, opts] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
+    const body = JSON.parse(opts.body as string);
+
+    // Temperature must be omitted for o-series reasoning models
+    expect(body.temperature).toBeUndefined();
+    // Must use developer role instead of system
+    expect(body.messages[0].role).toBe("developer");
+    expect(body.messages[0].content).toBe("System instructions");
+    // Must use max_completion_tokens instead of max_tokens
+    expect(body.max_completion_tokens).toBe(2048);
+    expect(body.max_tokens).toBeUndefined();
+    // In fast reasoning mode, passes reasoning_effort: "low"
+    expect(body.reasoning_effort).toBe("low");
+  });
+
+  it("omits temperature for DeepSeek reasoner model", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "graph TD; 1-->2" } }],
+      }),
+    } as Response);
+
+    const config: BYOKConfig = {
+      type: "byok",
+      providerId: "deepseek",
+      apiKey: "sk-test",
+      model: "deepseek-reasoner",
+    };
+
+    await generateWithBYOKDetailed(config, "System", "Prompt", {
+      temperature: 0.1,
+    });
+
+    const [, opts] = (globalThis.fetch as unknown as Mock).mock.calls[0]!;
+    const body = JSON.parse(opts.body as string);
+    expect(body.temperature).toBeUndefined();
+  });
 });

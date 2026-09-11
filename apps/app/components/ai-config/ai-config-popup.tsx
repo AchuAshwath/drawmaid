@@ -225,13 +225,12 @@ export function AIConfigPopup({
         setByokModels(result.models);
         setByokFetchStatus("success");
 
-        // Auto-select valid model if current model is empty or does not exist in fetched models
-        const currentModel = byokConfig.model;
-        const modelExists = result.models.some((m) => m.id === currentModel);
-        if (!modelExists && result.models.length > 0) {
+        // Auto-select model only if current model is not set
+        const currentModel = byokConfig.model?.trim();
+        if (!currentModel && result.models.length > 0) {
           const nextModel = result.models[0]!.id;
           setConfig((prev) => {
-            if (prev.type === "byok") {
+            if (prev.type === "byok" && !prev.model?.trim()) {
               return {
                 ...prev,
                 model: nextModel,
