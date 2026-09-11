@@ -41,9 +41,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Github, Moon, Sun, Settings, Copy, Check, X } from "lucide-react";
 import { MagicBroomIcon } from "@repo/ui/components/icons/game-icons-magic-broom";
 import { fetchLocalServerModels } from "@/lib/ai-config/test-connection";
+import { fetchBYOKModels } from "@/lib/ai-config/providers/byok";
 import { getWebLLMModelInfos } from "@/lib/ai-config/webllm-models";
 import {
   loadConfigAsync,
+  saveConfig,
   getDownloadedModels,
   subscribeToConfigChanges,
   subscribeToDownloadedModelsChanges,
@@ -58,6 +60,7 @@ import type {
   WebLLMModelInfo,
   LocalModel,
   AIConfig,
+  ProviderType,
 } from "@/lib/ai-config/types";
 
 type GenerationUsage = {
@@ -67,7 +70,7 @@ type GenerationUsage = {
   cachedTokens?: number;
   reasoningTokens?: number;
 } | null;
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_WEBLLM_MODEL = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 
@@ -119,6 +122,7 @@ function Home() {
   const [currentModel, setCurrentModel] =
     useState<string>(DEFAULT_WEBLLM_MODEL);
   const [localServerConfigured, setLocalServerConfigured] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<ProviderType>("webllm");
   const [visualLevel, setVisualLevel] = useState<VisualLevel>(() =>
     loadVisualLevel(),
   );
@@ -137,8 +141,13 @@ function Home() {
       .catch((err) => console.error("Failed to load WebLLM models:", err));
   }, []);
 
-  const availableWebLLMModels = webLLMModels.filter((m) =>
-    downloadedModelIds.includes(m.id),
+  const downloadedModelIdsSet = useMemo(
+    () => new Set(downloadedModelIds),
+    [downloadedModelIds],
+  );
+  const availableWebLLMModels = useMemo(
+    () => webLLMModels.filter((m) => downloadedModelIdsSet.has(m.id)),
+    [webLLMModels, downloadedModelIdsSet],
   );
   const { isSupported, status, loadProgress, generate, generateDetailed } =
     useMermaidLlm();
@@ -153,6 +162,7 @@ function Home() {
     generate,
     generateDetailed,
     currentModel,
+    provider: activeProvider,
     isLocalServerConfigured: localServerConfigured,
     isAutoMode: mode === "auto",
     transcript: prompt,
@@ -193,13 +203,13 @@ function Home() {
       recoveryUsage?: GenerationUsage;
     },
   ) => {
-    const useLocalServer = localServerConfigured;
+    const useLocalServer = activeProvider === "local";
 
     const drawmaidError = createDrawmaidError(stage, errorType, message, {
       transcript: prompt,
       intent: options?.intent ?? null,
       generation: {
-        provider: useLocalServer ? "local" : "webllm",
+        provider: activeProvider,
         model: currentModel,
         mode,
         useLocalServer,
@@ -222,26 +232,53 @@ function Home() {
     setErrorContext(drawmaidError);
   };
 
-  // Fetch local server models
+  // Fetch models for local server or BYOK provider
   const fetchModels = useCallback((config: AIConfig) => {
     if (config.type === "local" && "url" in config && config.url) {
-      fetchLocalServerModels(config.url, config.apiKey).then((result) => {
-        if (result.success && result.models) {
-          setLocalModels(result.models);
-        }
-      });
+      fetchLocalServerModels(config.url, config.apiKey)
+        .then((result) => {
+          if (result.success && result.models) {
+            setLocalModels(result.models);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch local server models:", err);
+        });
+    } else if (config.type === "byok" && config.apiKey) {
+      fetchBYOKModels(config)
+        .then((result) => {
+          if (result.success && result.models && result.models.length > 0) {
+            setLocalModels(
+              result.models.map((m) => ({ id: m.id, name: m.name })),
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch BYOK models:", err);
+        });
     }
   }, []);
 
   // Initial load and subscribe to config changes
   useEffect(() => {
     loadConfigAsync().then((config) => {
-      const isLocal = config.type === "local";
-      setLocalServerConfigured(isLocal);
+      const isExternal = config.type === "local" || config.type === "byok";
+      setLocalServerConfigured(isExternal);
+      setActiveProvider(config.type);
 
-      if (isLocal) {
+      if (config.type === "local") {
         if (config.model) {
           setCurrentModel(config.model);
+        }
+        fetchModels(config);
+      } else if (config.type === "byok") {
+        if (config.model) {
+          setCurrentModel(config.model);
+          setLocalModels((prev) =>
+            prev.length > 0 ? prev : [{ id: config.model, name: config.model }],
+          );
+        } else {
+          setLocalModels([]);
         }
         fetchModels(config);
       } else {
@@ -253,12 +290,28 @@ function Home() {
 
     // Subscribe to config changes (when user saves new config)
     const unsubscribe = subscribeToConfigChanges((newConfig) => {
-      const newIsLocal = newConfig.type === "local";
-      setLocalServerConfigured(newIsLocal);
+      const isExternal =
+        newConfig.type === "local" || newConfig.type === "byok";
+      setLocalServerConfigured(isExternal);
+      setActiveProvider(newConfig.type);
 
-      if (newIsLocal) {
+      if (newConfig.type === "local") {
         if (newConfig.model) {
           setCurrentModel(newConfig.model);
+        }
+        fetchModels(newConfig);
+      } else if (newConfig.type === "byok") {
+        if (newConfig.model) {
+          setCurrentModel(newConfig.model);
+          setLocalModels((prev) =>
+            prev.some((m) => m.id === newConfig.model)
+              ? prev
+              : prev.length > 0
+                ? [...prev, { id: newConfig.model, name: newConfig.model }]
+                : [{ id: newConfig.model, name: newConfig.model }],
+          );
+        } else {
+          setLocalModels([]);
         }
         fetchModels(newConfig);
       } else if (newConfig.type === "webllm") {
@@ -285,6 +338,15 @@ function Home() {
 
   const handleSelectModel = (modelId: string) => {
     setCurrentModel(modelId);
+    loadConfigAsync().then((config) => {
+      if (config.type === "local" && config.model !== modelId) {
+        saveConfig({ ...config, model: modelId });
+      } else if (config.type === "byok" && config.model !== modelId) {
+        saveConfig({ ...config, model: modelId });
+      } else if (config.type === "webllm" && config.modelId !== modelId) {
+        saveConfig({ ...config, modelId });
+      }
+    });
   };
 
   const handleToggleTheme = () => {
@@ -331,8 +393,6 @@ function Home() {
     setIsGenerating(true);
     let mermaidOutput: string | null = null;
 
-    // Determine which provider to use based on selected model/config
-    const useLocalServer = localServerConfigured;
     let intent: Intent = extractIntent(prompt);
     let generationAttempt: GenerationAttempt | null = null;
 
@@ -342,7 +402,7 @@ function Home() {
           transcript: prompt,
           visualLevel,
           reasoningMode,
-          provider: useLocalServer ? "local" : "webllm",
+          provider: activeProvider,
           modelId: currentModel,
           mode: "manual",
         },
@@ -352,7 +412,7 @@ function Home() {
       intent = generationAttempt.intent;
       logInfo("LLM", "Generation completed", {
         visualLevel,
-        provider: useLocalServer ? "local" : "webllm",
+        provider: activeProvider,
         planUsage: generationAttempt.planUsage,
         renderUsage: generationAttempt.renderUsage,
       });
@@ -693,7 +753,9 @@ function Home() {
               !prompt ||
               status === "loading" ||
               status === "generating" ||
-              !isSupported ||
+              isGenerating ||
+              isProcessing ||
+              (activeProvider === "webllm" && !isSupported) ||
               !apiReady
             }
             generating={
@@ -786,18 +848,22 @@ function ErrorAlertActions({
   const [copyStatus, setCopyStatus] = useState<"copy" | "copied">("copy");
 
   const handleCopy = async () => {
-    if (!errorContext) {
-      await navigator.clipboard.writeText("No error details available");
+    try {
+      if (!errorContext) {
+        await navigator.clipboard.writeText("No error details available");
+        setCopyStatus("copied");
+        setTimeout(() => setCopyStatus("copy"), 2000);
+        return;
+      }
+
+      const details = formatErrorForCopy(errorContext);
+
+      await navigator.clipboard.writeText(details);
       setCopyStatus("copied");
       setTimeout(() => setCopyStatus("copy"), 2000);
-      return;
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
     }
-
-    const details = formatErrorForCopy(errorContext);
-
-    await navigator.clipboard.writeText(details);
-    setCopyStatus("copied");
-    setTimeout(() => setCopyStatus("copy"), 2000);
   };
 
   return (

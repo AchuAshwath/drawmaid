@@ -28,7 +28,7 @@ export interface IntentInfo {
 }
 
 export interface GenerationContext {
-  provider: "webllm" | "local";
+  provider: "webllm" | "local" | "byok";
   model: string;
   mode: "auto" | "normal";
   useLocalServer: boolean;

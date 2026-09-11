@@ -30,6 +30,7 @@ interface UseAutoModeOptions {
   ) => Promise<string | null>;
   generateDetailed?: GenerationProvider;
   currentModel: string;
+  provider?: "webllm" | "local" | "byok";
   isLocalServerConfigured?: boolean;
   isAutoMode: boolean;
   transcript: string;
@@ -61,7 +62,9 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   const taskEpochRef = useRef(new WeakMap<object, number>());
   const previousVisualLevelRef = useRef(visualLevel);
   const previousReasoningModeRef = useRef(options.reasoningMode);
-  const previousLocalModeRef = useRef(Boolean(options.isLocalServerConfigured));
+  const initialProvider: "webllm" | "local" | "byok" =
+    options.provider ?? (options.isLocalServerConfigured ? "local" : "webllm");
+  const previousProviderRef = useRef(initialProvider);
   const lastProcessedRef = useRef("");
   const optionsRef = useRef(options);
   const transcriptRef = useRef(transcript);
@@ -77,6 +80,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         currentModel: model,
         generate: gen,
         generateDetailed,
+        provider: taskProviderProp,
         isLocalServerConfigured,
         visualLevel: taskVisualLevel,
         reasoningMode: taskReasoningMode,
@@ -91,12 +95,14 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       setIsGenerating(true);
       onGeneratingChange?.(true);
 
-      const useLocal = Boolean(isLocalServerConfigured);
+      const taskProvider: "webllm" | "local" | "byok" =
+        taskProviderProp ?? (isLocalServerConfigured ? "local" : "webllm");
+      const useLocal = taskProvider === "local";
       const intent = extractIntent(task.transcript);
 
       logInfo("AUTO_MODE", `Generation task #${task.id ?? "?"} started`, {
         length: task.transcript.length,
-        provider: useLocal ? "local" : "webllm",
+        provider: taskProvider,
         model,
         intent,
       });
@@ -113,7 +119,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
           {
             transcript: task.transcript,
             visualLevel: taskVisualLevel,
-            provider: useLocal ? "local" : "webllm",
+            provider: taskProvider,
             modelId: model,
             mode: "auto",
             reasoningMode: taskReasoningMode,
@@ -163,7 +169,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
             transcript: task.transcript,
             intent,
             generation: {
-              provider: useLocal ? "local" : "webllm",
+              provider: taskProvider,
               model,
               mode: "auto",
               useLocalServer: useLocal,
@@ -206,6 +212,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       const {
         onError,
         currentModel: model,
+        provider: resultProviderProp,
         isLocalServerConfigured,
       } = optionsRef.current;
       const api = excalidrawApiRef.current;
@@ -214,8 +221,10 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
         return;
       }
 
+      const taskProvider: "webllm" | "local" | "byok" =
+        resultProviderProp ?? (isLocalServerConfigured ? "local" : "webllm");
+      const useLocal = taskProvider === "local";
       const intent = extractIntent(task.transcript);
-      const useLocal = Boolean(isLocalServerConfigured);
       let normalizedCode: string | null = null;
       const insertionState: { result: InsertMermaidResult | null } = {
         result: null,
@@ -276,7 +285,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
               transcript: task.transcript,
               intent,
               generation: {
-                provider: useLocal ? "local" : "webllm",
+                provider: taskProvider,
                 model,
                 mode: "auto",
                 useLocalServer: useLocal,
@@ -311,7 +320,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
             transcript: task.transcript,
             intent,
             generation: {
-              provider: useLocal ? "local" : "webllm",
+              provider: taskProvider,
               model,
               mode: "auto",
               useLocalServer: useLocal,
@@ -385,18 +394,21 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   }, [isAutoMode, transcript, createEngine]);
 
   useEffect(() => {
-    const isLocal = Boolean(optionsRef.current.isLocalServerConfigured);
+    const activeProvider: "webllm" | "local" | "byok" =
+      optionsRef.current.provider ??
+      (optionsRef.current.isLocalServerConfigured ? "local" : "webllm");
+    const isExternal = activeProvider !== "webllm";
     const visualLevelChanged = previousVisualLevelRef.current !== visualLevel;
     const reasoningModeChanged =
       previousReasoningModeRef.current !== options.reasoningMode;
-    const providerChanged = previousLocalModeRef.current !== isLocal;
+    const providerChanged = previousProviderRef.current !== activeProvider;
     if (!visualLevelChanged && !reasoningModeChanged && !providerChanged) {
       return;
     }
 
     previousVisualLevelRef.current = visualLevel;
     previousReasoningModeRef.current = options.reasoningMode;
-    previousLocalModeRef.current = isLocal;
+    previousProviderRef.current = activeProvider;
 
     if (providerChanged) {
       invalidateCurrentGeneration();
@@ -417,7 +429,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
       (visualLevelChanged || reasoningModeChanged) &&
       isAutoMode &&
       engineRef.current &&
-      isLocal
+      isExternal
     ) {
       if (visualLevelChanged) {
         engineRef.current.updateSettlingMs(
@@ -429,6 +441,7 @@ export function useAutoMode(options: UseAutoModeOptions): UseAutoModeReturn {
   }, [
     visualLevel,
     options.reasoningMode,
+    options.provider,
     isLocalServerConfigured,
     isAutoMode,
     createEngine,

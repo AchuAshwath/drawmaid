@@ -1,4 +1,4 @@
-export type ProviderType = "webllm" | "local";
+export type ProviderType = "webllm" | "local" | "byok";
 
 export interface WebLLMConfig {
   type: "webllm";
@@ -69,7 +69,106 @@ export interface LocalServerConfig {
   model: string;
 }
 
-export type AIConfig = WebLLMConfig | LocalServerConfig;
+export type BYOKProviderId =
+  | "google"
+  | "anthropic"
+  | "openai"
+  | "groq"
+  | "deepseek"
+  | "mistral"
+  | "openrouter"
+  | "custom";
+
+export type BYOKProtocol = "gemini" | "anthropic" | "openai_compatible";
+
+export interface BYOKPreset {
+  id: BYOKProviderId;
+  name: string;
+  protocol: BYOKProtocol;
+  defaultBaseUrl: string;
+  keyPlaceholder: string;
+  keyHelpUrl: string;
+}
+
+export const BYOK_PRESETS: BYOKPreset[] = [
+  {
+    id: "google",
+    name: "Google Gemini",
+    protocol: "gemini",
+    defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    keyPlaceholder: "AIzaSy...",
+    keyHelpUrl: "https://aistudio.google.com/app/apikey",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    protocol: "anthropic",
+    defaultBaseUrl: "https://api.anthropic.com/v1",
+    keyPlaceholder: "sk-ant-api03-...",
+    keyHelpUrl: "https://console.anthropic.com/settings/keys",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    keyPlaceholder: "sk-proj-...",
+    keyHelpUrl: "https://platform.openai.com/api-keys",
+  },
+  {
+    id: "groq",
+    name: "Groq (Ultra-fast)",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
+    keyPlaceholder: "gsk_...",
+    keyHelpUrl: "https://console.groq.com/keys",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    keyPlaceholder: "sk-...",
+    keyHelpUrl: "https://platform.deepseek.com/api_keys",
+  },
+  {
+    id: "mistral",
+    name: "Mistral AI",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.mistral.ai/v1",
+    keyPlaceholder: "...",
+    keyHelpUrl: "https://console.mistral.ai/api-keys/",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter (All-in-one)",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    keyPlaceholder: "sk-or-v1-...",
+    keyHelpUrl: "https://openrouter.ai/keys",
+  },
+  {
+    id: "custom",
+    name: "Custom OpenAI-Compatible",
+    protocol: "openai_compatible",
+    defaultBaseUrl: "https://api.example.com/v1",
+    keyPlaceholder: "api-key",
+    keyHelpUrl: "",
+  },
+];
+
+export interface BYOKConfig {
+  type: "byok";
+  providerId: BYOKProviderId;
+  protocol?: BYOKProtocol;
+  baseUrl?: string;
+  apiKey?: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export type AIConfig = WebLLMConfig | LocalServerConfig | BYOKConfig;
 
 export interface StoredConfig {
   config: AIConfig;
@@ -88,6 +187,15 @@ export const DEFAULT_LOCAL_SERVER: LocalServerConfig = {
   type: "local",
   serverType: "cliproxyapi",
   url: "http://127.0.0.1:8317/v1",
+  model: "",
+};
+
+export const DEFAULT_BYOK_CONFIG: BYOKConfig = {
+  type: "byok",
+  providerId: "google",
+  protocol: "gemini",
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+  apiKey: "",
   model: "",
 };
 

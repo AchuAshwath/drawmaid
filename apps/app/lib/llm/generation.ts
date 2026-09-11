@@ -36,7 +36,7 @@ export type GenerationProvider = (
 export interface GenerationRequest {
   readonly transcript: string;
   readonly visualLevel: VisualLevel;
-  readonly provider: "local" | "webllm";
+  readonly provider: "local" | "webllm" | "byok";
   readonly modelId: string;
   readonly mode: "manual" | "auto";
   readonly reasoningMode?: ReasoningMode;
@@ -167,7 +167,7 @@ export async function generateDiagram(
   provider: GenerationProvider,
 ): Promise<GenerationAttempt> {
   const intent = extractIntent(request.transcript);
-  const local = request.provider === "local";
+  const local = request.provider === "local" || request.provider === "byok";
   const policy = local ? getVisualLevelPolicy(request.visualLevel) : null;
   const transcriptPrompt = local
     ? request.transcript

@@ -149,4 +149,25 @@ describe("generation diagnostics", () => {
     expect(report).toContain("RENDER USAGE: prompt=? completion=? total=30");
     expect(report).toContain("RECOVERY USAGE: prompt=? completion=? total=12");
   });
+
+  it("formats BYOK provider accurately in error report", () => {
+    const error = createDrawmaidError(
+      "llm_generate",
+      "api_error",
+      "Anthropic error (429): rate limit",
+      {
+        generation: {
+          provider: "byok",
+          model: "claude-3-7-sonnet-latest",
+          mode: "normal",
+          useLocalServer: false,
+          visualLevel: "medium",
+        },
+      },
+    );
+
+    const report = formatErrorForCopy(error);
+    expect(report).toContain("PROVIDER: byok");
+    expect(report).toContain("MODEL: claude-3-7-sonnet-latest");
+  });
 });

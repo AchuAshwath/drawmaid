@@ -1,6 +1,11 @@
 import { encrypt, decrypt } from "./encryption";
-import type { AIConfig, StoredConfig, LocalServerConfig } from "./types";
-import { DEFAULT_CONFIG } from "./types";
+import type {
+  AIConfig,
+  StoredConfig,
+  LocalServerConfig,
+  BYOKConfig,
+} from "./types";
+import { DEFAULT_CONFIG, BYOK_PRESETS } from "./types";
 
 const STORAGE_KEY = "drawmaid-ai-config";
 const DOWNLOADED_MODELS_KEY = "drawmaid-downloaded-models";
@@ -55,9 +60,11 @@ function attachStorageHandler() {
 
   storageHandler = async (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) {
-      const newConfig = await loadConfigAsync();
-      listeners.forEach((listener) => listener(newConfig));
       invalidateConfigCache();
+      const newConfig = await loadConfigAsync();
+      configCache = newConfig;
+      configCacheValid = true;
+      listeners.forEach((listener) => listener(newConfig));
     } else if (event.key === DOWNLOADED_MODELS_KEY) {
       invalidateDownloadedModelsCache();
       const models = getDownloadedModels();
@@ -128,6 +135,28 @@ async function serializeConfig(config: AIConfig): Promise<string> {
     } else {
       toStore = { config };
     }
+  } else if (config.type === "byok") {
+    const byokConfig = config as BYOKConfig;
+    if (byokConfig.apiKey) {
+      const { ciphertext, iv } = await encrypt(byokConfig.apiKey);
+      const { apiKey: _removed, ...restConfig } = byokConfig;
+      void _removed;
+      toStore = {
+        config: {
+          type: "byok",
+          providerId: restConfig.providerId,
+          protocol: restConfig.protocol,
+          baseUrl: restConfig.baseUrl,
+          model: restConfig.model,
+          temperature: restConfig.temperature,
+          maxTokens: restConfig.maxTokens,
+        } as BYOKConfig,
+        encryptedApiKey: ciphertext,
+        iv,
+      };
+    } else {
+      toStore = { config };
+    }
   } else {
     toStore = { config };
   }
@@ -146,6 +175,8 @@ async function deserializeConfig(stored: string): Promise<AIConfig> {
       if (!(config as LocalServerConfig).serverType) {
         (config as LocalServerConfig).serverType = "custom";
       }
+    } else if (config.type === "byok") {
+      (config as BYOKConfig).apiKey = decryptedApiKey;
     }
   }
 
@@ -202,8 +233,17 @@ export function getConfigDescription(config: AIConfig): string {
     case "webllm":
       return `WebLLM: ${config.modelId}`;
     case "local": {
-      const url = new URL(config.url);
-      return `Local: ${url.hostname}:${url.port || "8317"}`;
+      try {
+        const url = new URL(config.url);
+        return `Local: ${url.hostname}:${url.port || "8317"}`;
+      } catch {
+        return `Local: ${config.url || "unconfigured"}`;
+      }
+    }
+    case "byok": {
+      const preset = BYOK_PRESETS.find((p) => p.id === config.providerId);
+      const providerName = preset ? preset.name : config.providerId;
+      return `Cloud (${providerName}): ${config.model || "unselected"}`;
     }
   }
 }
